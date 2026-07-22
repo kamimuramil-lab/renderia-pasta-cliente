@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RENDERIA — Sua galeria</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
+</head>
+<body>
+
+<!-- ===================== TELA DE LOGIN ===================== -->
+<div class="tela-login" id="telaLogin">
+  <div class="card-login">
+    <div class="selo"><img src="assets/img/logo.jpg" alt="RENDERIA"></div>
+    <h1 id="tituloLogin">Sua galeria RENDERIA</h1>
+    <p class="sub">Entre com o usuário e senha que seu arquiteto te enviou.</p>
+    <div class="campo-login">
+      <label>Usuário</label>
+      <input type="text" id="inputUsuarioCliente" autocomplete="username">
+    </div>
+    <div class="campo-login">
+      <label>Senha</label>
+      <input type="password" id="inputSenhaCliente" autocomplete="current-password">
+    </div>
+    <div class="linha-lembrar">
+      <input type="checkbox" id="chkLembrarDispositivo" checked>
+      <label for="chkLembrarDispositivo">Lembrar neste dispositivo</label>
+    </div>
+    <button class="btn-entrar" id="btnEntrarCliente">Entrar</button>
+    <div class="msg-erro-login" id="msgErroLogin" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- ===================== TELA DA GALERIA ===================== -->
+<div id="telaGaleria" style="display:none;">
+  <div class="topo-galeria">
+    <div class="selo"><img src="assets/img/logo.jpg" alt="RENDERIA"></div>
+    <div style="flex:1;">
+      <h1 id="nomeProjetoGaleria">Projeto</h1>
+    </div>
+    <div class="marca-rodape">RENDERIA</div>
+  </div>
+  <div class="wrap-galeria" id="wrapGaleria"></div>
+</div>
+
+<!-- ===================== VISUALIZADOR ===================== -->
+<div class="visualizador" id="visualizador" style="display:none;">
+  <div class="visualizador-topo">
+    <div>
+      <div class="nome" id="nomeFotoVisualizador"></div>
+      <div class="tag" id="tagFotoVisualizador"></div>
+    </div>
+    <button class="btn-fechar-visualizador" id="btnFecharVisualizador">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+  <div class="area-imagem-visualizador">
+    <button class="seta-nav esquerda" id="btnAnteriorFoto">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <img id="imgFotoVisualizador" style="display:none;">
+    <div id="painelPanoramaCliente" class="painel-panorama" style="display:none;"></div>
+    <button class="seta-nav direita" id="btnProximaFoto">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+  </div>
+  <div class="painel-inferior-visualizador">
+    <div class="linha-acoes-visualizador">
+      <button class="btn-aprovar" id="btnAprovarFoto">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 7"/></svg>
+        <span id="textoBtnAprovar">Aprovar essa imagem</span>
+      </button>
+    </div>
+    <div class="area-comentario">
+      <textarea id="inputComentario" placeholder="Escreva o que você quer que mude nessa imagem..." rows="2"></textarea>
+      <button id="btnEnviarComentario">Enviar</button>
+    </div>
+    <div class="lista-comentarios" id="listaComentariosFoto"></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+<script src="assets/js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "renderia-pasta-cliente",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Servidor da Pasta do Cliente do RENDERIA -- galeria compartilhável com o cliente final",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "bcryptjs": "^2.4.3",
+    "multer": "^2.0.0",
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@aws-sdk/s3-request-presigner": "^3.600.0"
+  }
+}
