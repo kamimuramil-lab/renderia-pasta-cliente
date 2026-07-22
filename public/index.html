@@ -42,15 +42,21 @@
     </div>
     <div class="marca-rodape">RENDERIA</div>
   </div>
-  <div class="wrap-galeria" id="wrapGaleria"></div>
+  <div class="wrap-galeria">
+    <div class="barra-progresso-cliente" id="barraProgressoCliente" style="display:none;">
+      <div class="barra-progresso-cliente-preenchimento" id="preenchimentoProgressoCliente"></div>
+    </div>
+    <div class="texto-progresso-cliente" id="textoProgressoCliente"></div>
+    <div id="wrapGaleria"></div>
+  </div>
 </div>
 
 <!-- ===================== VISUALIZADOR ===================== -->
 <div class="visualizador" id="visualizador" style="display:none;">
   <div class="visualizador-topo">
     <div>
+      <div class="tag" id="categoriaAtualVisualizador"></div>
       <div class="nome" id="nomeFotoVisualizador"></div>
-      <div class="tag" id="tagFotoVisualizador"></div>
     </div>
     <button class="btn-fechar-visualizador" id="btnFecharVisualizador">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -66,8 +72,11 @@
     <button class="seta-nav direita" id="btnProximaFoto">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 18l6-6-6-6"/></svg>
     </button>
+    <button class="btn-proxima-categoria" id="btnProximaCategoria" style="display:none;">
+      Próxima categoria: <span id="nomeProximaCategoria"></span> →
+    </button>
   </div>
-  <div class="painel-inferior-visualizador">
+  <div class="painel-inferior-visualizador" id="painelInferiorVisualizador">
     <div class="linha-acoes-visualizador">
       <button class="btn-aprovar" id="btnAprovarFoto">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 7"/></svg>

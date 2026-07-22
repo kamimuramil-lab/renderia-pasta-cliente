@@ -65,6 +65,16 @@ async function galeriaComUrls(galeriaObj) {
 
 app.get('/saude', (req, res) => res.json({ ok: true, servico: 'renderia-pasta-cliente' }));
 
+// Só devolve um número (não é dado sensível) -- usado pelo painel do
+// servidor de licenças pra mostrar "quantas fotos esse arquiteto já usa".
+// Libera CORS só aqui: quem chama isso é o painel /admin do servidor de
+// licenças, que fica num domínio diferente deste.
+app.get('/api/contagem-fotos/:licencaUsuario', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  const usado = galeria.contarFotosDoUsuario(CAMINHO_DADOS, req.params.licencaUsuario);
+  res.json({ usado });
+});
+
 // ====================================================================
 // ROTAS DO APP (o arquiteto -- precisa de sessão válida do RENDERIA)
 // ====================================================================

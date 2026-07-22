@@ -12,7 +12,9 @@ if (!LINK_TOKEN) {
 
 const estado = {
   galeria: null,
-  fotosOrdenadas: [], // lista achatada, na ordem, usada pra navegação com setas
+  categoriasOrdenadas: [], // todas as categorias, na ordem, + a virtual "sem categoria" se houver fotos soltas
+  indiceCategoriaAtual: -1,
+  fotosCategoriaAtual: [], // fotos da categoria aberta agora (pode incluir o mood como 1º item virtual)
   indiceAtual: -1,
   visualizadorPanorama: null,
   tokenClienteAtual: null // token da sessão ATUAL -- sempre usado nas chamadas, independente de estar salvo em localStorage ou não
@@ -67,9 +69,6 @@ async function fazerLogin() {
     });
     const dados = await resp.json();
     if (!resp.ok) throw new Error(dados.erro || 'Usuário ou senha incorretos.');
-    // O token dessa sessão SEMPRE fica em memória (senão nem essa visita
-    // funcionaria) -- só grava em localStorage (pra continuar valendo da
-    // próxima vez que abrir o link) se "lembrar neste dispositivo" estiver marcado.
     estado.tokenClienteAtual = dados.token;
     if ($('chkLembrarDispositivo').checked) localStorage.setItem(CHAVE_LOCAL, dados.token);
     else localStorage.removeItem(CHAVE_LOCAL);
@@ -84,7 +83,11 @@ async function fazerLogin() {
   }
 }
 
-// ---------- Galeria ----------
+function escapeHtml(s) {
+  return (s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// ---------- Home: grade de categorias ----------
 function mostrarGaleria(galeria) {
   estado.galeria = galeria;
   $('telaLogin').style.display = 'none';
@@ -92,65 +95,75 @@ function mostrarGaleria(galeria) {
   $('nomeProjetoGaleria').textContent = galeria.nomeProjeto;
   document.title = `${galeria.nomeProjeto} — RENDERIA`;
 
-  estado.fotosOrdenadas = [...galeria.fotos].sort((a, b) => a.ordem - b.ordem);
+  const fotosValidas = galeria.fotos.filter((f) => !f.arquivada);
+  const qtdAprovadas = fotosValidas.filter((f) => f.aprovada).length;
+  if (fotosValidas.length) {
+    $('barraProgressoCliente').style.display = 'block';
+    $('preenchimentoProgressoCliente').style.width = `${Math.round((qtdAprovadas / fotosValidas.length) * 100)}%`;
+    $('textoProgressoCliente').textContent = `${qtdAprovadas} de ${fotosValidas.length} fotos aprovadas`;
+  }
 
-  const porTag = new Map();
-  estado.fotosOrdenadas.forEach((f) => {
-    const chave = f.tag || 'Fotos';
-    if (!porTag.has(chave)) porTag.set(chave, []);
-    porTag.get(chave).push(f);
-  });
+  const categoriasReais = [...(galeria.categorias || [])].sort((a, b) => a.ordem - b.ordem);
+  const semCategoria = fotosValidas.filter((f) => !f.categoriaId);
+
+  estado.categoriasOrdenadas = categoriasReais.map((cat) => ({
+    id: cat.id,
+    nome: cat.nome,
+    moodUrl: cat.moodUrl || null,
+    fotos: fotosValidas.filter((f) => f.categoriaId === cat.id).sort((a, b) => a.ordem - b.ordem)
+  }));
+  if (semCategoria.length) {
+    estado.categoriasOrdenadas.push({
+      id: null,
+      nome: 'Outras fotos',
+      moodUrl: null,
+      fotos: semCategoria.sort((a, b) => a.ordem - b.ordem)
+    });
+  }
 
   const wrap = $('wrapGaleria');
-  if (!estado.fotosOrdenadas.length) {
+  if (!fotosValidas.length) {
     wrap.innerHTML = '<div class="vazio-galeria">Ainda não tem nenhuma foto por aqui. Volte em breve!</div>';
     return;
   }
+  if (!estado.categoriasOrdenadas.length) {
+    wrap.innerHTML = '<div class="vazio-galeria">As fotos ainda estão sendo organizadas. Volte em breve!</div>';
+    return;
+  }
 
-  wrap.innerHTML = Array.from(porTag.entries()).map(([tag, fotos]) => `
-    <div class="secao-ambiente">
-      <h2>${escapeHtml(tag)}</h2>
-      <div class="grid-fotos">
-        ${fotos.map((f) => `
-          <div class="card-foto" data-foto-id="${f.id}">
-            <img src="${f.url}" loading="lazy">
-            ${f.tipo === '360' ? '<div class="badge-360">360°</div>' : ''}
-            ${f.aprovada ? '<div class="badge-aprovada">✓ Aprovada</div>' : (f.comentarios.length ? '<div class="badge-comentario">💬</div>' : '')}
-            <div class="nome-foto">${escapeHtml(f.nomeExibicao)}</div>
-          </div>
-        `).join('')}
+  wrap.innerHTML = `<div class="grid-categorias">
+    ${estado.categoriasOrdenadas.map((cat, idx) => `
+      <div class="card-categoria ${cat.moodUrl ? 'tem-imagem' : ''}" data-categoria-indice="${idx}">
+        ${cat.moodUrl ? `<img src="${cat.moodUrl}" loading="lazy">` : ''}
+        <div class="nome-categoria-capa">
+          ${escapeHtml(cat.nome)}
+          <div class="contagem-categoria">${cat.fotos.length} foto${cat.fotos.length === 1 ? '' : 's'}</div>
+        </div>
       </div>
-    </div>
-  `).join('');
+    `).join('')}
+  </div>`;
 
-  wrap.querySelectorAll('[data-foto-id]').forEach((card) => {
-    card.addEventListener('click', () => abrirVisualizador(card.dataset.fotoId));
+  wrap.querySelectorAll('[data-categoria-indice]').forEach((card) => {
+    card.addEventListener('click', () => abrirCategoria(parseInt(card.dataset.categoriaIndice, 10)));
   });
 }
 
-function escapeHtml(s) {
-  return (s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
-// ---------- Visualizador (com navegação e 360°) ----------
-function abrirVisualizador(fotoId) {
-  const indice = estado.fotosOrdenadas.findIndex((f) => f.id === fotoId);
-  if (indice === -1) return;
-  estado.indiceAtual = indice;
-  // Empurra uma entrada no histórico só pra isso -- assim o botão
-  // voltar (do navegador OU do celular) fecha o visualizador em vez de
-  // sair do site inteiro. O fechamento de verdade só acontece dentro do
-  // "popstate" abaixo, pra ter um único lugar responsável por isso.
+// ---------- Abrir uma categoria (mood primeiro, se tiver, depois as fotos) ----------
+function abrirCategoria(indiceCategoria) {
+  const cat = estado.categoriasOrdenadas[indiceCategoria];
+  if (!cat) return;
+  estado.indiceCategoriaAtual = indiceCategoria;
+  estado.fotosCategoriaAtual = cat.moodUrl
+    ? [{ __ehMood: true, url: cat.moodUrl, nomeExibicao: cat.nome }, ...cat.fotos]
+    : [...cat.fotos];
+  if (!estado.fotosCategoriaAtual.length) return; // categoria vazia, sem mood -- não tem o que abrir
+  estado.indiceAtual = 0;
   history.pushState({ renderiaVisualizador: true }, '');
   $('visualizador').style.display = 'flex';
   renderizarFotoAtualNoVisualizador();
 }
 
-// Chamado pelo botão "X" e pela tecla Esc -- só pede pro navegador voltar
-// uma entrada no histórico (o que aciona o "popstate" abaixo, que fecha
-// de fato). Se por algum motivo não tiver aquela entrada extra no
-// histórico (ex: o visualizador foi aberto de um jeito diferente), fecha
-// direto como plano B.
+// ---------- Visualizador ----------
 function pedirFechamentoVisualizador() {
   if (history.state && history.state.renderiaVisualizador) {
     history.back();
@@ -180,10 +193,17 @@ document.addEventListener('keydown', (e) => {
 
 function navegarVisualizador(delta) {
   const novoIndice = estado.indiceAtual + delta;
-  if (novoIndice < 0 || novoIndice >= estado.fotosOrdenadas.length) return;
+  if (novoIndice < 0) return;
+  if (novoIndice >= estado.fotosCategoriaAtual.length) return; // chegou no fim -- só o botão "próxima categoria" avança daqui
   estado.indiceAtual = novoIndice;
   renderizarFotoAtualNoVisualizador();
 }
+
+$('btnProximaCategoria').addEventListener('click', () => {
+  const proximoIndice = estado.indiceCategoriaAtual + 1;
+  if (proximoIndice >= estado.categoriasOrdenadas.length) { pedirFechamentoVisualizador(); return; }
+  abrirCategoria(proximoIndice);
+});
 
 function destruirPanoramaSeExistir() {
   if (estado.visualizadorPanorama) {
@@ -193,16 +213,26 @@ function destruirPanoramaSeExistir() {
 }
 
 function renderizarFotoAtualNoVisualizador() {
-  const foto = estado.fotosOrdenadas[estado.indiceAtual];
-  $('nomeFotoVisualizador').textContent = foto.nomeExibicao;
-  $('tagFotoVisualizador').textContent = foto.tag || '';
+  const foto = estado.fotosCategoriaAtual[estado.indiceAtual];
+  const categoriaAtual = estado.categoriasOrdenadas[estado.indiceCategoriaAtual];
+  $('categoriaAtualVisualizador').textContent = categoriaAtual ? categoriaAtual.nome : '';
+  $('nomeFotoVisualizador').textContent = foto.__ehMood ? '' : foto.nomeExibicao;
   $('btnAnteriorFoto').disabled = estado.indiceAtual === 0;
-  $('btnProximaFoto').disabled = estado.indiceAtual === estado.fotosOrdenadas.length - 1;
+
+  const noUltimoItemDaCategoria = estado.indiceAtual === estado.fotosCategoriaAtual.length - 1;
+  const temProximaCategoria = estado.indiceCategoriaAtual < estado.categoriasOrdenadas.length - 1;
+  $('btnProximaFoto').style.display = noUltimoItemDaCategoria ? 'none' : 'flex';
+  $('btnProximaCategoria').style.display = (noUltimoItemDaCategoria && temProximaCategoria) ? 'block' : 'none';
+  if (noUltimoItemDaCategoria && temProximaCategoria) {
+    $('nomeProximaCategoria').textContent = estado.categoriasOrdenadas[estado.indiceCategoriaAtual + 1].nome;
+  }
+
+  // O "mood" é só uma capa -- não tem comentário/aprovação, é a mesma
+  // ideia de uma capa de revista, não uma entrega de verdade.
+  $('painelInferiorVisualizador').style.display = foto.__ehMood ? 'none' : 'flex';
 
   desativarModoDesenho();
-  // Desenhar só faz sentido sobre uma imagem estática -- não tem como
-  // "sobrepor" um canvas de forma útil num visualizador 360 que gira.
-  $('btnAlternarDesenho').style.display = foto.tipo === '360' ? 'none' : 'flex';
+  $('btnAlternarDesenho').style.display = (foto.tipo === '360' || foto.__ehMood) ? 'none' : 'flex';
 
   destruirPanoramaSeExistir();
   if (foto.tipo === '360') {
@@ -222,7 +252,7 @@ function renderizarFotoAtualNoVisualizador() {
     $('imgFotoVisualizador').src = foto.url;
   }
 
-  renderizarAprovacaoEComentarios(foto);
+  if (!foto.__ehMood) renderizarAprovacaoEComentarios(foto);
 }
 
 function renderizarAprovacaoEComentarios(foto) {
@@ -243,31 +273,27 @@ function renderizarAprovacaoEComentarios(foto) {
   $('inputComentario').value = '';
 }
 
-// Atualiza o selinho no card da grade (aprovada OU comentário, nunca os
-// dois) sem precisar recarregar a página inteira -- chamado depois de
-// aprovar/desaprovar e depois de comentar.
-function atualizarSeloNaGrade(foto) {
-  const card = document.querySelector(`.card-foto[data-foto-id="${foto.id}"]`);
-  if (!card) return;
-  const existente = card.querySelector('.badge-aprovada, .badge-comentario');
-  if (existente) existente.remove();
-  if (foto.aprovada) {
-    card.insertAdjacentHTML('afterbegin', '<div class="badge-aprovada">✓ Aprovada</div>');
-  } else if (foto.comentarios.length) {
-    card.insertAdjacentHTML('afterbegin', '<div class="badge-comentario">💬</div>');
+function atualizarProgressoGlobal() {
+  const fotosValidas = estado.galeria.fotos.filter((f) => !f.arquivada);
+  const qtdAprovadas = fotosValidas.filter((f) => f.aprovada).length;
+  if (fotosValidas.length) {
+    $('preenchimentoProgressoCliente').style.width = `${Math.round((qtdAprovadas / fotosValidas.length) * 100)}%`;
+    $('textoProgressoCliente').textContent = `${qtdAprovadas} de ${fotosValidas.length} fotos aprovadas`;
   }
 }
 
 $('btnAprovarFoto').addEventListener('click', async () => {
-  const foto = estado.fotosOrdenadas[estado.indiceAtual];
+  const foto = estado.fotosCategoriaAtual[estado.indiceAtual];
   const novoValor = !foto.aprovada;
   try {
     await chamarAPI(`/api/cliente/${LINK_TOKEN}/fotos/${foto.id}/aprovar`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ aprovada: novoValor })
     });
     foto.aprovada = novoValor;
+    const fotoGlobal = estado.galeria.fotos.find((f) => f.id === foto.id);
+    if (fotoGlobal) fotoGlobal.aprovada = novoValor;
     renderizarAprovacaoEComentarios(foto);
-    atualizarSeloNaGrade(foto);
+    atualizarProgressoGlobal();
   } catch (e) {
     alert('Não consegui salvar: ' + e.message);
   }
@@ -281,7 +307,7 @@ $('inputComentario').addEventListener('keydown', (e) => {
 async function enviarComentario() {
   const texto = $('inputComentario').value.trim();
   if (!texto && !estado.temTraco) return;
-  const foto = estado.fotosOrdenadas[estado.indiceAtual];
+  const foto = estado.fotosCategoriaAtual[estado.indiceAtual];
   try {
     const corpo = { texto: texto || null };
     if (estado.temTraco) corpo.desenhoDataUrl = $('canvasDesenho').toDataURL('image/png');
@@ -290,7 +316,6 @@ async function enviarComentario() {
     });
     foto.comentarios.push({ texto, criadoEm: new Date().toISOString() });
     renderizarAprovacaoEComentarios(foto);
-    atualizarSeloNaGrade(foto);
     desativarModoDesenho();
   } catch (e) {
     alert('Não consegui enviar o comentário: ' + e.message);
