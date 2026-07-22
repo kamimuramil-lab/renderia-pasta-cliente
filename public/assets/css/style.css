@@ -85,11 +85,11 @@ img{ max-width:100%; display:block; }
   font-family:'IBM Plex Mono',monospace; font-size:10px; padding:3px 7px; border-radius:999px;
 }
 .card-foto .badge-aprovada{
-  position:absolute; top:8px; right:8px; background:rgba(63,233,138,.92); color:#0a2e14;
+  position:absolute; bottom:8px; right:8px; background:rgba(63,233,138,.92); color:#0a2e14;
   font-size:10px; font-weight:800; padding:3px 8px; border-radius:999px;
 }
 .card-foto .badge-comentario{
-  position:absolute; top:8px; right:8px; background:rgba(20,22,24,.85); color:var(--steel-100);
+  position:absolute; bottom:8px; right:8px; background:rgba(20,22,24,.85); color:var(--steel-100);
   width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
   border:1px solid var(--line);
 }
@@ -156,8 +156,13 @@ img{ max-width:100%; display:block; }
 .seta-nav.direita{ right:16px; }
 .seta-nav:disabled{ opacity:.25; }
 
+.zona-clique-nav{ position:absolute; top:0; bottom:0; width:28%; z-index:2; cursor:pointer; }
+.zona-clique-nav.esquerda{ left:0; }
+.zona-clique-nav.direita{ right:0; }
+.zona-clique-nav.desativada{ display:none; }
+
 .canvas-desenho{
-  position:absolute; inset:0; width:100%; height:100%;
+  position:absolute;
   cursor:crosshair; touch-action:none; display:none; z-index:3;
 }
 .canvas-desenho.ativo{ display:block; }
@@ -199,6 +204,17 @@ img{ max-width:100%; display:block; }
 .lista-comentarios{ display:flex; flex-direction:column; gap:8px; }
 .comentario-item{ font-size:13px; color:var(--text-dim); background:var(--bg-elev); padding:9px 12px; border-radius:10px; }
 .miniatura-desenho-comentario{ max-width:160px; border-radius:8px; margin-bottom:6px; border:1px solid var(--line); }
+
+.btn-ver-historico{
+  background:transparent; border:1px solid var(--line); color:var(--text-dim); font-size:12.5px;
+  padding:8px 14px; border-radius:999px; align-self:flex-start;
+}
+.modal-historico{ position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:60; display:flex; align-items:center; justify-content:center; padding:20px; }
+.modal-historico.hidden{ display:none; }
+.modal-historico-conteudo{ background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-m); max-width:480px; width:100%; max-height:70vh; display:flex; flex-direction:column; overflow:hidden; }
+.modal-historico-topo{ display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--line-soft); font-weight:700; font-size:14px; }
+.modal-historico-topo button{ background:transparent; border:none; color:var(--text-dim); font-size:16px; }
+.modal-historico .lista-comentarios{ padding:14px 18px; overflow-y:auto; }
 
 @media (max-width:620px){
   .grid-fotos{ grid-template-columns:repeat(2,1fr); }

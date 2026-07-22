@@ -63,6 +63,8 @@
     </button>
   </div>
   <div class="area-imagem-visualizador" id="areaImagemVisualizador">
+    <div class="zona-clique-nav esquerda" id="zonaCliqueAnterior"></div>
+    <div class="zona-clique-nav direita" id="zonaCliqueProxima"></div>
     <button class="seta-nav esquerda" id="btnAnteriorFoto">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>
     </button>
@@ -98,6 +100,17 @@
     <div class="area-comentario">
       <textarea id="inputComentario" placeholder="Escreva o que você quer que mude nessa imagem..." rows="2"></textarea>
       <button id="btnEnviarComentario">Enviar</button>
+    </div>
+    <button class="btn-ver-historico" id="btnVerHistorico" style="display:none;">📋 Ver histórico de anotações (<span id="qtdHistoricoComentarios">0</span>)</button>
+  </div>
+</div>
+
+<!-- ===================== HISTÓRICO DE ANOTAÇÕES (não empurra mais a foto) ===================== -->
+<div class="modal-historico hidden" id="modalHistoricoComentarios">
+  <div class="modal-historico-conteudo">
+    <div class="modal-historico-topo">
+      <span>Histórico de anotações</span>
+      <button id="btnFecharHistorico">✕</button>
     </div>
     <div class="lista-comentarios" id="listaComentariosFoto"></div>
   </div>

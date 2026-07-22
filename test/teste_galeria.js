@@ -102,4 +102,11 @@ galeria.aprovarFoto(CAMINHO, g1.linkToken, primeiraFoto.id, true);
 assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').fotos[0].aprovada, true);
 console.log('OK');
 
+console.log('== 12. Aprovar também marca temComentarioNaoLido (arquiteto precisa saber, não só de comentário) ==');
+galeria.marcarComentariosLidos(CAMINHO, 'proj1'); // limpa antes, pra testar isolado
+assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').temComentarioNaoLido, false);
+galeria.aprovarFoto(CAMINHO, g1.linkToken, primeiraFoto.id, false);
+assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').temComentarioNaoLido, true, 'aprovar/desaprovar deveria acender o selinho também');
+console.log('OK');
+
 console.log('\nTODOS OS TESTES DA GALERIA PASSARAM 🎉');
