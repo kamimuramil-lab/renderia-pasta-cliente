@@ -89,6 +89,14 @@ assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').temComentar
 assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').fotos[0].comentarios[0].lido, true);
 console.log('OK');
 
+console.log('== 10b. Comentário com desenho (rabisco) guarda o desenhoR2Key certinho ==');
+galeria.comentarFoto(CAMINHO, g1.linkToken, primeiraFoto.id, { texto: 'Aumentar essa área', desenhoR2Key: 'link123/comentarios/abc.png' });
+const comentariosAposDesenho = galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').fotos[0].comentarios;
+const comDesenho = comentariosAposDesenho.find((c) => c.desenhoR2Key);
+assert.ok(comDesenho, 'deveria ter um comentário com desenhoR2Key');
+assert.strictEqual(comDesenho.desenhoR2Key, 'link123/comentarios/abc.png');
+console.log('OK');
+
 console.log('== 11. Aprovar uma foto marca o campo aprovada ==');
 galeria.aprovarFoto(CAMINHO, g1.linkToken, primeiraFoto.id, true);
 assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').fotos[0].aprovada, true);

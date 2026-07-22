@@ -48,12 +48,19 @@ async function exigirSessaoArquiteto(req, res, next) {
 // pra exibir, sem saber nada sobre como o armazenamento funciona por
 // dentro.
 async function galeriaComUrls(galeriaObj) {
-  const fotos = await Promise.all(galeriaObj.fotos.map(async (f) => ({
-    ...f,
-    url: await storage.urlTemporaria(f.r2Key)
-  })));
+  const fotos = await Promise.all(galeriaObj.fotos.map(async (f) => {
+    const comentarios = await Promise.all((f.comentarios || []).map(async (c) => ({
+      ...c,
+      desenhoUrl: c.desenhoR2Key ? await storage.urlTemporaria(c.desenhoR2Key) : null
+    })));
+    return { ...f, url: await storage.urlTemporaria(f.r2Key), comentarios };
+  }));
+  const categorias = await Promise.all((galeriaObj.categorias || []).map(async (c) => {
+    const fotoMood = c.moodFotoId ? fotos.find((f) => f.id === c.moodFotoId) : null;
+    return { ...c, moodUrl: fotoMood ? fotoMood.url : null };
+  }));
   const { clienteSenhaHash, sessoesClienteAtivas, ...resto } = galeriaObj;
-  return { ...resto, fotos };
+  return { ...resto, categorias, fotos };
 }
 
 app.get('/saude', (req, res) => res.json({ ok: true, servico: 'renderia-pasta-cliente' }));
@@ -85,6 +92,34 @@ app.get('/api/app/galeria/:projetoId', exigirSessaoArquiteto, async (req, res) =
   }
 });
 
+app.post('/api/app/galeria/:projetoId/categorias', exigirSessaoArquiteto, (req, res) => {
+  try {
+    const categoria = galeria.criarCategoria(CAMINHO_DADOS, req.params.projetoId, (req.body || {}).nome);
+    res.json({ ok: true, categoria });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.put('/api/app/galeria/:projetoId/categorias/:categoriaId', exigirSessaoArquiteto, (req, res) => {
+  try {
+    const { nome, ordem, moodFotoId } = req.body || {};
+    const categoria = galeria.editarCategoria(CAMINHO_DADOS, req.params.projetoId, req.params.categoriaId, { nome, ordem, moodFotoId });
+    res.json({ ok: true, categoria });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.delete('/api/app/galeria/:projetoId/categorias/:categoriaId', exigirSessaoArquiteto, (req, res) => {
+  try {
+    galeria.excluirCategoria(CAMINHO_DADOS, req.params.projetoId, req.params.categoriaId);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 // Leve, só pro selinho de "novo comentário" no botão -- não busca URLs.
 app.get('/api/app/status/:projetoId', exigirSessaoArquiteto, (req, res) => {
   const g = galeria.buscarGaleriaPorProjeto(CAMINHO_DADOS, req.params.projetoId);
@@ -103,10 +138,10 @@ app.post('/api/app/galeria/:projetoId/fotos', exigirSessaoArquiteto, upload.sing
       return res.status(403).json({ erro: `Você atingiu o limite de ${req.limiteFotos} fotos na Pasta do Cliente (somando todos os projetos). Exclua alguma foto antiga ou fale com a gente pra aumentar o limite.` });
     }
 
-    const { nomeExibicao, tag, tipo, capturaIdOrigem } = req.body;
+    const { nomeExibicao, tag, tipo, capturaIdOrigem, categoriaId } = req.body;
     const chave = `${req.params.projetoId}/${crypto.randomUUID()}.webp`;
     await storage.salvarArquivo(chave, req.file.buffer, 'image/webp');
-    const foto = galeria.adicionarFoto(CAMINHO_DADOS, req.params.projetoId, { nomeExibicao, tag, tipo, r2Key: chave, capturaIdOrigem });
+    const foto = galeria.adicionarFoto(CAMINHO_DADOS, req.params.projetoId, { nomeExibicao, tag, tipo, r2Key: chave, capturaIdOrigem, categoriaId });
     res.json({ ok: true, foto });
   } catch (e) {
     res.status(400).json({ erro: e.message });
@@ -117,8 +152,8 @@ app.put('/api/app/galeria/:projetoId/fotos/:fotoId', exigirSessaoArquiteto, (req
   try {
     const g = galeria.buscarGaleriaPorProjeto(CAMINHO_DADOS, req.params.projetoId);
     if (!g || g.licencaUsuario !== req.licencaUsuario) return res.status(404).json({ erro: 'Não encontrado.' });
-    const { nomeExibicao, tag, ordem, arquivada } = req.body || {};
-    const foto = galeria.editarFoto(CAMINHO_DADOS, req.params.projetoId, req.params.fotoId, { nomeExibicao, tag, ordem, arquivada });
+    const { nomeExibicao, tag, ordem, arquivada, categoriaId } = req.body || {};
+    const foto = galeria.editarFoto(CAMINHO_DADOS, req.params.projetoId, req.params.fotoId, { nomeExibicao, tag, ordem, arquivada, categoriaId });
     res.json({ ok: true, foto });
   } catch (e) {
     res.status(400).json({ erro: e.message });
@@ -181,13 +216,16 @@ app.get('/api/cliente/:linkToken/galeria', exigirSessaoCliente, async (req, res)
   }
 });
 
-app.post('/api/cliente/:linkToken/fotos/:fotoId/comentar', exigirSessaoCliente, (req, res) => {
+app.post('/api/cliente/:linkToken/fotos/:fotoId/comentar', exigirSessaoCliente, async (req, res) => {
   try {
     const { texto, desenhoDataUrl } = req.body || {};
-    // TODO: se vier desenhoDataUrl, salvar no R2 como imagem e guardar a
-    // chave (desenhoR2Key) em vez do data URL cru -- por ora aceita só
-    // o texto, o desenho fica pro próximo passo (tela do cliente).
-    galeria.comentarFoto(CAMINHO_DADOS, req.params.linkToken, req.params.fotoId, { texto });
+    let desenhoR2Key = null;
+    if (desenhoDataUrl && desenhoDataUrl.startsWith('data:image/png;base64,')) {
+      const buffer = Buffer.from(desenhoDataUrl.split(',')[1], 'base64');
+      desenhoR2Key = `${req.params.linkToken}/comentarios/${crypto.randomUUID()}.png`;
+      await storage.salvarArquivo(desenhoR2Key, buffer, 'image/png');
+    }
+    galeria.comentarFoto(CAMINHO_DADOS, req.params.linkToken, req.params.fotoId, { texto, desenhoR2Key });
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ erro: e.message });

@@ -81,12 +81,17 @@ img{ max-width:100%; display:block; }
   font-size:12.5px; color:var(--steel-100);
 }
 .card-foto .badge-360{
-  position:absolute; top:8px; right:8px; background:rgba(11,12,14,.72); color:var(--steel-100);
+  position:absolute; top:8px; left:8px; background:rgba(11,12,14,.72); color:var(--steel-100);
   font-family:'IBM Plex Mono',monospace; font-size:10px; padding:3px 7px; border-radius:999px;
 }
 .card-foto .badge-aprovada{
-  position:absolute; top:8px; left:8px; background:rgba(63,233,138,.92); color:#0a2e14;
+  position:absolute; top:8px; right:8px; background:rgba(63,233,138,.92); color:#0a2e14;
   font-size:10px; font-weight:800; padding:3px 8px; border-radius:999px;
+}
+.card-foto .badge-comentario{
+  position:absolute; top:8px; right:8px; background:rgba(20,22,24,.85); color:var(--steel-100);
+  width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  border:1px solid var(--line);
 }
 .vazio-galeria{ text-align:center; padding:80px 20px; color:var(--text-dim); }
 
@@ -116,6 +121,28 @@ img{ max-width:100%; display:block; }
 .seta-nav.direita{ right:16px; }
 .seta-nav:disabled{ opacity:.25; }
 
+.canvas-desenho{
+  position:absolute; inset:0; width:100%; height:100%;
+  cursor:crosshair; touch-action:none; display:none; z-index:3;
+}
+.canvas-desenho.ativo{ display:block; }
+
+.btn-desenhar{
+  padding:11px 20px; border-radius:999px; border:1px solid var(--line); background:var(--bg-elev);
+  color:var(--text); font-weight:700; font-size:13.5px; display:flex; align-items:center; gap:8px;
+}
+.btn-desenhar.ativo{ background:rgba(120,160,255,.16); border-color:rgba(120,160,255,.4); color:#7fa0ff; }
+
+.linha-cores-desenho{ display:flex; align-items:center; gap:10px; }
+.cor-caneta{
+  width:28px; height:28px; border-radius:50%; border:2px solid transparent; flex-shrink:0; padding:0;
+}
+.cor-caneta.ativa{ border-color:var(--steel-100); }
+.btn-limpar-desenho{
+  padding:8px 14px; border-radius:999px; border:1px solid var(--line); background:transparent;
+  color:var(--text-dim); font-size:12.5px; margin-left:4px;
+}
+
 .painel-inferior-visualizador{
   border-top:1px solid var(--line-soft); padding:16px 20px; flex-shrink:0;
   display:flex; flex-direction:column; gap:12px; max-height:38vh; overflow-y:auto;
@@ -136,6 +163,7 @@ img{ max-width:100%; display:block; }
 }
 .lista-comentarios{ display:flex; flex-direction:column; gap:8px; }
 .comentario-item{ font-size:13px; color:var(--text-dim); background:var(--bg-elev); padding:9px 12px; border-radius:10px; }
+.miniatura-desenho-comentario{ max-width:160px; border-radius:8px; margin-bottom:6px; border:1px solid var(--line); }
 
 @media (max-width:620px){
   .grid-fotos{ grid-template-columns:repeat(2,1fr); }

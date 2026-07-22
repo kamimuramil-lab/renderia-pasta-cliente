@@ -56,12 +56,13 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
     </button>
   </div>
-  <div class="area-imagem-visualizador">
+  <div class="area-imagem-visualizador" id="areaImagemVisualizador">
     <button class="seta-nav esquerda" id="btnAnteriorFoto">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>
     </button>
     <img id="imgFotoVisualizador" style="display:none;">
     <div id="painelPanoramaCliente" class="painel-panorama" style="display:none;"></div>
+    <canvas id="canvasDesenho" class="canvas-desenho"></canvas>
     <button class="seta-nav direita" id="btnProximaFoto">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 18l6-6-6-6"/></svg>
     </button>
@@ -72,6 +73,18 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 7"/></svg>
         <span id="textoBtnAprovar">Aprovar essa imagem</span>
       </button>
+      <button class="btn-desenhar" id="btnAlternarDesenho">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
+        <span id="textoBtnDesenho">Solicitar alteração</span>
+      </button>
+    </div>
+    <div class="linha-cores-desenho" id="linhaCoresDesenho" style="display:none;">
+      <button class="cor-caneta ativa" data-cor="#1a1a1a" style="background:#1a1a1a;"></button>
+      <button class="cor-caneta" data-cor="#e5372e" style="background:#e5372e;"></button>
+      <button class="cor-caneta" data-cor="#2ea043" style="background:#2ea043;"></button>
+      <button class="cor-caneta" data-cor="#2f7de1" style="background:#2f7de1;"></button>
+      <button class="cor-caneta" data-cor="#f2c230" style="background:#f2c230;"></button>
+      <button class="btn-limpar-desenho" id="btnLimparDesenho">Limpar desenho</button>
     </div>
     <div class="area-comentario">
       <textarea id="inputComentario" placeholder="Escreva o que você quer que mude nessa imagem..." rows="2"></textarea>
