@@ -219,6 +219,22 @@ $('btnProximaCategoria').addEventListener('click', () => {
   abrirCategoria(proximoIndice);
 });
 
+// Tela cheia de verdade (API nativa do navegador) -- funciona tanto pra
+// foto comum quanto pro visualizador 360, já que fullscreena o container
+// inteiro. O navegador já fecha sozinho com Esc, sem eu precisar tratar
+// isso na mão.
+$('btnTelaCheiaVisualizador').addEventListener('click', () => {
+  const area = $('areaImagemVisualizador');
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else if (area.requestFullscreen) {
+    area.requestFullscreen();
+  }
+});
+document.addEventListener('fullscreenchange', () => {
+  $('areaImagemVisualizador').classList.toggle('em-tela-cheia', !!document.fullscreenElement);
+});
+
 function destruirPanoramaSeExistir() {
   if (estado.visualizadorPanorama) {
     estado.visualizadorPanorama.destroy();
