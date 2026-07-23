@@ -185,6 +185,7 @@ window.addEventListener('popstate', () => {
 $('btnFecharVisualizador').addEventListener('click', pedirFechamentoVisualizador);
 function fecharVisualizadorDeVerdade() {
   $('visualizador').style.display = 'none';
+  $('visualizador').classList.remove('modo-imersivo');
   destruirPanoramaSeExistir();
 }
 
@@ -196,7 +197,10 @@ document.addEventListener('keydown', (e) => {
   if ($('visualizador').style.display !== 'flex') return;
   if (e.key === 'ArrowLeft') navegarVisualizador(-1);
   else if (e.key === 'ArrowRight') navegarVisualizador(1);
-  else if (e.key === 'Escape') pedirFechamentoVisualizador();
+  else if (e.key === 'Escape') {
+    if ($('visualizador').classList.contains('modo-imersivo')) $('visualizador').classList.remove('modo-imersivo');
+    else pedirFechamentoVisualizador();
+  }
 });
 
 function navegarVisualizador(delta) {
@@ -223,16 +227,42 @@ $('btnProximaCategoria').addEventListener('click', () => {
 // foto comum quanto pro visualizador 360, já que fullscreena o container
 // inteiro. O navegador já fecha sozinho com Esc, sem eu precisar tratar
 // isso na mão.
+// IMPORTANTE: o Safari do iPhone/iPad NÃO suporta essa API em elementos
+// comuns (só em <video>) -- por isso, quando ela não existe, cai num
+// modo "imersivo" via CSS: esconde a barra de cima e o painel de baixo,
+// deixando a imagem ocupar a tela inteira do jeito que dá.
+function elementoFullscreenAtual() {
+  return document.fullscreenElement || document.webkitFullscreenElement || null;
+}
+function pedirFullscreen(el) {
+  const fn = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (fn) return fn.call(el);
+  return null;
+}
+function sairFullscreen() {
+  const fn = document.exitFullscreen || document.webkitExitFullscreen;
+  if (fn) return fn.call(document);
+  return null;
+}
+function suportaFullscreenAPI() {
+  const el = document.documentElement;
+  return !!(el.requestFullscreen || el.webkitRequestFullscreen);
+}
+
 $('btnTelaCheiaVisualizador').addEventListener('click', () => {
   const area = $('areaImagemVisualizador');
-  if (document.fullscreenElement) {
-    document.exitFullscreen();
-  } else if (area.requestFullscreen) {
-    area.requestFullscreen();
+  if (suportaFullscreenAPI()) {
+    if (elementoFullscreenAtual()) sairFullscreen();
+    else pedirFullscreen(area);
+  } else {
+    // Plano B pra quem não tem a API (iOS Safari, principalmente).
+    $('visualizador').classList.toggle('modo-imersivo');
   }
 });
-document.addEventListener('fullscreenchange', () => {
-  $('areaImagemVisualizador').classList.toggle('em-tela-cheia', !!document.fullscreenElement);
+['fullscreenchange', 'webkitfullscreenchange'].forEach((evento) => {
+  document.addEventListener(evento, () => {
+    $('areaImagemVisualizador').classList.toggle('em-tela-cheia', !!elementoFullscreenAtual());
+  });
 });
 
 function destruirPanoramaSeExistir() {

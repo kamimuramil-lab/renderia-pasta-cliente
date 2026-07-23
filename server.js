@@ -8,6 +8,34 @@ const storage = require('./lib/storage');
 
 const app = express();
 app.use(express.json());
+
+// Precisa vir ANTES do express.static: é essa rota que preenche os
+// marcadores de Open Graph (__OG_TITULO__ etc.) com o nome de cada
+// projeto, pra quando o link é colado no WhatsApp aparecer uma prévia
+// bonita em vez do link cru. Apps como WhatsApp não rodam JavaScript
+// pra montar essa prévia -- por isso isso precisa estar pronto no HTML
+// que o servidor manda, não pode ser montado só depois, no navegador.
+const fs = require('fs');
+const INDEX_HTML_BRUTO = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+app.get('/', async (req, res) => {
+  let tituloProjeto = null;
+  const linkToken = req.query.g;
+  if (linkToken) {
+    try {
+      const g = galeria.buscarGaleriaPorLinkToken(galeria.caminhoPadrao(__dirname), linkToken);
+      if (g) tituloProjeto = g.nomeProjeto;
+    } catch (e) { /* se der erro na busca, só cai no título genérico abaixo */ }
+  }
+  const ogTitulo = tituloProjeto ? `${tituloProjeto} — Sua Galeria RENDERIA` : 'RENDERIA — Sua Galeria';
+  const ogDescricao = 'Veja as fotos do seu projeto, aprove ou peça alterações.';
+  const ogImagem = `${req.protocol}://${req.get('host')}/assets/img/logo.jpg`;
+  const html = INDEX_HTML_BRUTO
+    .split('__OG_TITULO__').join(ogTitulo)
+    .split('__OG_DESCRICAO__').join(ogDescricao)
+    .split('__OG_IMAGEM__').join(ogImagem);
+  res.send(html);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } }); // 15MB de folga (a otimização no app já deixa isso bem menor)
