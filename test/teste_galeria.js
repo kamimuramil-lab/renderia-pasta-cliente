@@ -28,6 +28,22 @@ assert.strictEqual(estadoApos.galerias.length, 1, 'não deveria ter criado uma s
 assert.strictEqual(estadoApos.galerias[0].nomeProjeto, 'Casa X Reforma');
 console.log('OK');
 
+console.log('== 3b. Foto sem nome fica com string vazia (não força "Sem nome") ==');
+galeria.criarOuAtualizarGaleria(CAMINHO, {
+  projetoId: 'projNomeVazio', licencaUsuario: 'outro-arquiteto@teste.com', nomeProjeto: 'Teste Nome Vazio',
+  clienteUsuario: 'clienteNV', clienteSenha: 'abc123'
+});
+const fotoSemNome = galeria.adicionarFoto(CAMINHO, 'projNomeVazio', { tipo: 'fixa', r2Key: 'projNV/semnome.webp' });
+assert.strictEqual(fotoSemNome.nomeExibicao, '', 'não deveria ter forçado nenhum texto padrão');
+console.log('OK');
+
+console.log('== 3c. Editar o nome pra vazio de propósito (apagar) funciona -- antes ficava preso no nome antigo ==');
+galeria.editarFoto(CAMINHO, 'projNomeVazio', fotoSemNome.id, { nomeExibicao: 'Nome temporário' });
+galeria.editarFoto(CAMINHO, 'projNomeVazio', fotoSemNome.id, { nomeExibicao: '' });
+const fotoAposApagar = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projNomeVazio').fotos.find((f) => f.id === fotoSemNome.id);
+assert.strictEqual(fotoAposApagar.nomeExibicao, '', 'deveria ter aceitado apagar o nome de vez, não voltar pro antigo');
+console.log('OK');
+
 console.log('== 4. Adicionar fotos até o limite de 50 por projeto, a 51a falha ==');
 for (let i = 0; i < 50; i++) {
   galeria.adicionarFoto(CAMINHO, 'proj1', { nomeExibicao: `Foto ${i}`, tag: 'Sala', tipo: 'fixa', r2Key: `proj1/foto${i}.webp`, capturaIdOrigem: `captura_${i}` });
