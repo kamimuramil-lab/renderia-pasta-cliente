@@ -262,6 +262,24 @@ app.put('/api/app/galeria/:projetoId/fotos/:fotoId', exigirSessaoArquiteto, (req
   }
 });
 
+// Reordena várias fotos de uma categoria de UMA VEZ SÓ -- usado no
+// arrastar-e-soltar do app. Existe pra evitar a corrida que dava quando
+// o app mandava uma chamada PUT separada pra cada foto em paralelo
+// (cada uma lendo/escrevendo o arquivo por conta própria podia
+// sobrescrever a mudança das outras).
+app.put('/api/app/galeria/:projetoId/reordenar', exigirSessaoArquiteto, (req, res) => {
+  try {
+    const g = galeria.buscarGaleriaPorProjeto(CAMINHO_DADOS, req.params.projetoId);
+    if (!g || g.licencaUsuario !== req.licencaUsuario) return res.status(404).json({ erro: 'Não encontrado.' });
+    const { categoriaId, ordemDosIds } = req.body || {};
+    if (!Array.isArray(ordemDosIds)) return res.status(400).json({ erro: 'ordemDosIds precisa ser uma lista.' });
+    const fotos = galeria.reordenarFotos(CAMINHO_DADOS, req.params.projetoId, categoriaId, ordemDosIds);
+    res.json({ ok: true, fotos });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 app.delete('/api/app/galeria/:projetoId/fotos/:fotoId', exigirSessaoArquiteto, async (req, res) => {
   try {
     const g = galeria.buscarGaleriaPorProjeto(CAMINHO_DADOS, req.params.projetoId);

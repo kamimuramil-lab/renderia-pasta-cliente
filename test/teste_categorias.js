@@ -95,4 +95,42 @@ galeria.atualizarIconePersonalizado(CAMINHO, 'projCat', null);
 assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat').iconePersonalizado.r2Key, null, 'deveria conseguir remover o ícone também');
 console.log('OK');
 
+console.log('== 13. Reordenar em lote (reordenarFotos) -- uma leitura/escrita só, sem corrida ==');
+const pastaOrdemA = galeria.criarCategoria(CAMINHO, 'projCat', 'Ordem A');
+const fA = galeria.adicionarFoto(CAMINHO, 'projCat', { nomeExibicao: 'A', tipo: 'fixa', r2Key: 'a.webp', categoriaId: pastaOrdemA.id });
+const fB = galeria.adicionarFoto(CAMINHO, 'projCat', { nomeExibicao: 'B', tipo: 'fixa', r2Key: 'b.webp', categoriaId: pastaOrdemA.id });
+const fC = galeria.adicionarFoto(CAMINHO, 'projCat', { nomeExibicao: 'C', tipo: 'fixa', r2Key: 'c.webp', categoriaId: pastaOrdemA.id });
+// Pede a ordem C, A, B (arrastando C pro início)
+galeria.reordenarFotos(CAMINHO, 'projCat', pastaOrdemA.id, [fC.id, fA.id, fB.id]);
+const fotosOrdenadasDepois = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat').fotos
+  .filter((f) => f.categoriaId === pastaOrdemA.id)
+  .sort((a, b) => a.ordem - b.ordem)
+  .map((f) => f.nomeExibicao);
+assert.deepStrictEqual(fotosOrdenadasDepois, ['C', 'A', 'B'], 'a ordem devia ficar exatamente C, A, B');
+console.log('OK');
+
+console.log('== 14. Simulando a corrida antiga: 3 chamadas de editarFoto EM PARALELO podem se perder ==');
+// Isso demonstra POR QUE reordenarFotos existe -- 3 chamadas separadas,
+// cada uma lendo e escrevendo o arquivo por conta própria ao mesmo
+// tempo, podem sobrescrever a mudança umas das outras.
+const pastaOrdemB = galeria.criarCategoria(CAMINHO, 'projCat', 'Ordem B');
+const gA = galeria.adicionarFoto(CAMINHO, 'projCat', { nomeExibicao: 'X', tipo: 'fixa', r2Key: 'x.webp', categoriaId: pastaOrdemB.id });
+const gB = galeria.adicionarFoto(CAMINHO, 'projCat', { nomeExibicao: 'Y', tipo: 'fixa', r2Key: 'y.webp', categoriaId: pastaOrdemB.id });
+const gC = galeria.adicionarFoto(CAMINHO, 'projCat', { nomeExibicao: 'Z', tipo: 'fixa', r2Key: 'z.webp', categoriaId: pastaOrdemB.id });
+// Simula 3 processos concorrentes: cada um lê o estado ANTES de qualquer escrever
+const lidoPorX = galeria.lerEstado(CAMINHO);
+const lidoPorY = galeria.lerEstado(CAMINHO);
+const lidoPorZ = galeria.lerEstado(CAMINHO);
+function aplicarOrdemComEstadoJaLido(estadoLido, fotoId, novaOrdem) {
+  const g = estadoLido.galerias.find((x) => x.projetoId === 'projCat');
+  g.fotos.find((f) => f.id === fotoId).ordem = novaOrdem;
+  galeria.salvarEstado(CAMINHO, estadoLido); // escreve por cima -- pode perder o que os outros já escreveram
+}
+aplicarOrdemComEstadoJaLido(lidoPorX, gA.id, 2);
+aplicarOrdemComEstadoJaLido(lidoPorY, gB.id, 0); // escreve por cima do que X acabou de salvar
+aplicarOrdemComEstadoJaLido(lidoPorZ, gC.id, 1); // escreve por cima do que Y acabou de salvar
+const resultadoCorrida = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat').fotos.find((f) => f.id === gA.id);
+assert.notStrictEqual(resultadoCorrida.ordem, 2, 'confirma o bug antigo: a mudança de X (ordem=2) se perdeu pela corrida');
+console.log('OK -- confirmado que era mesmo uma corrida (por isso reordenarFotos existe agora, com leitura/escrita única)');
+
 console.log('\nTODOS OS TESTES DE CATEGORIA PASSARAM 🎉');
