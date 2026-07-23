@@ -171,6 +171,10 @@ img{ max-width:100%; display:block; }
 .zona-clique-nav.direita{ right:0; }
 .zona-clique-nav.desativada{ display:none; }
 
+.marca-dagua-overlay{
+  position:absolute; z-index:2; pointer-events:none; object-fit:contain;
+}
+
 .canvas-desenho{
   position:absolute;
   cursor:crosshair; touch-action:none; display:none; z-index:3;

@@ -94,6 +94,9 @@ function mostrarGaleria(galeria) {
   $('telaGaleria').style.display = 'block';
   $('nomeProjetoGaleria').textContent = galeria.nomeProjeto;
   document.title = `${galeria.nomeProjeto} — RENDERIA`;
+  if (galeria.iconePersonalizado && galeria.iconePersonalizado.url) {
+    $('imgLogoGaleria').src = galeria.iconePersonalizado.url;
+  }
 
   const fotosValidas = galeria.fotos.filter((f) => !f.arquivada);
   const qtdAprovadas = fotosValidas.filter((f) => f.aprovada).length;
@@ -306,15 +309,58 @@ function renderizarFotoAtualNoVisualizador() {
       showFullscreenCtrl: false,
       compass: false
     });
+    posicionarMarcaDagua(foto);
   } else {
     $('painelPanoramaCliente').style.display = 'none';
-    $('imgFotoVisualizador').style.display = 'block';
-    $('imgFotoVisualizador').src = foto.url;
+    const img = $('imgFotoVisualizador');
+    // Esconde a imagem ATUAL antes de trocar o src -- sem isso, o
+    // navegador continua mostrando a imagem ANTERIOR (a capa, por
+    // exemplo) até a nova terminar de carregar, dando aquele "flash".
+    img.style.visibility = 'hidden';
+    img.style.display = 'block';
+    img.onload = () => { img.style.visibility = 'visible'; posicionarMarcaDagua(foto); };
+    img.src = foto.url;
   }
 
   $('modalHistoricoComentarios').classList.add('hidden');
   if (!foto.__ehMood) renderizarAprovacaoEComentarios(foto);
 }
+
+// Marca d'água personalizada do arquiteto -- fica no canto superior
+// esquerdo, sempre relativa ao TAMANHO REAL da imagem (não do container),
+// pra funcionar igual em foto quadrada, retangular, vertical ou 360.
+// pointer-events:none no CSS garante que ela nunca atrapalha o desenho
+// do pincel por cima.
+function posicionarMarcaDagua(foto) {
+  const marca = estado.galeria ? estado.galeria.marcaDagua : null;
+  const img = $('imgMarcaDagua');
+  if (!marca || !marca.ativa || !marca.url || foto.__ehMood) {
+    img.style.display = 'none';
+    return;
+  }
+  const area = $('areaImagemVisualizador');
+  // No 360, o visualizador ocupa o container inteiro (não respeita
+  // object-fit) -- pras fotos comuns, usa o retângulo real da imagem.
+  const retangulo = foto.tipo === '360'
+    ? { left: 0, top: 0, width: area.clientWidth, height: area.clientHeight }
+    : retanguloImagemRenderizada($('imgFotoVisualizador'), area);
+
+  const escala = (marca.escala || 100) / 100;
+  const larguraMarca = retangulo.width * 0.16 * escala; // 16% da largura da imagem = referência do "100%"
+  const margem = retangulo.width * 0.025;
+
+  img.src = marca.url;
+  img.style.display = 'block';
+  img.style.opacity = (marca.transparencia || 100) / 100;
+  img.style.width = `${larguraMarca}px`;
+  img.style.height = 'auto';
+  img.style.left = `${retangulo.left + margem}px`;
+  img.style.top = `${retangulo.top + margem}px`;
+}
+window.addEventListener('resize', () => {
+  const fotoAtual = estado.fotosCategoriaAtual[estado.indiceAtual];
+  if (fotoAtual && $('visualizador').style.display === 'flex') posicionarMarcaDagua(fotoAtual);
+});
 
 function renderizarAprovacaoEComentarios(foto) {
   $('btnAprovarFoto').classList.toggle('aprovada', !!foto.aprovada);
@@ -522,4 +568,18 @@ $('canvasDesenho').addEventListener('pointerleave', () => { desenhando = false; 
 window.addEventListener('resize', () => { if (estado.desenhoAtivo) ajustarTamanhoCanvas(); });
 
 // ---------- Início ----------
+// Busca o ícone personalizado (se o arquiteto tiver enviado um) ANTES
+// mesmo do login -- pra tela de login já nascer com a marca certa, não
+// só depois de autenticar.
+async function aplicarIconePersonalizadoNaTelaDeLogin() {
+  try {
+    const resp = await fetch(`/api/cliente/${LINK_TOKEN}/info-publica`);
+    if (!resp.ok) return;
+    const info = await resp.json();
+    if (info.iconeUrl) $('imgLogoLogin').src = info.iconeUrl;
+    if (info.nomeProjeto) $('tituloLogin').textContent = `Galeria de ${info.nomeProjeto}`;
+  } catch (e) { /* sem internet ou link inválido -- mantém a marca padrão RENDERIA */ }
+}
+aplicarIconePersonalizadoNaTelaDeLogin();
+
 tentarEntrarComTokenSalvo();

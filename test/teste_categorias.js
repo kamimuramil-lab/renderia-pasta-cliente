@@ -57,4 +57,42 @@ assert.strictEqual(galeriaAtual3.fotos.find((f) => f.id === fotoSemCategoria.id)
 assert.strictEqual(galeriaAtual3.fotos.length, 3, 'nenhuma foto deveria ter sido apagada');
 console.log('OK');
 
+console.log('== 8. Marca d\'água começa desativada por padrão ==');
+const galeriaInicial = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat');
+assert.strictEqual(galeriaInicial.marcaDagua.ativa, false);
+assert.strictEqual(galeriaInicial.marcaDagua.transparencia, 100);
+assert.strictEqual(galeriaInicial.marcaDagua.escala, 100);
+assert.strictEqual(galeriaInicial.iconePersonalizado.r2Key, null);
+console.log('OK');
+
+console.log('== 9. Atualizar marca d\'água (upload + ativar + ajustar transparência/escala) ==');
+galeria.atualizarMarcaDagua(CAMINHO, 'projCat', { r2Key: 'projCat/marca-dagua.png', ativa: true, transparencia: 60, escala: 40 });
+const galeriaComMarca = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat');
+assert.strictEqual(galeriaComMarca.marcaDagua.ativa, true);
+assert.strictEqual(galeriaComMarca.marcaDagua.r2Key, 'projCat/marca-dagua.png');
+assert.strictEqual(galeriaComMarca.marcaDagua.transparencia, 60);
+assert.strictEqual(galeriaComMarca.marcaDagua.escala, 40);
+console.log('OK');
+
+console.log('== 10. Transparência/escala ficam sempre entre 10 e 100 (não deixa passar do limite) ==');
+galeria.atualizarMarcaDagua(CAMINHO, 'projCat', { transparencia: 500, escala: 2 });
+const galeriaLimites = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat');
+assert.strictEqual(galeriaLimites.marcaDagua.transparencia, 100, 'não deveria passar de 100');
+assert.strictEqual(galeriaLimites.marcaDagua.escala, 10, 'não deveria ficar abaixo de 10');
+console.log('OK');
+
+console.log('== 11. Desativar a marca d\'água mantém o resto da configuração salva ==');
+galeria.atualizarMarcaDagua(CAMINHO, 'projCat', { ativa: false });
+const galeriaDesativada = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat');
+assert.strictEqual(galeriaDesativada.marcaDagua.ativa, false);
+assert.strictEqual(galeriaDesativada.marcaDagua.r2Key, 'projCat/marca-dagua.png', 'não deveria ter apagado o arquivo já enviado, só desativado');
+console.log('OK');
+
+console.log('== 12. Ícone personalizado ==');
+galeria.atualizarIconePersonalizado(CAMINHO, 'projCat', 'projCat/icone.png');
+assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat').iconePersonalizado.r2Key, 'projCat/icone.png');
+galeria.atualizarIconePersonalizado(CAMINHO, 'projCat', null);
+assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat').iconePersonalizado.r2Key, null, 'deveria conseguir remover o ícone também');
+console.log('OK');
+
 console.log('\nTODOS OS TESTES DE CATEGORIA PASSARAM 🎉');

@@ -18,7 +18,7 @@
 <!-- ===================== TELA DE LOGIN ===================== -->
 <div class="tela-login" id="telaLogin">
   <div class="card-login">
-    <div class="selo"><img src="assets/img/logo.jpg" alt="RENDERIA"></div>
+    <div class="selo"><img src="assets/img/logo.jpg" alt="RENDERIA" id="imgLogoLogin"></div>
     <h1 id="tituloLogin">Sua galeria RENDERIA</h1>
     <p class="sub">Entre com o usuário e senha que seu arquiteto te enviou.</p>
     <div class="campo-login">
@@ -41,7 +41,7 @@
 <!-- ===================== TELA DA GALERIA ===================== -->
 <div id="telaGaleria" style="display:none;">
   <div class="topo-galeria">
-    <div class="selo"><img src="assets/img/logo.jpg" alt="RENDERIA"></div>
+    <div class="selo"><img src="assets/img/logo.jpg" alt="RENDERIA" id="imgLogoGaleria"></div>
     <div style="flex:1;">
       <h1 id="nomeProjetoGaleria">Projeto</h1>
     </div>
@@ -75,6 +75,7 @@
     </button>
     <img id="imgFotoVisualizador" style="display:none;">
     <div id="painelPanoramaCliente" class="painel-panorama" style="display:none;"></div>
+    <img id="imgMarcaDagua" class="marca-dagua-overlay" style="display:none;" alt="">
     <canvas id="canvasDesenho" class="canvas-desenho"></canvas>
     <button class="seta-nav direita" id="btnProximaFoto">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 18l6-6-6-6"/></svg>

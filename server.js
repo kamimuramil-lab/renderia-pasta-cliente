@@ -7,7 +7,13 @@ const galeria = require('./lib/galeria');
 const storage = require('./lib/storage');
 
 const app = express();
-app.use(express.json());
+// O padrão do Express (100kb) é pequeno demais pro desenho de anotação
+// em base64 -- ele agora é exportado na resolução REAL da foto original
+// (pra bater certinho de posição), o que em fotos de resolução mais alta
+// facilmente passa de 100kb. Erro que isso causava: "Erro ao falar com o
+// servidor" só quando o comentário vinha COM desenho (texto sozinho é
+// pequeno, nunca esbarrava nesse limite).
+app.use(express.json({ limit: '15mb' }));
 
 // Precisa vir ANTES do express.static: é essa rota que preenche os
 // marcadores de Open Graph (__OG_TITULO__ etc.) com o nome de cada
@@ -19,16 +25,22 @@ const fs = require('fs');
 const INDEX_HTML_BRUTO = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
 app.get('/', async (req, res) => {
   let tituloProjeto = null;
+  let iconeUrl = null;
   const linkToken = req.query.g;
   if (linkToken) {
     try {
-      const g = galeria.buscarGaleriaPorLinkToken(galeria.caminhoPadrao(__dirname), linkToken);
-      if (g) tituloProjeto = g.nomeProjeto;
-    } catch (e) { /* se der erro na busca, só cai no título genérico abaixo */ }
+      const g = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, linkToken);
+      if (g) {
+        tituloProjeto = g.nomeProjeto;
+        if (g.iconePersonalizado && g.iconePersonalizado.r2Key) {
+          iconeUrl = await storage.urlTemporaria(g.iconePersonalizado.r2Key);
+        }
+      }
+    } catch (e) { /* se der erro na busca, só cai no título/ícone genéricos abaixo */ }
   }
   const ogTitulo = tituloProjeto ? `${tituloProjeto} — Sua Galeria RENDERIA` : 'RENDERIA — Sua Galeria';
   const ogDescricao = 'Veja as fotos do seu projeto, aprove ou peça alterações.';
-  const ogImagem = `${req.protocol}://${req.get('host')}/assets/img/logo.jpg`;
+  const ogImagem = iconeUrl || `${req.protocol}://${req.get('host')}/assets/img/logo.jpg`;
   const html = INDEX_HTML_BRUTO
     .split('__OG_TITULO__').join(ogTitulo)
     .split('__OG_DESCRICAO__').join(ogDescricao)
@@ -87,8 +99,16 @@ async function galeriaComUrls(galeriaObj) {
     const fotoMood = c.moodFotoId ? fotos.find((f) => f.id === c.moodFotoId) : null;
     return { ...c, moodUrl: fotoMood ? fotoMood.url : null };
   }));
+  const marcaDagua = {
+    ...galeriaObj.marcaDagua,
+    url: (galeriaObj.marcaDagua && galeriaObj.marcaDagua.r2Key) ? await storage.urlTemporaria(galeriaObj.marcaDagua.r2Key) : null
+  };
+  const iconePersonalizado = {
+    ...galeriaObj.iconePersonalizado,
+    url: (galeriaObj.iconePersonalizado && galeriaObj.iconePersonalizado.r2Key) ? await storage.urlTemporaria(galeriaObj.iconePersonalizado.r2Key) : null
+  };
   const { clienteSenhaHash, sessoesClienteAtivas, ...resto } = galeriaObj;
-  return { ...resto, categorias, fotos };
+  return { ...resto, categorias, fotos, marcaDagua, iconePersonalizado };
 }
 
 app.get('/saude', (req, res) => res.json({ ok: true, servico: 'renderia-pasta-cliente' }));
@@ -153,6 +173,50 @@ app.delete('/api/app/galeria/:projetoId/categorias/:categoriaId', exigirSessaoAr
   try {
     galeria.excluirCategoria(CAMINHO_DADOS, req.params.projetoId, req.params.categoriaId);
     res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Marca d'água: o arquivo (PNG, pode ter transparência) vai igual uma
+// foto -- só que SEM converter pra webp, pra não perder o canal alfa.
+app.post('/api/app/galeria/:projetoId/marca-dagua', exigirSessaoArquiteto, upload.single('arquivo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Nenhum arquivo enviado.' });
+    const g = galeria.buscarGaleriaPorProjeto(CAMINHO_DADOS, req.params.projetoId);
+    if (!g || g.licencaUsuario !== req.licencaUsuario) return res.status(404).json({ erro: 'Pasta do Cliente não encontrada.' });
+    const chave = `${req.params.projetoId}/marca-dagua-${crypto.randomUUID()}.png`;
+    await storage.salvarArquivo(chave, req.file.buffer, 'image/png');
+    const marcaDagua = galeria.atualizarMarcaDagua(CAMINHO_DADOS, req.params.projetoId, { r2Key: chave });
+    res.json({ ok: true, marcaDagua });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Só as opções (ativar/desativar, transparência, escala) -- sem
+// reenviar o arquivo (usado quando o arquiteto só mexe nos controles).
+app.put('/api/app/galeria/:projetoId/marca-dagua', exigirSessaoArquiteto, (req, res) => {
+  try {
+    const { ativa, transparencia, escala } = req.body || {};
+    const marcaDagua = galeria.atualizarMarcaDagua(CAMINHO_DADOS, req.params.projetoId, { ativa, transparencia, escala });
+    res.json({ ok: true, marcaDagua });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Ícone personalizado -- aparece na tela de login do cliente, na tela
+// principal, e na prévia do link quando compartilhado.
+app.post('/api/app/galeria/:projetoId/icone', exigirSessaoArquiteto, upload.single('arquivo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Nenhum arquivo enviado.' });
+    const g = galeria.buscarGaleriaPorProjeto(CAMINHO_DADOS, req.params.projetoId);
+    if (!g || g.licencaUsuario !== req.licencaUsuario) return res.status(404).json({ erro: 'Pasta do Cliente não encontrada.' });
+    const chave = `${req.params.projetoId}/icone-${crypto.randomUUID()}.png`;
+    await storage.salvarArquivo(chave, req.file.buffer, 'image/png');
+    const iconePersonalizado = galeria.atualizarIconePersonalizado(CAMINHO_DADOS, req.params.projetoId, chave);
+    res.json({ ok: true, iconePersonalizado });
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
@@ -223,6 +287,16 @@ app.post('/api/app/galeria/:projetoId/marcar-lido', exigirSessaoArquiteto, (req,
 // ROTAS DO CLIENTE FINAL (público, via link -- nunca vê o servidor de
 // licenças, só entra com o login que o arquiteto configurou)
 // ====================================================================
+
+// Info pública, sem precisar estar logado -- só o necessário pra tela de
+// login já mostrar o nome do projeto e o ícone personalizado (se tiver).
+// Nada sensível aqui (nem usuário, nem senha, nem fotos).
+app.get('/api/cliente/:linkToken/info-publica', async (req, res) => {
+  const g = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, req.params.linkToken);
+  if (!g) return res.status(404).json({ erro: 'Link não encontrado.' });
+  const iconeUrl = (g.iconePersonalizado && g.iconePersonalizado.r2Key) ? await storage.urlTemporaria(g.iconePersonalizado.r2Key) : null;
+  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl });
+});
 
 app.post('/api/cliente/:linkToken/login', (req, res) => {
   try {
