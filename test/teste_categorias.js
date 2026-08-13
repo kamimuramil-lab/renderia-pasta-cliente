@@ -2,7 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const galeria = require('/home/claude/pasta-cliente/lib/galeria');
+const galeria = require('../lib/galeria');
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'teste-categorias-'));
 const CAMINHO = path.join(TMP, 'dados-galerias.json');
@@ -13,12 +13,12 @@ galeria.criarOuAtualizarGaleria(CAMINHO, {
 });
 
 console.log('== 1. Criar categoria sem nome falha ==');
-assert.throws(() => galeria.criarCategoria(CAMINHO, 'projCat', ''), /nome/i);
+assert.throws(() => galeria.criarCategoria(CAMINHO, 'projCat', '', 'arq@teste.com'), /nome/i);
 console.log('OK');
 
 console.log('== 2. Criar categorias funciona e mantém ordem de criação ==');
-const catLavabo = galeria.criarCategoria(CAMINHO, 'projCat', 'Lavabo');
-const catSala = galeria.criarCategoria(CAMINHO, 'projCat', 'Sala de Estar');
+const catLavabo = galeria.criarCategoria(CAMINHO, 'projCat', 'Lavabo', 'arq@teste.com');
+const catSala = galeria.criarCategoria(CAMINHO, 'projCat', 'Sala de Estar', 'arq@teste.com');
 assert.strictEqual(catLavabo.ordem, 0);
 assert.strictEqual(catSala.ordem, 1);
 assert.strictEqual(catLavabo.moodFotoId, null);
@@ -39,18 +39,18 @@ console.log('OK');
 
 console.log('== 5. Definir o mood de uma categoria (moodFotoId) ==');
 const fotoMoodLavabo = galeria.adicionarFoto(CAMINHO, 'projCat', { nomeExibicao: 'Mood Lavabo', tipo: 'moodboard', r2Key: 'mood.webp' });
-galeria.editarCategoria(CAMINHO, 'projCat', catLavabo.id, { moodFotoId: fotoMoodLavabo.id });
+galeria.editarCategoria(CAMINHO, 'projCat', catLavabo.id, { moodFotoId: fotoMoodLavabo.id }, 'arq@teste.com');
 const galeriaAtual2 = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat');
 assert.strictEqual(galeriaAtual2.categorias.find((c) => c.id === catLavabo.id).moodFotoId, fotoMoodLavabo.id);
 console.log('OK');
 
 console.log('== 6. Renomear categoria ==');
-galeria.editarCategoria(CAMINHO, 'projCat', catLavabo.id, { nome: 'Lavabo Social' });
+galeria.editarCategoria(CAMINHO, 'projCat', catLavabo.id, { nome: 'Lavabo Social' }, 'arq@teste.com');
 assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat').categorias.find((c) => c.id === catLavabo.id).nome, 'Lavabo Social');
 console.log('OK');
 
 console.log('== 7. Excluir categoria NÃO exclui as fotos, só desassocia ==');
-galeria.excluirCategoria(CAMINHO, 'projCat', catSala.id);
+galeria.excluirCategoria(CAMINHO, 'projCat', catSala.id, 'arq@teste.com');
 const galeriaAtual3 = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat');
 assert.strictEqual(galeriaAtual3.categorias.length, 1, 'só deveria sobrar 1 categoria (Lavabo)');
 assert.strictEqual(galeriaAtual3.fotos.find((f) => f.id === fotoSemCategoria.id).categoriaId, null, 'a foto deveria voltar a ficar sem categoria');
@@ -66,7 +66,7 @@ assert.strictEqual(galeriaInicial.iconePersonalizado.r2Key, null);
 console.log('OK');
 
 console.log('== 9. Atualizar marca d\'água (upload + ativar + ajustar transparência/escala) ==');
-galeria.atualizarMarcaDagua(CAMINHO, 'projCat', { r2Key: 'projCat/marca-dagua.png', ativa: true, transparencia: 60, escala: 40 });
+galeria.atualizarMarcaDagua(CAMINHO, 'projCat', { r2Key: 'projCat/marca-dagua.png', ativa: true, transparencia: 60, escala: 40 }, 'arq@teste.com');
 const galeriaComMarca = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat');
 assert.strictEqual(galeriaComMarca.marcaDagua.ativa, true);
 assert.strictEqual(galeriaComMarca.marcaDagua.r2Key, 'projCat/marca-dagua.png');
@@ -75,14 +75,14 @@ assert.strictEqual(galeriaComMarca.marcaDagua.escala, 40);
 console.log('OK');
 
 console.log('== 10. Transparência/escala ficam sempre entre 10 e 100 (não deixa passar do limite) ==');
-galeria.atualizarMarcaDagua(CAMINHO, 'projCat', { transparencia: 500, escala: 2 });
+galeria.atualizarMarcaDagua(CAMINHO, 'projCat', { transparencia: 500, escala: 2 }, 'arq@teste.com');
 const galeriaLimites = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat');
 assert.strictEqual(galeriaLimites.marcaDagua.transparencia, 100, 'não deveria passar de 100');
 assert.strictEqual(galeriaLimites.marcaDagua.escala, 10, 'não deveria ficar abaixo de 10');
 console.log('OK');
 
 console.log('== 11. Desativar a marca d\'água mantém o resto da configuração salva ==');
-galeria.atualizarMarcaDagua(CAMINHO, 'projCat', { ativa: false });
+galeria.atualizarMarcaDagua(CAMINHO, 'projCat', { ativa: false }, 'arq@teste.com');
 const galeriaDesativada = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat');
 assert.strictEqual(galeriaDesativada.marcaDagua.ativa, false);
 assert.strictEqual(galeriaDesativada.marcaDagua.r2Key, 'projCat/marca-dagua.png', 'não deveria ter apagado o arquivo já enviado, só desativado');
@@ -96,7 +96,7 @@ assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat').iconePers
 console.log('OK');
 
 console.log('== 13. Reordenar em lote (reordenarFotos) -- uma leitura/escrita só, sem corrida ==');
-const pastaOrdemA = galeria.criarCategoria(CAMINHO, 'projCat', 'Ordem A');
+const pastaOrdemA = galeria.criarCategoria(CAMINHO, 'projCat', 'Ordem A', 'arq@teste.com');
 const fA = galeria.adicionarFoto(CAMINHO, 'projCat', { nomeExibicao: 'A', tipo: 'fixa', r2Key: 'a.webp', categoriaId: pastaOrdemA.id });
 const fB = galeria.adicionarFoto(CAMINHO, 'projCat', { nomeExibicao: 'B', tipo: 'fixa', r2Key: 'b.webp', categoriaId: pastaOrdemA.id });
 const fC = galeria.adicionarFoto(CAMINHO, 'projCat', { nomeExibicao: 'C', tipo: 'fixa', r2Key: 'c.webp', categoriaId: pastaOrdemA.id });
@@ -113,7 +113,7 @@ console.log('== 14. Simulando a corrida antiga: 3 chamadas de editarFoto EM PARA
 // Isso demonstra POR QUE reordenarFotos existe -- 3 chamadas separadas,
 // cada uma lendo e escrevendo o arquivo por conta própria ao mesmo
 // tempo, podem sobrescrever a mudança umas das outras.
-const pastaOrdemB = galeria.criarCategoria(CAMINHO, 'projCat', 'Ordem B');
+const pastaOrdemB = galeria.criarCategoria(CAMINHO, 'projCat', 'Ordem B', 'arq@teste.com');
 const gA = galeria.adicionarFoto(CAMINHO, 'projCat', { nomeExibicao: 'X', tipo: 'fixa', r2Key: 'x.webp', categoriaId: pastaOrdemB.id });
 const gB = galeria.adicionarFoto(CAMINHO, 'projCat', { nomeExibicao: 'Y', tipo: 'fixa', r2Key: 'y.webp', categoriaId: pastaOrdemB.id });
 const gC = galeria.adicionarFoto(CAMINHO, 'projCat', { nomeExibicao: 'Z', tipo: 'fixa', r2Key: 'z.webp', categoriaId: pastaOrdemB.id });
@@ -134,3 +134,56 @@ assert.notStrictEqual(resultadoCorrida.ordem, 2, 'confirma o bug antigo: a mudan
 console.log('OK -- confirmado que era mesmo uma corrida (por isso reordenarFotos existe agora, com leitura/escrita única)');
 
 console.log('\nTODOS OS TESTES DE CATEGORIA PASSARAM 🎉');
+
+// ========================================================================
+// TESTES DE SEGURANÇA (auditoria ago/2026) -- confirmam que a correção do
+// IDOR em categorias/marca d'água/marcar-lido funciona: um licencaUsuario
+// diferente do dono real NUNCA consegue mexer no projeto.
+// ========================================================================
+console.log('\n=== TESTES DE SEGURANÇA: IDOR em categorias/marca d\'água (A1/A2) ===');
+const ATACANTE = 'atacante@teste.com';
+
+console.log('== S1. Atacante NÃO consegue criar categoria no projeto de outra licença ==');
+assert.throws(
+  () => galeria.criarCategoria(CAMINHO, 'projCat', 'Categoria Invasora', ATACANTE),
+  /não pertence a essa licença/i
+);
+console.log('OK\n');
+
+console.log('== S2. Atacante NÃO consegue editar categoria de outra licença ==');
+assert.throws(
+  () => galeria.editarCategoria(CAMINHO, 'projCat', catLavabo.id, { nome: 'Hackeado' }, ATACANTE),
+  /não pertence a essa licença/i
+);
+// confirma que o nome real não mudou
+assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat').categorias.find((c) => c.id === catLavabo.id).nome, 'Lavabo Social');
+console.log('OK -- e a categoria real não foi alterada\n');
+
+console.log('== S3. Atacante NÃO consegue excluir categoria de outra licença ==');
+const qtdCategoriasAntes = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat').categorias.length;
+assert.throws(
+  () => galeria.excluirCategoria(CAMINHO, 'projCat', catLavabo.id, ATACANTE),
+  /não pertence a essa licença/i
+);
+assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat').categorias.length, qtdCategoriasAntes, 'nenhuma categoria deveria ter sido apagada');
+console.log('OK\n');
+
+console.log('== S4. Atacante NÃO consegue mexer na marca d\'água de outra licença ==');
+assert.throws(
+  () => galeria.atualizarMarcaDagua(CAMINHO, 'projCat', { ativa: true, transparencia: 1 }, ATACANTE),
+  /não pertence a essa licença/i
+);
+// confirma que a configuração real não mudou (continuava desativada, ver teste 11)
+assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat').marcaDagua.ativa, false);
+console.log('OK -- e a marca d\'água real não foi alterada\n');
+
+console.log('== S5. O DONO de verdade continua conseguindo fazer tudo isso normalmente (a correção não travou uso legítimo) ==');
+const catNovaDono = galeria.criarCategoria(CAMINHO, 'projCat', 'Categoria do Dono', 'arq@teste.com');
+assert.ok(catNovaDono.id);
+galeria.editarCategoria(CAMINHO, 'projCat', catNovaDono.id, { nome: 'Renomeada Pelo Dono' }, 'arq@teste.com');
+galeria.atualizarMarcaDagua(CAMINHO, 'projCat', { ativa: true }, 'arq@teste.com');
+assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat').marcaDagua.ativa, true);
+galeria.excluirCategoria(CAMINHO, 'projCat', catNovaDono.id, 'arq@teste.com');
+console.log('OK -- dono real segue com acesso total\n');
+
+console.log('TODOS OS TESTES DE SEGURANÇA (IDOR) PASSARAM 🔒');

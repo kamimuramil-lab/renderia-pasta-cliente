@@ -15,6 +15,37 @@ const app = express();
 // pequeno, nunca esbarrava nesse limite).
 app.use(express.json({ limit: '15mb' }));
 
+// --------------------------------------------------------------------
+// LIMITADOR DE TENTATIVAS (correção A3, auditoria ago/2026) -- esse
+// servidor não tinha NENHUM rate limiting antes, em rota nenhuma. Isso
+// facilitava tentar muitos "projetoId" seguidos (pra achar um de outro
+// arquiteto -- ver correção C1) ou forçar a senha do cliente final por
+// tentativa e erro, sem nenhum atrito. Mesmo padrão simples já usado no
+// licenca-servidor, aplicado aqui nas rotas mais sensíveis a isso.
+// --------------------------------------------------------------------
+const tentativasPorChave = new Map();
+const JANELA_MS = 1 * 60 * 1000; // 1 minuto
+const MAX_TENTATIVAS = 20;
+
+function limiteExcedido(chave) {
+  const agora = Date.now();
+  const registro = tentativasPorChave.get(chave) || { tentativas: 0, desde: agora };
+  if (agora - registro.desde > JANELA_MS) {
+    registro.tentativas = 0;
+    registro.desde = agora;
+  }
+  registro.tentativas++;
+  tentativasPorChave.set(chave, registro);
+  return registro.tentativas > MAX_TENTATIVAS;
+}
+
+function limitarPorIP(req, res, next) {
+  if (limiteExcedido(req.ip)) {
+    return res.status(429).json({ erro: 'Muitas tentativas em pouco tempo. Aguarde um minuto e tente de novo.' });
+  }
+  next();
+}
+
 // Precisa vir ANTES do express.static: é essa rota que preenche os
 // marcadores de Open Graph (__OG_TITULO__ etc.) com o nome de cada
 // projeto, pra quando o link é colado no WhatsApp aparecer uma prévia
@@ -115,10 +146,15 @@ app.get('/saude', (req, res) => res.json({ ok: true, servico: 'renderia-pasta-cl
 
 // Só devolve um número (não é dado sensível) -- usado pelo painel do
 // servidor de licenças pra mostrar "quantas fotos esse arquiteto já usa".
-// Libera CORS só aqui: quem chama isso é o painel /admin do servidor de
-// licenças, que fica num domínio diferente deste.
+// Libera CORS só pra origem do servidor de licenças (não mais pra
+// qualquer site -- correção B1, auditoria ago/2026: "*" deixava
+// qualquer página da internet chamar isso via JavaScript do navegador
+// de quem estivesse com essa aba aberta).
+const LICENCA_SERVIDOR_ORIGEM = (() => {
+  try { return LICENCA_SERVIDOR_URL ? new URL(LICENCA_SERVIDOR_URL).origin : null; } catch (e) { return null; }
+})();
 app.get('/api/contagem-fotos/:licencaUsuario', (req, res) => {
-  res.header('Access-Control-Allow-Origin', '*');
+  if (LICENCA_SERVIDOR_ORIGEM) res.header('Access-Control-Allow-Origin', LICENCA_SERVIDOR_ORIGEM);
   const usado = galeria.contarFotosDoUsuario(CAMINHO_DADOS, req.params.licencaUsuario);
   res.json({ usado });
 });
@@ -127,7 +163,7 @@ app.get('/api/contagem-fotos/:licencaUsuario', (req, res) => {
 // ROTAS DO APP (o arquiteto -- precisa de sessão válida do RENDERIA)
 // ====================================================================
 
-app.post('/api/app/galeria', exigirSessaoArquiteto, (req, res) => {
+app.post('/api/app/galeria', limitarPorIP, exigirSessaoArquiteto, (req, res) => {
   try {
     const { projetoId, nomeProjeto, clienteUsuario, clienteSenha } = req.body || {};
     const g = galeria.criarOuAtualizarGaleria(CAMINHO_DADOS, {
@@ -152,7 +188,7 @@ app.get('/api/app/galeria/:projetoId', exigirSessaoArquiteto, async (req, res) =
 
 app.post('/api/app/galeria/:projetoId/categorias', exigirSessaoArquiteto, (req, res) => {
   try {
-    const categoria = galeria.criarCategoria(CAMINHO_DADOS, req.params.projetoId, (req.body || {}).nome);
+    const categoria = galeria.criarCategoria(CAMINHO_DADOS, req.params.projetoId, (req.body || {}).nome, req.licencaUsuario);
     res.json({ ok: true, categoria });
   } catch (e) {
     res.status(400).json({ erro: e.message });
@@ -162,7 +198,7 @@ app.post('/api/app/galeria/:projetoId/categorias', exigirSessaoArquiteto, (req, 
 app.put('/api/app/galeria/:projetoId/categorias/:categoriaId', exigirSessaoArquiteto, (req, res) => {
   try {
     const { nome, ordem, moodFotoId } = req.body || {};
-    const categoria = galeria.editarCategoria(CAMINHO_DADOS, req.params.projetoId, req.params.categoriaId, { nome, ordem, moodFotoId });
+    const categoria = galeria.editarCategoria(CAMINHO_DADOS, req.params.projetoId, req.params.categoriaId, { nome, ordem, moodFotoId }, req.licencaUsuario);
     res.json({ ok: true, categoria });
   } catch (e) {
     res.status(400).json({ erro: e.message });
@@ -171,7 +207,7 @@ app.put('/api/app/galeria/:projetoId/categorias/:categoriaId', exigirSessaoArqui
 
 app.delete('/api/app/galeria/:projetoId/categorias/:categoriaId', exigirSessaoArquiteto, (req, res) => {
   try {
-    galeria.excluirCategoria(CAMINHO_DADOS, req.params.projetoId, req.params.categoriaId);
+    galeria.excluirCategoria(CAMINHO_DADOS, req.params.projetoId, req.params.categoriaId, req.licencaUsuario);
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ erro: e.message });
@@ -187,7 +223,7 @@ app.post('/api/app/galeria/:projetoId/marca-dagua', exigirSessaoArquiteto, uploa
     if (!g || g.licencaUsuario !== req.licencaUsuario) return res.status(404).json({ erro: 'Pasta do Cliente não encontrada.' });
     const chave = `${req.params.projetoId}/marca-dagua-${crypto.randomUUID()}.png`;
     await storage.salvarArquivo(chave, req.file.buffer, 'image/png');
-    const marcaDagua = galeria.atualizarMarcaDagua(CAMINHO_DADOS, req.params.projetoId, { r2Key: chave });
+    const marcaDagua = galeria.atualizarMarcaDagua(CAMINHO_DADOS, req.params.projetoId, { r2Key: chave }, req.licencaUsuario);
     res.json({ ok: true, marcaDagua });
   } catch (e) {
     res.status(400).json({ erro: e.message });
@@ -199,7 +235,7 @@ app.post('/api/app/galeria/:projetoId/marca-dagua', exigirSessaoArquiteto, uploa
 app.put('/api/app/galeria/:projetoId/marca-dagua', exigirSessaoArquiteto, (req, res) => {
   try {
     const { ativa, transparencia, escala } = req.body || {};
-    const marcaDagua = galeria.atualizarMarcaDagua(CAMINHO_DADOS, req.params.projetoId, { ativa, transparencia, escala });
+    const marcaDagua = galeria.atualizarMarcaDagua(CAMINHO_DADOS, req.params.projetoId, { ativa, transparencia, escala }, req.licencaUsuario);
     res.json({ ok: true, marcaDagua });
   } catch (e) {
     res.status(400).json({ erro: e.message });
@@ -225,6 +261,7 @@ app.post('/api/app/galeria/:projetoId/icone', exigirSessaoArquiteto, upload.sing
 // Leve, só pro selinho de "novo comentário" no botão -- não busca URLs.
 app.get('/api/app/status/:projetoId', exigirSessaoArquiteto, (req, res) => {
   const g = galeria.buscarGaleriaPorProjeto(CAMINHO_DADOS, req.params.projetoId);
+  if (g && g.licencaUsuario !== req.licencaUsuario) return res.status(404).json({ existe: false, temComentarioNaoLido: false });
   res.json({ existe: !!g, temComentarioNaoLido: g ? g.temComentarioNaoLido : false });
 });
 
@@ -294,7 +331,7 @@ app.delete('/api/app/galeria/:projetoId/fotos/:fotoId', exigirSessaoArquiteto, a
 
 app.post('/api/app/galeria/:projetoId/marcar-lido', exigirSessaoArquiteto, (req, res) => {
   try {
-    galeria.marcarComentariosLidos(CAMINHO_DADOS, req.params.projetoId);
+    galeria.marcarComentariosLidos(CAMINHO_DADOS, req.params.projetoId, req.licencaUsuario);
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ erro: e.message });
@@ -316,7 +353,7 @@ app.get('/api/cliente/:linkToken/info-publica', async (req, res) => {
   res.json({ nomeProjeto: g.nomeProjeto, iconeUrl });
 });
 
-app.post('/api/cliente/:linkToken/login', (req, res) => {
+app.post('/api/cliente/:linkToken/login', limitarPorIP, (req, res) => {
   try {
     const { usuario, senha } = req.body || {};
     const token = galeria.loginCliente(CAMINHO_DADOS, req.params.linkToken, usuario, senha);

@@ -2,7 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const galeria = require('/home/claude/pasta-cliente/lib/galeria');
+const galeria = require('../lib/galeria');
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'teste-galeria-'));
 const CAMINHO = path.join(TMP, 'dados-galerias.json');
@@ -100,7 +100,7 @@ console.log('== 10. Comentário marca temComentarioNaoLido = true, e marcarComen
 const primeiraFoto = galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').fotos[0];
 galeria.comentarFoto(CAMINHO, g1.linkToken, primeiraFoto.id, { texto: 'Pode trocar o piso?' });
 assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').temComentarioNaoLido, true);
-galeria.marcarComentariosLidos(CAMINHO, 'proj1');
+galeria.marcarComentariosLidos(CAMINHO, 'proj1', 'arquiteto@teste.com');
 assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').temComentarioNaoLido, false);
 assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').fotos[0].comentarios[0].lido, true);
 console.log('OK');
@@ -119,10 +119,58 @@ assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').fotos[0].ap
 console.log('OK');
 
 console.log('== 12. Aprovar também marca temComentarioNaoLido (arquiteto precisa saber, não só de comentário) ==');
-galeria.marcarComentariosLidos(CAMINHO, 'proj1'); // limpa antes, pra testar isolado
+galeria.marcarComentariosLidos(CAMINHO, 'proj1', 'arquiteto@teste.com'); // limpa antes, pra testar isolado
 assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').temComentarioNaoLido, false);
 galeria.aprovarFoto(CAMINHO, g1.linkToken, primeiraFoto.id, false);
 assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').temComentarioNaoLido, true, 'aprovar/desaprovar deveria acender o selinho também');
 console.log('OK');
 
 console.log('\nTODOS OS TESTES DA GALERIA PASSARAM 🎉');
+
+// ========================================================================
+// TESTE DE SEGURANÇA (auditoria ago/2026) -- C1, o achado CRÍTICO do
+// relatório. Confirma que um licencaUsuario diferente do dono real não
+// consegue mais "atualizar" (e sequestrar as credenciais do cliente de)
+// uma galeria que já pertence a outra pessoa.
+// ========================================================================
+console.log('\n=== TESTE DE SEGURANÇA CRÍTICO: sequestro de galeria via projetoId adivinhado (C1) ===');
+const DONO_REAL = 'arquiteto@teste.com';
+const ATACANTE_C1 = 'atacante@teste.com';
+
+console.log('== C1-1. Atacante NÃO consegue "atualizar" (sequestrar) o proj1, que já pertence a outra licença ==');
+assert.throws(
+  () => galeria.criarOuAtualizarGaleria(CAMINHO, {
+    projetoId: 'proj1', // já existe, criado pelo DONO_REAL lá em cima
+    licencaUsuario: ATACANTE_C1,
+    clienteUsuario: 'usuarioDoAtacante',
+    clienteSenha: 'senhaDoAtacante123'
+  }),
+  /não pertence a essa licença/i
+);
+console.log('OK -- bloqueado\n');
+
+console.log('== C1-2. E as credenciais do cliente NÃO foram alteradas pela tentativa ==');
+// se a correção falhasse, as credenciais do atacante teriam substituído
+// as da linha 95 (tokenNovo/novaSenha123) -- confirma que continuam as
+// mesmas de antes da tentativa de ataque.
+assert.throws(() => galeria.loginCliente(CAMINHO, g1.linkToken, 'usuarioDoAtacante', 'senhaDoAtacante123'), /incorretos/, 'login com as credenciais do atacante NUNCA deveria funcionar');
+const loginAindaFunciona = galeria.loginCliente(CAMINHO, g1.linkToken, 'cliente1', 'novaSenha123');
+assert.ok(loginAindaFunciona, 'as credenciais legítimas (do dono real) deveriam continuar funcionando normalmente');
+console.log('OK -- credenciais do cliente real intactas, credenciais forjadas pelo atacante nunca vingaram\n');
+
+console.log('== C1-3. O DONO real continua conseguindo atualizar o próprio projeto normalmente ==');
+const atualizacaoLegitima = galeria.criarOuAtualizarGaleria(CAMINHO, {
+  projetoId: 'proj1', licencaUsuario: DONO_REAL, nomeProjeto: 'Casa X Reforma V2'
+});
+assert.strictEqual(atualizacaoLegitima.nomeProjeto, 'Casa X Reforma V2');
+console.log('OK -- dono real segue com acesso total\n');
+
+console.log('== C1-4. Criar um projetoId NOVO (que não existe ainda) continua funcionando pra qualquer licença -- só ATUALIZAR um alheio é que é bloqueado ==');
+const projetoGenuinamenteNovo = galeria.criarOuAtualizarGaleria(CAMINHO, {
+  projetoId: 'projTotalmenteNovo', licencaUsuario: ATACANTE_C1,
+  clienteUsuario: 'clienteLegitimoDoAtacante', clienteSenha: 'senha1234'
+});
+assert.strictEqual(projetoGenuinamenteNovo.licencaUsuario, ATACANTE_C1);
+console.log('OK -- criar projeto genuinamente novo continua liberado (não é isso que era o problema)\n');
+
+console.log('TESTE DE SEGURANÇA CRÍTICO (C1) PASSOU 🔒');

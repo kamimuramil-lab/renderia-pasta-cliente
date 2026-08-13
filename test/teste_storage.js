@@ -1,5 +1,5 @@
 const assert = require('assert');
-const storage = require('/home/claude/pasta-cliente/lib/storage');
+const storage = require('../lib/storage');
 
 // Não temos credenciais reais do R2 aqui -- então o que dá pra testar
 // sem rede é: o módulo detecta corretamente que não está configurado, em
