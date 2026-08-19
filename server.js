@@ -90,7 +90,10 @@ const LICENCA_SERVIDOR_URL = process.env.LICENCA_SERVIDOR_URL || null;
 // --------------------------------------------------------------------
 // Middleware: confere a sessão do ARQUITETO direto no servidor de
 // licenças (nunca duplicamos essa lógica aqui) -- e já aproveita pra
-// pegar o limiteFotos, que vem na mesma resposta.
+// pegar o limiteFotos, que vem na mesma resposta. Usa o endpoint
+// "-servidor" (não o /api/verificar-sessao normal, usado pelo app) --
+// esse aqui não checa vínculo de chave de API nem versão mínima do app,
+// porque nenhum dos dois faz sentido pra uma chamada servidor-a-servidor.
 // --------------------------------------------------------------------
 async function exigirSessaoArquiteto(req, res, next) {
   try {
@@ -98,7 +101,7 @@ async function exigirSessaoArquiteto(req, res, next) {
     if (!token) return res.status(401).json({ erro: 'Sessão não informada.' });
     if (!LICENCA_SERVIDOR_URL) return res.status(503).json({ erro: 'LICENCA_SERVIDOR_URL não configurada neste servidor.' });
 
-    const resposta = await fetch(`${LICENCA_SERVIDOR_URL}/api/verificar-sessao`, {
+    const resposta = await fetch(`${LICENCA_SERVIDOR_URL}/api/verificar-sessao-servidor`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token })
