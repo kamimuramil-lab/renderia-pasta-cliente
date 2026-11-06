@@ -234,3 +234,108 @@ img{ max-width:100%; display:block; }
   .grid-fotos{ grid-template-columns:repeat(2,1fr); }
   .painel-inferior-visualizador{ max-height:44vh; }
 }
+
+/* ===================== PLANTA BAIXA ===================== */
+.btn-topo-nav{
+  display:flex; align-items:center; gap:7px; padding:8px 14px; border-radius:999px; flex-shrink:0;
+  background:var(--bg-elev); border:1px solid var(--line); color:var(--steel-100); font-size:13px; font-weight:600;
+}
+.btn-topo-nav:hover{ border-color:var(--steel-500); }
+.texto-progresso-planta{ font-size:12px; line-height:16px; min-height:16px; color:var(--text-dim); margin-top:1px; } /* altura reservada: o texto entra depois e não pode empurrar a planta */
+
+#telaPlanta{ flex-direction:column; height:100vh; height:100dvh; }
+#telaPlanta .topo-galeria{ flex-shrink:0; }
+.planta-abas{
+  display:flex; gap:8px; padding:10px 24px 0; overflow-x:auto; flex-shrink:0; -webkit-overflow-scrolling:touch;
+}
+.aba-planta{
+  padding:8px 16px; border-radius:999px; border:1px solid var(--line); background:var(--bg-elev); color:var(--text-dim);
+  font-size:13px; font-weight:600; white-space:nowrap;
+}
+.aba-planta.ativa{ background:var(--steel-grad); color:#101214; border-color:transparent; }
+
+.planta-viewport{
+  flex:1; position:relative; overflow:hidden; min-height:0; margin:12px 24px 0;
+  background:var(--bg-elev); border:1px solid var(--line-soft); border-radius:var(--radius-m);
+  touch-action:none; cursor:grab; user-select:none; -webkit-user-select:none;
+}
+.planta-viewport:active{ cursor:grabbing; }
+/* Sem "will-change: transform": com ele o navegador amplia uma "foto" do bloco em vez de redesenhar, e tudo borra no zoom. */
+.planta-palco{ position:absolute; left:0; top:0; transform-origin:0 0; }
+.planta-palco img{ width:100%; height:100%; max-width:none; object-fit:contain; display:block; pointer-events:none; background:#fff; }
+/* Camada dos ícones: por cima da planta, SEM zoom aplicado (ícones sempre nítidos); só os ícones recebem clique. */
+.planta-pins{ position:absolute; inset:0; pointer-events:none; z-index:2; }
+
+/* Ícone: posicionado em % da planta; tamanho fixo na tela mesmo com zoom (escala 1/zoom) */
+.pin-planta{
+  position:absolute; left:0; top:0; padding:0; margin:0; border:none; background:none; color:#101214; cursor:pointer;
+  transform:translate(-50%, -50%); pointer-events:auto;
+}
+.pin-planta.pin-360{ transform:translate(-50%, -100%); }
+.pin-planta::after{ content:''; position:absolute; inset:-6px; } /* área de toque maior (~46px), sem mudar o visual */
+.pin-corpo{ display:flex; align-items:center; justify-content:center; }
+.pin-fixa .pin-corpo{
+  width:34px; height:34px; border-radius:50%; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,.45);
+  border:2px solid #fff;
+}
+.pin-360 .pin-corpo{ filter:drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
+.pin-fixa.status-aprovada .pin-corpo{ border-color:#2ea043; }
+.pin-fixa.status-alteracao .pin-corpo{ border-color:#f08c1a; }
+.pin-planta:hover .pin-corpo, .pin-planta:focus-visible .pin-corpo{ transform:scale(1.12); }
+.pin-insignia{
+  position:absolute; top:-5px; right:-6px; width:16px; height:16px; border-radius:50%; font-size:10px; font-weight:800;
+  display:flex; align-items:center; justify-content:center; color:#fff; border:1.5px solid #fff; line-height:1;
+}
+.pin-360 .pin-insignia{ top:-2px; right:-4px; }
+.pin-insignia.aprovada{ background:#2ea043; }
+.pin-insignia.alteracao{ background:#f08c1a; }
+.pin-rotulo{
+  position:absolute; left:50%; bottom:calc(100% + 6px); transform:translateX(-50%); padding:5px; border-radius:8px;
+  background:rgba(20,22,24,.94); color:var(--steel-100); font-size:12px; font-weight:600; white-space:nowrap;
+  display:flex; flex-direction:column; align-items:center; gap:5px; box-shadow:0 6px 20px rgba(0,0,0,.5);
+  pointer-events:none; opacity:0; transition:opacity .12s; z-index:5;
+}
+.pin-rotulo-img{ width:150px; height:100px; object-fit:cover; border-radius:5px; display:block; background:#000; }
+.pin-rotulo-img:not([src]){ display:none; }
+.pin-planta:hover .pin-rotulo, .pin-planta:focus-visible .pin-rotulo{ opacity:1; }
+
+.planta-controles{
+  position:absolute; left:12px; bottom:12px; display:flex; align-items:center; gap:2px; z-index:3;
+  background:rgba(20,22,24,.8); border:1px solid var(--line); border-radius:999px; padding:3px;
+}
+.planta-controles button{
+  min-width:34px; height:34px; border-radius:999px; border:none; background:transparent; color:var(--steel-100);
+  font-size:18px; font-weight:700; padding:0 8px;
+}
+.planta-controles button:hover{ background:rgba(255,255,255,.08); }
+.planta-controles #btnPlantaZoomReset{ font-size:11.5px; font-weight:600; min-width:52px; color:var(--text-dim); }
+
+.planta-legenda{
+  display:flex; flex-wrap:wrap; gap:6px 18px; justify-content:center; padding:10px 24px 14px; flex-shrink:0;
+  font-size:12px; color:var(--text-dim);
+}
+.planta-legenda span{ display:flex; align-items:center; gap:6px; }
+.leg-icone{ display:inline-block; width:16px; height:16px; border-radius:50%; background:#fff; border:2px solid #fff; }
+.leg-360{ background:#e5372e; border-radius:50% 50% 50% 0; transform:rotate(-45deg) scale(.8); }
+.leg-ponto{ display:inline-block; width:10px; height:10px; border-radius:50%; }
+.leg-aprovada{ background:#2ea043; }
+.leg-alteracao{ background:#f08c1a; }
+
+/* Botões discretos (planta / galeria) no canto inferior direito do visualizador,
+   ao lado do botão de tela cheia -- sutis, pra não competir com a imagem. */
+.btn-visualizador-canto{
+  position:absolute; bottom:16px; z-index:4; width:36px; height:36px; border-radius:8px;
+  background:rgba(20,22,24,.72); border:1px solid var(--line); color:var(--steel-100);
+  display:flex; align-items:center; justify-content:center; opacity:.8;
+}
+.btn-visualizador-canto:hover{ opacity:1; }
+.btn-canto-planta{ right:60px; }
+.btn-canto-galeria{ right:104px; }
+
+@media (max-width:620px){
+  .planta-viewport{ margin:10px 12px 0; }
+  .planta-abas{ padding:10px 12px 0; }
+  .planta-legenda{ padding:8px 12px 12px; gap:4px 12px; }
+  .btn-topo-nav span{ display:none; } /* só o ícone, pra caber no topo no celular */
+  .btn-topo-nav{ padding:9px 11px; }
+}

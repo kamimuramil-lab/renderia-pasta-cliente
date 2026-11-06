@@ -76,6 +76,12 @@ token que o app já usa pra login no RENDERIA):
 - `PUT /api/app/galeria/:projetoId/fotos/:fotoId` -- editar nome/tag/ordem/arquivar
 - `DELETE /api/app/galeria/:projetoId/fotos/:fotoId` -- excluir de vez (libera quota)
 - `POST /api/app/galeria/:projetoId/marcar-lido` -- limpa o selinho
+- **Plantas baixas** (uma por pavimento; o cliente abre a planta primeiro e navega pelos ícones):
+  - `POST /api/app/galeria/:projetoId/plantas` -- envia uma planta (multipart: `arquivo` PNG/JPG/WebP + `nome`)
+  - `PUT /api/app/galeria/:projetoId/plantas/:plantaId` -- renomear/reordenar
+  - `POST /api/app/galeria/:projetoId/plantas/:plantaId/imagem` -- troca só a imagem (ícones continuam no lugar)
+  - `DELETE /api/app/galeria/:projetoId/plantas/:plantaId` -- exclui (as fotos ficam, sem ícone)
+  - `PUT /api/app/galeria/:projetoId/fotos/:fotoId/posicao` -- `{ plantaId, x, y }` (frações 0..1; `plantaId` vazio tira da planta)
 
 **Do cliente final** -- público, via `linkToken` (da URL) + `x-cliente-token` (depois do login):
 - `POST /api/cliente/:linkToken/login`

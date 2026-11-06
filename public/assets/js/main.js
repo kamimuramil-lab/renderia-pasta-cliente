@@ -17,6 +17,7 @@ const estado = {
   fotosCategoriaAtual: [], // fotos da categoria aberta agora (pode incluir o mood como 1º item virtual)
   indiceAtual: -1,
   visualizadorPanorama: null,
+  acaoAposFecharVisualizador: null, // ex: "depois de fechar a imagem, vai pra planta" (o fechamento é assíncrono via histórico)
   tokenClienteAtual: null // token da sessão ATUAL -- sempre usado nas chamadas, independente de estar salvo em localStorage ou não
 };
 
@@ -37,7 +38,7 @@ async function tentarEntrarComTokenSalvo() {
   estado.tokenClienteAtual = token;
   try {
     const galeria = await chamarAPI(`/api/cliente/${LINK_TOKEN}/galeria`);
-    mostrarGaleria(galeria);
+    entrarNoProjeto(galeria);
     return true;
   } catch (e) {
     estado.tokenClienteAtual = null;
@@ -73,7 +74,7 @@ async function fazerLogin() {
     if ($('chkLembrarDispositivo').checked) localStorage.setItem(CHAVE_LOCAL, dados.token);
     else localStorage.removeItem(CHAVE_LOCAL);
     const galeria = await chamarAPI(`/api/cliente/${LINK_TOKEN}/galeria`);
-    mostrarGaleria(galeria);
+    entrarNoProjeto(galeria);
   } catch (e) {
     msgErro.textContent = e.message;
     msgErro.style.display = 'block';
@@ -87,9 +88,19 @@ function escapeHtml(s) {
   return (s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// ---------- Entrada: se o arquiteto montou uma planta baixa (com ícones), ela
+// é a primeira tela; senão, abre a galeria como sempre foi. ----------
+function entrarNoProjeto(galeria) {
+  mostrarGaleria(galeria);
+  if (window.PlantaCliente && window.PlantaCliente.temPlantaUtil(galeria)) window.PlantaCliente.abrir();
+}
+function mostrarTelaGaleriaDaPlanta() { $('telaGaleria').style.display = 'block'; }
+$('btnIrParaPlanta').addEventListener('click', () => window.PlantaCliente.abrir());
+
 // ---------- Home: grade de categorias ----------
 function mostrarGaleria(galeria) {
   estado.galeria = galeria;
+  $('btnIrParaPlanta').style.display = (window.PlantaCliente && window.PlantaCliente.temPlantaUtil(galeria)) ? 'flex' : 'none';
   $('telaLogin').style.display = 'none';
   $('telaGaleria').style.display = 'block';
   $('nomeProjetoGaleria').textContent = galeria.nomeProjeto;
@@ -160,7 +171,10 @@ function abrirCategoria(indiceCategoria, opcoes = {}) {
     ? [{ __ehMood: true, url: cat.moodUrl, nomeExibicao: cat.nome }, ...cat.fotos]
     : [...cat.fotos];
   if (!estado.fotosCategoriaAtual.length) return; // categoria vazia, sem mood -- não tem o que abrir
-  estado.indiceAtual = opcoes.noFim ? estado.fotosCategoriaAtual.length - 1 : 0;
+  estado.indiceAtual = (opcoes.indiceFoto !== undefined)
+    ? Math.min(Math.max(opcoes.indiceFoto, 0), estado.fotosCategoriaAtual.length - 1)
+    : (opcoes.noFim ? estado.fotosCategoriaAtual.length - 1 : 0);
+  atualizarBotoesCantoVisualizador();
   // Só empurra uma entrada NOVA no histórico se ainda não estiver dentro
   // do visualizador -- trocar de categoria (avançar/voltar) não deveria
   // acumular uma entrada de histórico por transição, senão o botão
@@ -187,10 +201,33 @@ window.addEventListener('popstate', () => {
 
 $('btnFecharVisualizador').addEventListener('click', pedirFechamentoVisualizador);
 function fecharVisualizadorDeVerdade() {
+  if (elementoFullscreenAtual()) sairFullscreen(); // senão a planta/galeria ficam "atrás" da tela cheia e não recebem cliques
   $('visualizador').style.display = 'none';
   $('visualizador').classList.remove('modo-imersivo');
   destruirPanoramaSeExistir();
+  const acao = estado.acaoAposFecharVisualizador;
+  estado.acaoAposFecharVisualizador = null;
+  if (acao) acao();
+  else if (window.PlantaCliente) window.PlantaCliente.atualizarPins(); // aprovou/comentou: o ícone muda de cor
 }
+
+// Botões discretos no canto inferior direito do visualizador: voltar pra
+// planta e ir pra galeria. Só existem quando o projeto tem planta com ícones.
+function atualizarBotoesCantoVisualizador() {
+  const temPlanta = !!(window.PlantaCliente && estado.galeria && window.PlantaCliente.temPlantaUtil(estado.galeria));
+  $('btnVisualizadorPlanta').style.display = temPlanta ? 'flex' : 'none';
+  $('btnVisualizadorGaleria').style.display = temPlanta ? 'flex' : 'none';
+}
+$('btnVisualizadorPlanta').addEventListener('click', () => {
+  const foto = estado.fotosCategoriaAtual[estado.indiceAtual];
+  const plantaId = (foto && !foto.__ehMood) ? foto.plantaId : null;
+  estado.acaoAposFecharVisualizador = () => window.PlantaCliente.abrir(plantaId); // abrir() já esconde a galeria
+  pedirFechamentoVisualizador();
+});
+$('btnVisualizadorGaleria').addEventListener('click', () => {
+  estado.acaoAposFecharVisualizador = () => { window.PlantaCliente.fechar(); mostrarTelaGaleriaDaPlanta(); };
+  pedirFechamentoVisualizador();
+});
 
 $('btnAnteriorFoto').addEventListener('click', () => navegarVisualizador(-1));
 $('btnProximaFoto').addEventListener('click', () => navegarVisualizador(1));
@@ -279,7 +316,7 @@ function renderizarFotoAtualNoVisualizador() {
   const foto = estado.fotosCategoriaAtual[estado.indiceAtual];
   const categoriaAtual = estado.categoriasOrdenadas[estado.indiceCategoriaAtual];
   $('categoriaAtualVisualizador').textContent = categoriaAtual ? categoriaAtual.nome : '';
-  $('nomeFotoVisualizador').textContent = foto.__ehMood ? '' : foto.nomeExibicao;
+  $('nomeFotoVisualizador').textContent = foto.__ehMood ? '' : (window.nomeParaCliente ? window.nomeParaCliente(foto) : foto.nomeExibicao);
   $('btnAnteriorFoto').disabled = estado.indiceAtual === 0 && estado.indiceCategoriaAtual === 0;
 
   const noUltimoItemDaCategoria = estado.indiceAtual === estado.fotosCategoriaAtual.length - 1;
@@ -305,6 +342,12 @@ function renderizarFotoAtualNoVisualizador() {
       type: 'equirectangular',
       panorama: foto.url,
       autoLoad: true,
+      // Zoom do 360: abre já "afastado" (120°, dá pra ver a cena quase toda), deixa afastar até 140° e
+      // aproximar até 30° -- o cliente aproxima/afasta com a roda do mouse (ou pinça no celular).
+      hfov: 120,
+      minHfov: 30,
+      maxHfov: 140,
+      mouseZoom: true,
       showZoomCtrl: true,
       showFullscreenCtrl: false,
       compass: false

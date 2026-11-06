@@ -53,7 +53,20 @@ function limitarPorIP(req, res, next) {
 // pra montar essa prévia -- por isso isso precisa estar pronto no HTML
 // que o servidor manda, não pode ser montado só depois, no navegador.
 const fs = require('fs');
-const INDEX_HTML_BRUTO = fs.readFileSync(path.join(__dirname, 'public', 'index.html'), 'utf8');
+const CAMINHO_INDEX_HTML = path.join(__dirname, 'public', 'index.html');
+const INDEX_HTML_BRUTO = fs.readFileSync(CAMINHO_INDEX_HTML, 'utf8');
+// Em produção o HTML é lido uma vez (a hospedagem reinicia a cada atualização). No modo de TESTE local
+// relê a cada pedido: antes, quem deixava o servidor de teste aberto recebia o HTML ANTIGO misturado com
+// JS/CSS NOVOS (esses vêm do disco a cada pedido) -- e a página ficava quebrada até reiniciar o servidor.
+const lerIndexHtml = () => (storage.MODO_LOCAL ? fs.readFileSync(CAMINHO_INDEX_HTML, 'utf8') : INDEX_HTML_BRUTO);
+
+// Coloca a data de modificação de cada JS/CSS na URL (assets/js/main.js?v=...): se o arquivo mudar, a URL
+// muda, e o navegador nunca usa uma cópia velha junto com um HTML novo (nem o contrário).
+function comVersaoNosAssets(html) {
+  return html.replace(/(assets\/(?:js|css)\/[\w.-]+\.(?:js|css))(?=")/g, (m, caminho) => {
+    try { return `${caminho}?v=${Math.round(fs.statSync(path.join(__dirname, 'public', caminho)).mtimeMs)}`; } catch (e) { return m; }
+  });
+}
 app.get('/', async (req, res) => {
   let tituloProjeto = null;
   let iconeUrl = null;
@@ -72,7 +85,7 @@ app.get('/', async (req, res) => {
   const ogTitulo = tituloProjeto ? `${tituloProjeto} — Sua Galeria RENDERIA` : 'RENDERIA — Sua Galeria';
   const ogDescricao = 'Veja as fotos do seu projeto, aprove ou peça alterações.';
   const ogImagem = iconeUrl || `${req.protocol}://${req.get('host')}/assets/img/logo.jpg`;
-  const html = INDEX_HTML_BRUTO
+  const html = comVersaoNosAssets(lerIndexHtml())
     .split('__OG_TITULO__').join(ogTitulo)
     .split('__OG_DESCRICAO__').join(ogDescricao)
     .split('__OG_IMAGEM__').join(ogImagem);
@@ -80,6 +93,18 @@ app.get('/', async (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname, 'public')));
+
+// SÓ NO MODO DE TESTE (ARMAZENAMENTO_LOCAL_TESTE=1, nunca em produção): serve os
+// arquivos gravados em disco local, pra página do cliente conseguir mostrar as
+// imagens num navegador de verdade. Em produção (R2) esta rota nem é registrada.
+if (storage.MODO_LOCAL) {
+  app.get('/_local/*', (req, res) => {
+    const relativo = decodeURIComponent(req.params[0] || '');
+    const alvo = path.resolve(storage.PASTA_LOCAL, relativo);
+    if (!alvo.startsWith(path.resolve(storage.PASTA_LOCAL) + path.sep) || !fs.existsSync(alvo)) return res.status(404).end();
+    res.sendFile(alvo);
+  });
+}
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } }); // 15MB de folga (a otimização no app já deixa isso bem menor)
 
@@ -141,8 +166,12 @@ async function galeriaComUrls(galeriaObj) {
     ...galeriaObj.iconePersonalizado,
     url: (galeriaObj.iconePersonalizado && galeriaObj.iconePersonalizado.r2Key) ? await storage.urlTemporaria(galeriaObj.iconePersonalizado.r2Key) : null
   };
+  const plantas = await Promise.all((galeriaObj.plantas || []).map(async (p) => ({
+    ...p,
+    url: await storage.urlTemporaria(p.r2Key)
+  })));
   const { clienteSenhaHash, sessoesClienteAtivas, ...resto } = galeriaObj;
-  return { ...resto, categorias, fotos, marcaDagua, iconePersonalizado };
+  return { ...resto, categorias, plantas, fotos, marcaDagua, iconePersonalizado };
 }
 
 app.get('/saude', (req, res) => res.json({ ok: true, servico: 'renderia-pasta-cliente' }));
@@ -256,6 +285,87 @@ app.post('/api/app/galeria/:projetoId/icone', exigirSessaoArquiteto, upload.sing
     await storage.salvarArquivo(chave, req.file.buffer, 'image/png');
     const iconePersonalizado = galeria.atualizarIconePersonalizado(CAMINHO_DADOS, req.params.projetoId, chave);
     res.json({ ok: true, iconePersonalizado });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// --------------------------------------------------------------------
+// PLANTAS BAIXAS (uma por pavimento). A imagem vai igual uma foto, mas
+// SEM converter pra webp aqui: planta tem linhas finas e texto, então o
+// app manda no formato que achar melhor (PNG/JPG/WebP) e guardamos como
+// veio. Toda rota confere a posse do projeto.
+// --------------------------------------------------------------------
+const TIPOS_PLANTA = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+
+app.post('/api/app/galeria/:projetoId/plantas', exigirSessaoArquiteto, upload.single('arquivo'), async (req, res) => {
+  let chave = null;
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Nenhum arquivo enviado.' });
+    const extensao = TIPOS_PLANTA[req.file.mimetype];
+    if (!extensao) return res.status(400).json({ erro: 'Envie a planta como PNG, JPG ou WebP.' });
+    const g = galeria.buscarGaleriaPorProjeto(CAMINHO_DADOS, req.params.projetoId);
+    if (!g || g.licencaUsuario !== req.licencaUsuario) return res.status(404).json({ erro: 'Pasta do Cliente não encontrada.' });
+    // Confere o limite ANTES de gravar no armazenamento, pra não deixar arquivo órfão.
+    if ((g.plantas || []).length >= galeria.LIMITE_PLANTAS_POR_PROJETO) {
+      return res.status(400).json({ erro: `Esse projeto já tem o máximo de ${galeria.LIMITE_PLANTAS_POR_PROJETO} plantas. Exclua alguma antes de adicionar outra.` });
+    }
+    chave = `${req.params.projetoId}/planta-${crypto.randomUUID()}.${extensao}`;
+    await storage.salvarArquivo(chave, req.file.buffer, req.file.mimetype);
+    const planta = galeria.adicionarPlanta(CAMINHO_DADOS, req.params.projetoId, { nome: (req.body || {}).nome, r2Key: chave }, req.licencaUsuario);
+    res.json({ ok: true, planta: { ...planta, url: await storage.urlTemporaria(planta.r2Key) } });
+  } catch (e) {
+    if (chave) { try { await storage.excluirArquivo(chave); } catch (e2) { /* melhor esforço */ } }
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.put('/api/app/galeria/:projetoId/plantas/:plantaId', exigirSessaoArquiteto, (req, res) => {
+  try {
+    const { nome, ordem } = req.body || {};
+    const planta = galeria.editarPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.plantaId, { nome, ordem }, req.licencaUsuario);
+    res.json({ ok: true, planta });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Troca só a imagem da planta -- os ícones continuam onde estavam.
+app.post('/api/app/galeria/:projetoId/plantas/:plantaId/imagem', exigirSessaoArquiteto, upload.single('arquivo'), async (req, res) => {
+  let chave = null;
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Nenhum arquivo enviado.' });
+    const extensao = TIPOS_PLANTA[req.file.mimetype];
+    if (!extensao) return res.status(400).json({ erro: 'Envie a planta como PNG, JPG ou WebP.' });
+    const g = galeria.buscarGaleriaPorProjeto(CAMINHO_DADOS, req.params.projetoId);
+    if (!g || g.licencaUsuario !== req.licencaUsuario) return res.status(404).json({ erro: 'Pasta do Cliente não encontrada.' });
+    chave = `${req.params.projetoId}/planta-${crypto.randomUUID()}.${extensao}`;
+    await storage.salvarArquivo(chave, req.file.buffer, req.file.mimetype);
+    const { planta, r2KeyAntiga } = galeria.atualizarImagemPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.plantaId, chave, req.licencaUsuario);
+    try { await storage.excluirArquivo(r2KeyAntiga); } catch (e) { console.error('Aviso: falhou excluir a planta antiga do armazenamento:', e.message); }
+    res.json({ ok: true, planta: { ...planta, url: await storage.urlTemporaria(planta.r2Key) } });
+  } catch (e) {
+    if (chave) { try { await storage.excluirArquivo(chave); } catch (e2) { /* melhor esforço */ } }
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.delete('/api/app/galeria/:projetoId/plantas/:plantaId', exigirSessaoArquiteto, async (req, res) => {
+  try {
+    const r2Key = galeria.excluirPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.plantaId, req.licencaUsuario);
+    try { await storage.excluirArquivo(r2Key); } catch (e) { console.error('Aviso: falhou excluir a planta do armazenamento, mas já excluiu dos dados:', e.message); }
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Posição do ícone de uma foto na planta (plantaId vazio = tira da planta).
+app.put('/api/app/galeria/:projetoId/fotos/:fotoId/posicao', exigirSessaoArquiteto, (req, res) => {
+  try {
+    const { plantaId, x, y } = req.body || {};
+    const foto = galeria.posicionarFotoNaPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.fotoId, { plantaId, x, y }, req.licencaUsuario);
+    res.json({ ok: true, foto: { id: foto.id, plantaId: foto.plantaId, pinPlanta: foto.pinPlanta } });
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }

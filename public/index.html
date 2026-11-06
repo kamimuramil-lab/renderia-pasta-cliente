@@ -45,6 +45,9 @@
     <div style="flex:1;">
       <h1 id="nomeProjetoGaleria">Projeto</h1>
     </div>
+    <button class="btn-topo-nav" id="btnIrParaPlanta" style="display:none;" title="Ver a planta baixa">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M9 3v8h12M9 11v10"/></svg><span>Planta</span>
+    </button>
     <div class="marca-rodape">RENDERIA</div>
   </div>
   <div class="wrap-galeria">
@@ -53,6 +56,38 @@
     </div>
     <div class="texto-progresso-cliente" id="textoProgressoCliente"></div>
     <div id="wrapGaleria"></div>
+  </div>
+</div>
+
+<!-- ===================== TELA DA PLANTA BAIXA ===================== -->
+<div id="telaPlanta" style="display:none;">
+  <div class="topo-galeria">
+    <div class="selo"><img src="assets/img/logo.jpg" alt="RENDERIA" id="imgLogoPlanta"></div>
+    <div style="flex:1; min-width:0;">
+      <h1 id="nomeProjetoPlanta">Projeto</h1>
+      <div class="texto-progresso-planta" id="plantaTextoProgresso"></div>
+    </div>
+    <button class="btn-topo-nav" id="btnPlantaParaGaleria" title="Ver a galeria de imagens">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Galeria</span>
+    </button>
+  </div>
+  <div class="planta-abas" id="plantaAbas" style="display:none;"></div>
+  <div class="planta-viewport" id="plantaViewport">
+    <div class="planta-palco" id="plantaPalco">
+      <img id="imgPlanta" alt="Planta baixa" draggable="false">
+    </div>
+    <div class="planta-pins" id="plantaPins"></div>
+    <div class="planta-controles">
+      <button id="btnPlantaZoomMenos" aria-label="Diminuir zoom">−</button>
+      <button id="btnPlantaZoomReset" aria-label="Voltar ao tamanho original"><span id="plantaZoomValor">100%</span></button>
+      <button id="btnPlantaZoomMais" aria-label="Aumentar zoom">+</button>
+    </div>
+  </div>
+  <div class="planta-legenda">
+    <span><i class="leg-icone leg-camera"></i> Imagem</span>
+    <span><i class="leg-icone leg-360"></i> 360°</span>
+    <span><i class="leg-ponto leg-aprovada"></i> Aprovada</span>
+    <span><i class="leg-ponto leg-alteracao"></i> Alteração solicitada</span>
   </div>
 </div>
 
@@ -82,6 +117,12 @@
     </button>
     <button class="btn-proxima-categoria" id="btnProximaCategoria" style="display:none;">
       Próxima categoria: <span id="nomeProximaCategoria"></span> →
+    </button>
+    <button class="btn-visualizador-canto btn-canto-galeria" id="btnVisualizadorGaleria" style="display:none;" title="Ver a galeria">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    </button>
+    <button class="btn-visualizador-canto btn-canto-planta" id="btnVisualizadorPlanta" style="display:none;" title="Voltar para a planta">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M9 3v8h12M9 11v10"/></svg>
     </button>
     <button class="btn-tela-cheia-visualizador" id="btnTelaCheiaVisualizador" title="Ver em tela cheia">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
@@ -126,6 +167,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+<script src="assets/js/planta.js"></script>
 <script src="assets/js/main.js"></script>
 </body>
 </html>
