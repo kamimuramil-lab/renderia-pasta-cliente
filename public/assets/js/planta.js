@@ -69,6 +69,9 @@
     const insignia = status === 'aprovada' ? '<span class="pin-insignia aprovada">✓</span>'
       : status === 'alteracao' ? '<span class="pin-insignia alteracao">!</span>' : '';
     // data-x/data-y = fração (0..1) da planta; a posição em pixels sai de posicionarPins().
+    // IMPORTANTE: o <img> da prévia PRECISA de crossorigin="anonymous". O visualizador 360 baixa o MESMO arquivo
+    // por XHR (que exige CORS); sem esse atributo o navegador guarda a cópia SEM cabeçalho CORS ao passar o mouse
+    // no ícone, e o 360 depois falha com "The file ... could not be accessed" (status 0). Bug real de nov/2026.
     // A prévia (data-src) só é baixada quando o mouse/foco chega no ícone -- baixar a imagem de todos
     // os ícones ao abrir a planta seria pesado (principalmente no celular).
     return `<button class="pin-planta ${eh360 ? 'pin-360' : 'pin-fixa'} status-${status}" data-foto-id="${f.id}"
@@ -76,7 +79,7 @@
         title="${escapeHtml(nome)} -- ${TEXTO_STATUS[status]}" aria-label="${escapeHtml(nome)}">
         <span class="pin-corpo">${eh360 ? SVG_PIN360 : SVG_CAMERA}</span>${insignia}
         <span class="pin-rotulo">
-          ${f.url ? `<img class="pin-rotulo-img" data-src="${escapeHtml(f.url)}" alt="" draggable="false">` : ''}
+          ${f.url ? `<img class="pin-rotulo-img" data-src="${escapeHtml(f.url)}" alt="" draggable="false" crossorigin="anonymous">` : ''}
           <span>${escapeHtml(nome)}</span>
         </span>
       </button>`;
