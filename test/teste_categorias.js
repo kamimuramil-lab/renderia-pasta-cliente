@@ -57,9 +57,10 @@ assert.strictEqual(galeriaAtual3.fotos.find((f) => f.id === fotoSemCategoria.id)
 assert.strictEqual(galeriaAtual3.fotos.length, 3, 'nenhuma foto deveria ter sido apagada');
 console.log('OK');
 
-console.log('== 8. Marca d\'água começa desativada por padrão ==');
+console.log('== 8. Marca d\'água começa LIGADA por padrão (nov/2026: só aparece se houver logo próprio ou da conta) ==');
 const galeriaInicial = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projCat');
-assert.strictEqual(galeriaInicial.marcaDagua.ativa, false);
+assert.strictEqual(galeriaInicial.marcaDagua.ativa, true);
+assert.strictEqual(galeriaInicial.iconePersonalizado.exibir, true, 'exibir ícone também começa ligado');
 assert.strictEqual(galeriaInicial.marcaDagua.transparencia, 100);
 assert.strictEqual(galeriaInicial.marcaDagua.escala, 100);
 assert.strictEqual(galeriaInicial.iconePersonalizado.r2Key, null);

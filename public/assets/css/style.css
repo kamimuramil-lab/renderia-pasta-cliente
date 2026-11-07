@@ -266,6 +266,16 @@ img{ max-width:100%; display:block; }
 /* Camada dos ícones: por cima da planta, SEM zoom aplicado (ícones sempre nítidos); só os ícones recebem clique. */
 .planta-pins{ position:absolute; inset:0; pointer-events:none; z-index:2; }
 
+/* Leque de visão da câmera: degradê azul bem suave (abertura de 64°) que some com a distância. 0° = pra cima, sentido
+   horário. O cone vem do conic-gradient; o esmaecer com a distância vem da máscara radial. Sem clique, atrás dos ícones. */
+.leque-planta{
+  position:absolute; left:0; top:0; transform:translate(-50%, -50%); border-radius:50%; pointer-events:none;
+  background:conic-gradient(from calc(var(--ang) - 32deg),
+    rgba(60,125,245,0) 0deg, rgba(60,125,245,.5) 7deg, rgba(60,125,245,.5) 57deg, rgba(60,125,245,0) 64deg, rgba(60,125,245,0) 360deg);
+  -webkit-mask-image:radial-gradient(circle closest-side, #000 0%, rgba(0,0,0,.55) 40%, transparent 100%);
+  mask-image:radial-gradient(circle closest-side, #000 0%, rgba(0,0,0,.55) 40%, transparent 100%);
+}
+
 /* Ícone: posicionado em % da planta; tamanho fixo na tela mesmo com zoom (escala 1/zoom) */
 .pin-planta{
   position:absolute; left:0; top:0; padding:0; margin:0; border:none; background:none; color:#101214; cursor:pointer;

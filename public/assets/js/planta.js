@@ -85,6 +85,14 @@
       </button>`;
   }
 
+  // "Leque" de visão da câmera (só imagem FIXA que o arquiteto direcionou): um degradê sutil que mostra pra onde a
+  // foto aponta. `angulo` em graus, 0 = pra cima, crescendo no sentido horário. Fica ATRÁS do ícone, sem receber clique.
+  function htmlLeque(f) {
+    const ang = f.pinPlanta && f.pinPlanta.angulo;
+    if (f.tipo === '360' || typeof ang !== 'number' || !Number.isFinite(ang)) return '';
+    return `<div class="leque-planta" data-foto-id="${f.id}" data-x="${f.pinPlanta.x}" data-y="${f.pinPlanta.y}" style="--ang:${ang}deg" aria-hidden="true"></div>`;
+  }
+
   // ---------------------------------------------------------------- zoom / posição
   function areaVisivel() {
     const r = pid('plantaViewport').getBoundingClientRect();
@@ -111,6 +119,14 @@
     pid('plantaPins').querySelectorAll('.pin-planta').forEach((el) => {
       el.style.left = `${ST.tx + parseFloat(el.dataset.x) * ST.baseW * ST.z}px`;
       el.style.top = `${ST.ty + parseFloat(el.dataset.y) * ST.baseH * ST.z}px`;
+    });
+    // O leque é uma distância NA PLANTA (cresce com o zoom, ao contrário do ícone): raio = 12% da largura da planta.
+    const diametro = Math.max(68, ST.baseW * ST.z * 0.24);
+    pid('plantaPins').querySelectorAll('.leque-planta').forEach((el) => {
+      el.style.left = `${ST.tx + parseFloat(el.dataset.x) * ST.baseW * ST.z}px`;
+      el.style.top = `${ST.ty + parseFloat(el.dataset.y) * ST.baseH * ST.z}px`;
+      el.style.width = `${diametro}px`;
+      el.style.height = `${diametro}px`;
     });
   }
 
@@ -145,7 +161,8 @@
   function desenharPins() {
     const caixa = pid('plantaPins');
     const fotos = fotosDaPlanta(ST.plantaId);
-    caixa.innerHTML = fotos.map(htmlPin).join('');
+    // os leques primeiro: ficam atrás de todos os ícones
+    caixa.innerHTML = fotos.map(htmlLeque).join('') + fotos.map(htmlPin).join('');
     caixa.querySelectorAll('.pin-planta').forEach((el) => {
       el.addEventListener('click', (e) => {
         e.stopPropagation();

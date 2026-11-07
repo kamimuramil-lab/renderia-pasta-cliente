@@ -76,8 +76,10 @@ app.get('/', async (req, res) => {
       const g = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, linkToken);
       if (g) {
         tituloProjeto = g.nomeProjeto;
-        if (g.iconePersonalizado && g.iconePersonalizado.r2Key) {
-          iconeUrl = await storage.urlTemporaria(g.iconePersonalizado.r2Key);
+        // Ícone do projeto, senão o da conta do arquiteto (e só se o projeto não desligou "Exibir ícone")
+        const pers = galeria.resolverPersonalizacao(galeria.lerEstado(CAMINHO_DADOS), g);
+        if (pers.iconeExibir && pers.iconeR2Key) {
+          iconeUrl = await storage.urlTemporaria(pers.iconeR2Key);
         }
       }
     } catch (e) { /* se der erro na busca, só cai no título/ícone genéricos abaixo */ }
@@ -158,13 +160,18 @@ async function galeriaComUrls(galeriaObj) {
     const fotoMood = c.moodFotoId ? fotos.find((f) => f.id === c.moodFotoId) : null;
     return { ...c, moodUrl: fotoMood ? fotoMood.url : null };
   }));
-  const marcaDagua = {
-    ...galeriaObj.marcaDagua,
-    url: (galeriaObj.marcaDagua && galeriaObj.marcaDagua.r2Key) ? await storage.urlTemporaria(galeriaObj.marcaDagua.r2Key) : null
-  };
+  // Ícone e logo: o PRÓPRIO do projeto vence; sem ele, vale o da CONTA do arquiteto (Configurações do app).
+  // `origem` diz de onde veio ('projeto' | 'conta' | null). O cliente final só usa `url` (null = nada a mostrar).
+  const pers = galeria.resolverPersonalizacao(galeria.lerEstado(CAMINHO_DADOS), galeriaObj);
+  const urlMarca = pers.marcaR2Key ? await storage.urlTemporaria(pers.marcaR2Key) : null;
+  const urlIcone = pers.iconeR2Key ? await storage.urlTemporaria(pers.iconeR2Key) : null;
+  const marcaDagua = { ...galeriaObj.marcaDagua, origem: pers.marcaOrigem, url: urlMarca };
   const iconePersonalizado = {
     ...galeriaObj.iconePersonalizado,
-    url: (galeriaObj.iconePersonalizado && galeriaObj.iconePersonalizado.r2Key) ? await storage.urlTemporaria(galeriaObj.iconePersonalizado.r2Key) : null
+    exibir: pers.iconeExibir,
+    origem: pers.iconeOrigem,
+    urlArquivo: urlIcone,                       // o arquivo, mesmo com "Exibir ícone" desligado (o app mostra a miniatura)
+    url: pers.iconeExibir ? urlIcone : null     // o que o cliente final realmente mostra
   };
   const plantas = await Promise.all((galeriaObj.plantas || []).map(async (p) => ({
     ...p,
@@ -290,6 +297,87 @@ app.post('/api/app/galeria/:projetoId/icone', exigirSessaoArquiteto, upload.sing
   }
 });
 
+// "Exibir ícone" desse projeto (liga/desliga só a exibição)
+app.put('/api/app/galeria/:projetoId/icone', exigirSessaoArquiteto, (req, res) => {
+  try {
+    const { exibir } = req.body || {};
+    if (typeof exibir !== 'boolean') return res.status(400).json({ erro: 'Informe exibir: true ou false.' });
+    const iconePersonalizado = galeria.atualizarExibirIcone(CAMINHO_DADOS, req.params.projetoId, exibir, req.licencaUsuario);
+    res.json({ ok: true, iconePersonalizado });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Tira o ícone / o logo PRÓPRIO do projeto (volta a valer o da conta) e apaga o arquivo.
+function rotaRemoverPersonalizacaoPropria(tipo) {
+  return async (req, res) => {
+    try {
+      const antiga = galeria.removerPersonalizacaoPropria(CAMINHO_DADOS, req.params.projetoId, tipo, req.licencaUsuario);
+      if (antiga) { try { await storage.excluirArquivo(antiga); } catch (e) { console.error('Aviso: falhou excluir o arquivo do armazenamento:', e.message); } }
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ erro: e.message });
+    }
+  };
+}
+app.delete('/api/app/galeria/:projetoId/icone', exigirSessaoArquiteto, rotaRemoverPersonalizacaoPropria('icone'));
+app.delete('/api/app/galeria/:projetoId/marca-dagua', exigirSessaoArquiteto, rotaRemoverPersonalizacaoPropria('marca'));
+
+// --------------------------------------------------------------------
+// ÍCONE E LOGO DA CONTA do arquiteto (configurados uma vez nas Configurações do app, valem pra todos os projetos).
+// A conta vem SEMPRE da sessão (req.licencaUsuario), nunca de um parâmetro: ninguém mexe no perfil de outro.
+// --------------------------------------------------------------------
+const ASSINATURA_PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+function chaveDoPerfil(licencaUsuario, tipo) {
+  const pasta = crypto.createHash('sha256').update(String(licencaUsuario)).digest('hex').slice(0, 16);
+  return `perfis/${pasta}/${tipo}-${crypto.randomUUID()}.png`;
+}
+async function perfilComUrls(licencaUsuario) {
+  const p = galeria.lerPerfil(CAMINHO_DADOS, licencaUsuario);
+  return {
+    icone: { existe: !!p.icone.r2Key, url: p.icone.r2Key ? await storage.urlTemporaria(p.icone.r2Key) : null },
+    marca: { existe: !!p.marca.r2Key, url: p.marca.r2Key ? await storage.urlTemporaria(p.marca.r2Key) : null }
+  };
+}
+app.get('/api/app/perfil', exigirSessaoArquiteto, async (req, res) => {
+  try {
+    res.json(await perfilComUrls(req.licencaUsuario));
+  } catch (e) {
+    res.status(500).json({ erro: e.message });
+  }
+});
+function rotaEnviarPerfil(tipo) {
+  return async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ erro: 'Nenhum arquivo enviado.' });
+      if (!req.file.buffer.subarray(0, 8).equals(ASSINATURA_PNG)) return res.status(400).json({ erro: 'Envie o arquivo como PNG.' });
+      const chave = chaveDoPerfil(req.licencaUsuario, tipo);
+      await storage.salvarArquivo(chave, req.file.buffer, 'image/png');
+      const antiga = galeria.definirArquivoPerfil(CAMINHO_DADOS, req.licencaUsuario, tipo, chave);
+      if (antiga) { try { await storage.excluirArquivo(antiga); } catch (e) { console.error('Aviso: falhou excluir o arquivo antigo do perfil:', e.message); } }
+      res.json({ ok: true, perfil: await perfilComUrls(req.licencaUsuario) });
+    } catch (e) {
+      res.status(400).json({ erro: e.message });
+    }
+  };
+}
+function rotaRemoverPerfil(tipo) {
+  return async (req, res) => {
+    try {
+      const antiga = galeria.removerArquivoPerfil(CAMINHO_DADOS, req.licencaUsuario, tipo);
+      if (antiga) { try { await storage.excluirArquivo(antiga); } catch (e) { console.error('Aviso: falhou excluir o arquivo do perfil:', e.message); } }
+      res.json({ ok: true, perfil: await perfilComUrls(req.licencaUsuario) });
+    } catch (e) {
+      res.status(400).json({ erro: e.message });
+    }
+  };
+}
+app.post('/api/app/perfil/icone', exigirSessaoArquiteto, upload.single('arquivo'), rotaEnviarPerfil('icone'));
+app.post('/api/app/perfil/marca', exigirSessaoArquiteto, upload.single('arquivo'), rotaEnviarPerfil('marca'));
+app.delete('/api/app/perfil/icone', exigirSessaoArquiteto, rotaRemoverPerfil('icone'));
+app.delete('/api/app/perfil/marca', exigirSessaoArquiteto, rotaRemoverPerfil('marca'));
+
 // --------------------------------------------------------------------
 // PLANTAS BAIXAS (uma por pavimento). A imagem vai igual uma foto, mas
 // SEM converter pra webp aqui: planta tem linhas finas e texto, então o
@@ -363,8 +451,19 @@ app.delete('/api/app/galeria/:projetoId/plantas/:plantaId', exigirSessaoArquitet
 // Posição do ícone de uma foto na planta (plantaId vazio = tira da planta).
 app.put('/api/app/galeria/:projetoId/fotos/:fotoId/posicao', exigirSessaoArquiteto, (req, res) => {
   try {
-    const { plantaId, x, y } = req.body || {};
-    const foto = galeria.posicionarFotoNaPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.fotoId, { plantaId, x, y }, req.licencaUsuario);
+    const { plantaId, x, y, angulo } = req.body || {};
+    const foto = galeria.posicionarFotoNaPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.fotoId, { plantaId, x, y, angulo }, req.licencaUsuario);
+    res.json({ ok: true, foto: { id: foto.id, plantaId: foto.plantaId, pinPlanta: foto.pinPlanta } });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Direção da câmera (o "leque" na planta): só o ângulo, em graus (0 = pra cima, horário). `angulo: null` tira o leque.
+app.put('/api/app/galeria/:projetoId/fotos/:fotoId/direcao', exigirSessaoArquiteto, (req, res) => {
+  try {
+    if (!req.body || !('angulo' in req.body)) return res.status(400).json({ erro: 'Informe o ângulo (ou null pra tirar a direção).' });
+    const foto = galeria.direcionarFotoNaPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.fotoId, { angulo: req.body.angulo }, req.licencaUsuario);
     res.json({ ok: true, foto: { id: foto.id, plantaId: foto.plantaId, pinPlanta: foto.pinPlanta } });
   } catch (e) {
     res.status(400).json({ erro: e.message });
