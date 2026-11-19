@@ -92,6 +92,12 @@ function escapeHtml(s) {
 // é a primeira tela; senão, abre a galeria como sempre foi. ----------
 function entrarNoProjeto(galeria) {
   mostrarGaleria(galeria);
+  // Hub do cliente (dados do projeto, links, documentos): quando existe, é a primeira tela. Sem conteúdo de hub
+  // nada muda -- o projeto abre direto na galeria/planta como sempre foi.
+  if (window.HubCliente) {
+    window.HubCliente.preparar(galeria);
+    if (window.HubCliente.temConteudo(galeria)) { window.HubCliente.abrir(); return; }
+  }
   if (window.PlantaCliente && window.PlantaCliente.temPlantaUtil(galeria)) window.PlantaCliente.abrir();
 }
 function mostrarTelaGaleriaDaPlanta() { $('telaGaleria').style.display = 'block'; }
@@ -100,6 +106,7 @@ $('btnIrParaPlanta').addEventListener('click', () => window.PlantaCliente.abrir(
 // ---------- Home: grade de categorias ----------
 function mostrarGaleria(galeria) {
   estado.galeria = galeria;
+  document.body.classList.toggle('visual-novo', !!galeria.novoVisual); // servidor antigo não manda = visual de sempre
   $('btnIrParaPlanta').style.display = (window.PlantaCliente && window.PlantaCliente.temPlantaUtil(galeria)) ? 'flex' : 'none';
   $('telaLogin').style.display = 'none';
   $('telaGaleria').style.display = 'block';
@@ -619,6 +626,7 @@ async function aplicarIconePersonalizadoNaTelaDeLogin() {
     const resp = await fetch(`/api/cliente/${LINK_TOKEN}/info-publica`);
     if (!resp.ok) return;
     const info = await resp.json();
+    document.body.classList.toggle('visual-novo', !!info.novoVisual); // tema claro/escuro só se o dono tem o recurso
     if (info.iconeUrl) $('imgLogoLogin').src = info.iconeUrl;
     if (info.nomeProjeto) $('tituloLogin').textContent = `Galeria de ${info.nomeProjeto}`;
   } catch (e) { /* sem internet ou link inválido -- mantém a marca padrão RENDERIA */ }

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>__OG_TITULO__</title>
+<meta property="og:title" content="__OG_TITULO__">
+<meta property="og:description" content="__OG_DESCRICAO__">
+<meta property="og:image" content="__OG_IMAGEM__">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary">
+<meta name="robots" content="noindex, nofollow">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="visual-novo">
+
+<!-- ===================== LOGIN (próprio da Pasta de Orçamentos) ===================== -->
+<div class="tela-login" id="telaLogin">
+  <div class="card-login">
+    <div class="selo"><img src="assets/img/logo.jpg" alt="RENDERIA" id="imgLogoLogin"></div>
+    <h1 id="tituloLogin">Orçamentos do seu projeto</h1>
+    <p class="sub">Entre com o usuário e a senha dos orçamentos que seu arquiteto te enviou.</p>
+    <div class="campo-login">
+      <label for="inputUsuario">Usuário</label>
+      <input type="text" id="inputUsuario" autocomplete="username">
+    </div>
+    <div class="campo-login">
+      <label for="inputSenha">Senha</label>
+      <input type="password" id="inputSenha" autocomplete="current-password">
+    </div>
+    <div class="linha-lembrar">
+      <input type="checkbox" id="chkLembrar" checked>
+      <label for="chkLembrar">Lembrar neste dispositivo</label>
+    </div>
+    <button class="btn-entrar" id="btnEntrar">Entrar</button>
+    <div class="msg-erro-login" id="msgErroLogin" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- ===================== ORÇAMENTOS ===================== -->
+<div id="telaOrcamentos" style="display:none;">
+  <div class="topo-galeria">
+    <div class="selo"><img src="assets/img/logo.jpg" alt="RENDERIA" id="imgLogoOrc"></div>
+    <div style="flex:1; min-width:0;">
+      <h1 id="nomeProjetoOrc">Orçamentos</h1>
+    </div>
+    <button class="btn-topo-nav btn-tema" id="btnTema" aria-label="Alternar entre tema claro e escuro" title="Alternar tema"></button>
+  </div>
+  <div class="wrap-galeria orc-wrap">
+    <div class="hub-aviso">Os orçamentos abaixo devem ser negociados diretamente entre você e o fornecedor. Os valores podem variar conforme a data em que foram emitidos e a forma de pagamento negociada entre as partes.</div>
+    <div id="orcLista"></div>
+  </div>
+</div>
+<div class="orc-toast" id="orcToast" role="status" aria-live="polite"></div>
+
+<script src="assets/js/orcamentos.js"></script>
+</body>
+</html>

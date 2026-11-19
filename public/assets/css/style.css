@@ -349,3 +349,198 @@ img{ max-width:100%; display:block; }
   .btn-topo-nav span{ display:none; } /* só o ícone, pra caber no topo no celular */
   .btn-topo-nav{ padding:9px 11px; }
 }
+
+/* ===================== TEMA CLARO/ESCURO (página toda) ===================== */
+/* Padrão = escuro (as cores de :root). Segue o aparelho (prefers-color-scheme) a menos que o cliente tenha escolhido no
+   botão sol/lua (body[data-tema], lembrado neste dispositivo). Vale pro login, hub, galeria e planta. O visualizador de
+   foto (imersivo) e o histórico de anotações ficam SEMPRE escuros, de propósito. */
+body{
+  --on-steel:#101214; --card-vazio:#000; --hub-vermelho:#e5786f; --hub-amarelo:#f2c230;
+  --hub-capa:radial-gradient(900px 320px at 18% 0%, rgba(201,168,106,.26), transparent 62%), radial-gradient(800px 420px at 92% 100%, rgba(143,148,157,.20), transparent 62%), linear-gradient(135deg,#1b1c1f,#0b0c0e);
+}
+body.visual-novo[data-tema="claro"]{
+  --bg:#f5f2ec; --bg-elev:#ffffff; --bg-elev-2:#f0ece3; --line:#ddd6c8; --line-soft:#e8e2d6; --text:#1b1c1e; --text-dim:#5b5f66; --text-faint:#8b8f96;
+  --steel-100:#1b1c1e; --steel-300:#4a4e55; --steel-500:#7a7f87; --green:#177a43;
+  --steel-grad:linear-gradient(135deg,#2e3035 0%,#16171a 100%); --on-steel:#ffffff; --card-vazio:#ffffff;
+  --hub-vermelho:#b3382c; --hub-amarelo:#946500;
+  --hub-capa:radial-gradient(900px 320px at 18% 0%, rgba(201,168,106,.45), transparent 62%), radial-gradient(800px 420px at 92% 100%, rgba(143,148,157,.25), transparent 62%), linear-gradient(135deg,#efeadf,#d9d1c0);
+}
+@media (prefers-color-scheme: light){
+  body.visual-novo:not([data-tema="escuro"]){
+    --bg:#f5f2ec; --bg-elev:#ffffff; --bg-elev-2:#f0ece3; --line:#ddd6c8; --line-soft:#e8e2d6; --text:#1b1c1e; --text-dim:#5b5f66; --text-faint:#8b8f96;
+    --steel-100:#1b1c1e; --steel-300:#4a4e55; --steel-500:#7a7f87; --green:#177a43;
+    --steel-grad:linear-gradient(135deg,#2e3035 0%,#16171a 100%); --on-steel:#ffffff; --card-vazio:#ffffff;
+    --hub-vermelho:#b3382c; --hub-amarelo:#946500;
+    --hub-capa:radial-gradient(900px 320px at 18% 0%, rgba(201,168,106,.45), transparent 62%), radial-gradient(800px 420px at 92% 100%, rgba(143,148,157,.25), transparent 62%), linear-gradient(135deg,#efeadf,#d9d1c0);
+  }
+}
+/* Sempre escuros: o visualizador de foto e o modal de histórico (a foto fica em fundo neutro, como numa galeria de verdade). */
+.visualizador, .modal-historico{
+  --bg:#0b0c0e; --bg-elev:#141618; --bg-elev-2:#1c1f22; --line:#2a2d31; --line-soft:#202225; --text:#eef0f2; --text-dim:#9a9ea5; --text-faint:#62666c;
+  --steel-100:#f4f5f7; --steel-300:#c7cbd1; --steel-500:#8f949d; --green:#3fe98a;
+  --steel-grad:linear-gradient(135deg,#f4f5f7 0%,#c7cbd1 45%,#8f949d 100%); --on-steel:#101214;
+  color:var(--text);
+}
+/* Ajustes pra o tema claro não deixar texto/ícone invisível em elementos que têm fundo escuro fixo. */
+.btn-entrar, .btn-proxima-categoria, .aba-planta.ativa, .area-comentario button{ color:var(--on-steel); }
+.card-categoria:not(.tem-imagem){ background:var(--card-vazio); }
+.card-categoria.tem-imagem .nome-categoria-capa{ color:#fff; }
+.card-foto .nome-foto, .card-foto .badge-360, .card-foto .badge-comentario{ color:#fff; }
+.barra-progresso-cliente{ border:1px solid var(--line); }
+.msg-erro-login{ color:var(--hub-vermelho); }
+.planta-controles, .pin-rotulo{ --steel-100:#f4f5f7; --text-dim:#c7cbd1; } /* chips escuros por cima da planta */
+.leg-icone{ box-shadow:0 0 0 1px var(--line); }
+.btn-tema{ padding:9px 11px; }
+
+/* ===================== HUB DO CLIENTE (nov/2026) ===================== */
+
+/* Botão de voltar bem visível (hub, galeria e planta): pílula cheia, texto claro "Voltar ao projeto" */
+.btn-voltar-projeto{ background:var(--steel-100); color:var(--bg); border:0; font-weight:700; padding:9px 16px; }
+.btn-voltar-projeto:hover{ background:var(--steel-300); }
+.btn-voltar-projeto .rot-curto{ display:none; }
+@media (max-width:560px){
+  .btn-voltar-projeto{ padding:9px 13px; }
+  .btn-voltar-projeto .rot-longo{ display:none; }
+  .btn-voltar-projeto .rot-curto{ display:inline; }
+}
+.btn-tema{ padding:9px 11px; }
+
+#telaHub{ min-height:100vh; }
+.hub-wrap{ max-width:980px; margin:0 auto; padding:0 24px 60px; }
+.hub-capa{
+  position:relative; overflow:hidden; margin:0 -24px 26px; min-height:clamp(190px, 30vw, 300px);
+  display:flex; align-items:center; justify-content:center; background:var(--hub-capa); border-bottom:1px solid var(--line);
+}
+.hub-capa-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.hub-capa.com-foto::after{ content:""; position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,.62), rgba(0,0,0,.18) 60%, rgba(0,0,0,.30)); }
+.hub-capa-conteudo{ position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; gap:14px; padding:24px; text-align:center; }
+.hub-capa-logo{ max-width:min(280px, 62vw); max-height:84px; object-fit:contain; }
+.hub-capa-titulo{ font-family:'Archivo',sans-serif; font-weight:800; font-size:clamp(22px, 4vw, 34px); letter-spacing:-.01em; color:var(--steel-100); }
+.hub-capa.com-foto .hub-capa-titulo{ color:#fff; text-shadow:0 2px 14px rgba(0,0,0,.55); }
+.hub-corpo{ padding-top:2px; }
+.hub-dados{
+  white-space:pre-wrap; font-size:14px; line-height:1.6; color:var(--text-dim);
+  background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-m); padding:16px 18px; margin-bottom:22px;
+}
+.hub-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(230px,1fr)); gap:14px; }
+.hub-card{
+  display:flex; flex-direction:column; align-items:flex-start; gap:8px; text-align:left; text-decoration:none;
+  padding:20px 18px; border-radius:var(--radius-m); background:var(--bg-elev); border:1px solid var(--line);
+  color:var(--steel-100); cursor:pointer; font:inherit; min-height:132px;
+}
+.hub-card:hover{ border-color:var(--steel-500); }
+.hub-card.desabilitado{ opacity:.5; cursor:not-allowed; border-style:dashed; }
+.hub-card.desabilitado:hover{ border-color:var(--line); }
+.hub-card-icone{ color:var(--steel-300); display:flex; }
+.hub-card-titulo{ font-family:'Archivo',sans-serif; font-weight:800; font-size:16px; }
+.hub-card-detalhe{ font-size:12px; color:var(--text-dim); }
+.hub-titulo-secao{ font-size:22px; margin:26px 0 18px; }
+.hub-aviso{
+  background:rgba(242,194,48,.10); border:1px solid rgba(201,160,40,.45); border-radius:var(--radius-m);
+  padding:14px 16px; font-size:13px; line-height:1.55; color:var(--text); margin-bottom:24px;
+}
+.hub-ok{ color:var(--green); } .hub-alerta{ color:var(--hub-vermelho); }
+.hub-grupo{ margin-bottom:26px; }
+.hub-grupo h2{ font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); margin-bottom:10px; }
+.hub-doc{
+  display:flex; align-items:center; gap:14px; padding:14px 16px; margin-bottom:8px;
+  background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-m);
+}
+.hub-doc.status-antiga{ opacity:.55; }
+.hub-doc-info{ flex:1; min-width:0; }
+.hub-doc-titulo{ font-size:14.5px; font-weight:600; color:var(--steel-100); overflow-wrap:anywhere; }
+.hub-doc-meta{ display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:5px; font-size:12px; color:var(--text-dim); }
+.hub-doc-obs{ margin-top:6px; font-size:12.5px; color:var(--text-dim); }
+.hub-selo{ font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:999px; letter-spacing:.03em; }
+.hub-selo-atual{ background:rgba(63,233,138,.16); color:var(--green); }
+.hub-selo-revisao{ background:rgba(242,194,48,.18); color:var(--hub-amarelo); }
+.hub-selo-antiga{ background:rgba(229,120,111,.16); color:var(--hub-vermelho); }
+.hub-doc-abrir{
+  flex-shrink:0; padding:9px 16px; border-radius:999px; font-size:13px; font-weight:700; text-decoration:none;
+  background:var(--steel-100); color:var(--bg);
+}
+.hub-doc-abrir:hover{ background:var(--steel-300); }
+/* Memorial de itens (tabela por setor, com foto) */
+.mem-contagem{ font-weight:700; color:var(--steel-500); margin-left:6px; }
+.mem-tabela{ width:100%; border-collapse:separate; border-spacing:0; background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-m); overflow:hidden; font-size:13px; }
+.mem-tabela th{ text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim); padding:10px 12px; border-bottom:1px solid var(--line); white-space:nowrap; }
+.mem-tabela td{ padding:12px; border-bottom:1px solid var(--line); vertical-align:top; line-height:1.5; }
+.mem-tabela tbody tr:last-child td{ border-bottom:0; }
+.mem-tabela td:first-child{ color:var(--text-dim); font-weight:700; width:40px; }
+.mem-col-item{ min-width:150px; }
+.mem-col-item a{ font-size:12px; color:var(--steel-300); }
+.mem-texto{ white-space:pre-line; min-width:150px; }
+.mem-amb{ display:inline-block; font-size:11px; font-weight:700; padding:1px 7px; margin:0 4px 4px 0; border-radius:999px; border:1px solid var(--line); color:var(--text-dim); }
+.mem-foto{ display:block; width:76px; height:76px; padding:0; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:#fff; cursor:zoom-in; }
+.mem-foto img{ width:100%; height:100%; object-fit:contain; display:block; }
+.mem-sem-foto{ color:var(--text-dim); }
+.mem-ampliada{ position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.82); display:flex; align-items:center; justify-content:center; padding:20px; cursor:zoom-out; }
+.mem-ampliada img{ max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:8px; }
+@media (max-width:760px){
+  /* no celular cada item vira um cartão (a tabela larga não cabe) */
+  .mem-tabela, .mem-tabela tbody, .mem-tabela tr, .mem-tabela td{ display:block; }
+  .mem-tabela{ background:none; border:0; }
+  .mem-tabela thead{ display:none; }
+  .mem-tabela tr{ background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-m); padding:6px 12px; margin-bottom:10px; }
+  .mem-tabela td{ border:0; padding:6px 0; width:auto !important; }
+  .mem-tabela td::before{ content:attr(data-rotulo); display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim); }
+  .mem-col-foto::before{ display:none !important; }
+}
+.hub-antigas{ margin-top:6px; }
+.hub-antigas summary{ cursor:pointer; font-size:12.5px; color:var(--text-dim); padding:8px 2px; }
+@media (max-width:480px){
+  .hub-wrap{ padding:0 16px 48px; }
+  .hub-capa{ margin:0 -16px 22px; }
+  .hub-doc{ flex-direction:column; align-items:stretch; }
+  .hub-doc-abrir{ text-align:center; }
+}
+
+/* ===================== PASTA DE ORÇAMENTOS (nov/2026) ===================== */
+.orc-wrap{ max-width:820px; }
+.orc-grupo{ margin-bottom:28px; }
+.orc-grupo h2{ font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); margin-bottom:10px; }
+.orc-grupo h2 span{ margin-left:6px; font-weight:600; color:var(--text-faint); }
+.orc-card{ background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-m); padding:16px 18px; margin-bottom:10px; }
+.orc-card.status-recusado{ opacity:.6; }
+.orc-card-topo{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.orc-card-topo h3{ font-size:16px; overflow-wrap:anywhere; }
+.orc-linha{ font-size:13px; color:var(--text-dim); margin-top:4px; }
+.orc-linha a{ color:var(--text-dim); }
+.orc-valor{ font-family:'Archivo',sans-serif; font-weight:800; font-size:20px; margin-top:10px; color:var(--steel-100); }
+.orc-obs{ font-size:12.5px; color:var(--text-dim); margin-top:6px; white-space:pre-wrap; }
+.orc-acoes{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.orc-botao{
+  padding:9px 16px; border-radius:999px; font-size:13px; font-weight:700; text-decoration:none; cursor:pointer;
+  background:transparent; border:1px solid var(--line); color:var(--steel-100); font-family:inherit;
+}
+.orc-botao:hover{ border-color:var(--steel-500); }
+.orc-botao.principal{ background:var(--steel-100); border-color:var(--steel-100); color:var(--bg); }
+.orc-botao:disabled{ opacity:.5; cursor:default; }
+.orc-selo, .orc-status{ flex-shrink:0; font-size:11.5px; font-weight:800; padding:5px 11px; border-radius:999px; border:1.5px solid var(--line); background:var(--bg); color:var(--text-dim); font-family:inherit; }
+.orc-selo.s-fechado, .orc-status.s-fechado{ color:var(--green); border-color:var(--green); }
+.orc-selo.s-recusado, .orc-status.s-recusado{ color:var(--hub-vermelho); border-color:var(--hub-vermelho); }
+.orc-selo.s-analise_cliente, .orc-status.s-analise_cliente{ color:var(--hub-amarelo); border-color:var(--hub-amarelo); }
+.orc-conversa{ margin-top:12px; padding-top:12px; border-top:1px solid var(--line-soft); display:flex; flex-direction:column; gap:8px; }
+.orc-conversa[hidden]{ display:none; }
+.orc-msg{ font-size:13px; line-height:1.5; padding:9px 12px; border-radius:10px; background:var(--bg); border:1px solid var(--line-soft); white-space:pre-wrap; overflow-wrap:anywhere; }
+.orc-msg.minha{ align-self:flex-end; max-width:88%; }
+.orc-msg.escritorio{ align-self:flex-start; max-width:88%; }
+.orc-msg-autor{ display:block; font-size:10.5px; font-weight:800; letter-spacing:.04em; text-transform:uppercase; color:var(--text-faint); margin-bottom:2px; }
+.orc-escrever{ display:flex; gap:8px; align-items:flex-end; }
+.orc-escrever textarea{ flex:1; background:var(--bg); border:1px solid var(--line); border-radius:10px; color:var(--text); padding:10px 12px; font-size:13.5px; font-family:inherit; resize:vertical; min-height:44px; }
+.orc-toast{
+  position:fixed; left:50%; bottom:24px; transform:translate(-50%, 20px); opacity:0; pointer-events:none; z-index:80;
+  background:var(--steel-100); color:var(--bg); font-size:13px; font-weight:600; padding:11px 18px; border-radius:999px;
+  max-width:90vw; text-align:center; transition:opacity .2s, transform .2s;
+}
+.orc-toast.show{ opacity:1; transform:translate(-50%, 0); }
+.orc-toast.erro{ background:#b3382c; color:#fff; }
+@media (max-width:480px){
+  .orc-card-topo{ flex-direction:column; }
+  .orc-escrever{ flex-direction:column; align-items:stretch; }
+}
+
+/* O tema claro/escuro (e o botão sol/lua) só existem pra galerias cujo DONO tem o recurso "Página do projeto" (body.visual-novo, ligado pelo JS
+   a partir de `novoVisual`). Quem não tem continua vendo a página escura de sempre. */
+.btn-tema{ display:none; }
+body.visual-novo .btn-tema{ display:flex; }

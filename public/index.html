@@ -38,9 +38,27 @@
   </div>
 </div>
 
+<!-- ===================== TELA DO PROJETO (HUB) -- só aparece se o arquiteto montou conteúdo de hub ===================== -->
+<div id="telaHub" style="display:none;">
+  <div class="topo-galeria">
+    <button class="btn-topo-nav btn-voltar-projeto" id="btnHubVoltar" style="display:none;" title="Voltar à tela inicial">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg><span class="rot-longo">Tela inicial</span><span class="rot-curto">Início</span>
+    </button>
+    <div class="selo"><img src="assets/img/logo.jpg" alt="RENDERIA" id="imgLogoHub"></div>
+    <div style="flex:1; min-width:0;">
+      <h1 id="nomeProjetoHub">Projeto</h1>
+    </div>
+    <button class="btn-topo-nav btn-tema" aria-label="Alternar entre tema claro e escuro" title="Alternar tema"></button>
+  </div>
+  <div class="hub-wrap" id="hubConteudo"></div>
+</div>
+
 <!-- ===================== TELA DA GALERIA ===================== -->
 <div id="telaGaleria" style="display:none;">
   <div class="topo-galeria">
+    <button class="btn-topo-nav btn-voltar-projeto" id="btnGaleriaParaHub" style="display:none;" title="Voltar à tela inicial">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg><span class="rot-longo">Tela inicial</span><span class="rot-curto">Início</span>
+    </button>
     <div class="selo"><img src="assets/img/logo.jpg" alt="RENDERIA" id="imgLogoGaleria"></div>
     <div style="flex:1;">
       <h1 id="nomeProjetoGaleria">Projeto</h1>
@@ -48,6 +66,7 @@
     <button class="btn-topo-nav" id="btnIrParaPlanta" style="display:none;" title="Ver a planta baixa">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M9 3v8h12M9 11v10"/></svg><span>Planta</span>
     </button>
+    <button class="btn-topo-nav btn-tema" aria-label="Alternar entre tema claro e escuro" title="Alternar tema"></button>
     <div class="marca-rodape">RENDERIA</div>
   </div>
   <div class="wrap-galeria">
@@ -62,6 +81,9 @@
 <!-- ===================== TELA DA PLANTA BAIXA ===================== -->
 <div id="telaPlanta" style="display:none;">
   <div class="topo-galeria">
+    <button class="btn-topo-nav btn-voltar-projeto" id="btnPlantaParaHub" style="display:none;" title="Voltar à tela inicial">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg><span class="rot-longo">Tela inicial</span><span class="rot-curto">Início</span>
+    </button>
     <div class="selo"><img src="assets/img/logo.jpg" alt="RENDERIA" id="imgLogoPlanta"></div>
     <div style="flex:1; min-width:0;">
       <h1 id="nomeProjetoPlanta">Projeto</h1>
@@ -70,6 +92,7 @@
     <button class="btn-topo-nav" id="btnPlantaParaGaleria" title="Ver a galeria de imagens">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Galeria</span>
     </button>
+    <button class="btn-topo-nav btn-tema" aria-label="Alternar entre tema claro e escuro" title="Alternar tema"></button>
   </div>
   <div class="planta-abas" id="plantaAbas" style="display:none;"></div>
   <div class="planta-viewport" id="plantaViewport">
@@ -168,6 +191,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
 <script src="assets/js/planta.js"></script>
+<script src="assets/js/hub.js"></script>
 <script src="assets/js/main.js"></script>
 </body>
 </html>

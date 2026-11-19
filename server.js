@@ -4,6 +4,9 @@ const multer = require('multer');
 const crypto = require('crypto');
 const path = require('path');
 const galeria = require('./lib/galeria');
+const hubLib = require('./lib/hub');
+const orcLib = require('./lib/orcamentos');
+const memLib = require('./lib/memorial');
 const storage = require('./lib/storage');
 
 const app = express();
@@ -94,6 +97,26 @@ app.get('/', async (req, res) => {
   res.send(html);
 });
 
+// Página da Pasta de Orçamentos (link próprio: /orcamentos?o=<token>). Mesmo esquema do index: prévia do WhatsApp preenchida
+// no servidor e JS/CSS com versão na URL.
+const CAMINHO_ORC_HTML = path.join(__dirname, 'public', 'orcamentos.html');
+const ORC_HTML_BRUTO = fs.existsSync(CAMINHO_ORC_HTML) ? fs.readFileSync(CAMINHO_ORC_HTML, 'utf8') : '';
+// A Pasta de Orçamentos só fica disponível pro cliente enquanto o DONO tem o recurso na licença (cópia em g.recursosAtivos).
+function orcamentosDisponiveis(linkToken) {
+  const g = orcLib.buscarPorLinkToken(CAMINHO_DADOS, linkToken);
+  return (g && g.recursosAtivos.orcamentos === true) ? g : null;
+}
+const lerOrcHtml = () => (storage.MODO_LOCAL ? fs.readFileSync(CAMINHO_ORC_HTML, 'utf8') : ORC_HTML_BRUTO);
+app.get('/orcamentos', (req, res) => {
+  let nome = null;
+  try { const g = orcamentosDisponiveis(req.query.o); if (g) nome = g.nomeProjeto; } catch (e) { /* título genérico */ }
+  const html = comVersaoNosAssets(lerOrcHtml())
+    .split('__OG_TITULO__').join(nome ? `${nome} — Orçamentos` : 'Orçamentos do seu projeto')
+    .split('__OG_DESCRICAO__').join('Veja os orçamentos do seu projeto, acompanhe o andamento e comente.')
+    .split('__OG_IMAGEM__').join(`${req.protocol}://${req.get('host')}/assets/img/logo.jpg`);
+  res.send(html);
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // SÓ NO MODO DE TESTE (ARMAZENAMENTO_LOCAL_TESTE=1, nunca em produção): serve os
@@ -137,11 +160,25 @@ async function exigirSessaoArquiteto(req, res, next) {
     if (!dados.valida) return res.status(401).json({ erro: dados.motivo || 'Sessão inválida.' });
 
     req.licencaUsuario = dados.usuario;
+    // Recursos NOVOS da licença (o servidor de licença novo manda `recursos`; um servidor antigo não manda = nenhum recurso).
+    // Também atualiza, na galeria do projeto, a cópia do que o dono tem (é ela que o lado do cliente consulta).
+    req.recursos = (dados.recursos && typeof dados.recursos === 'object') ? dados.recursos : {};
+    const projetoDaChamada = (req.params && req.params.projetoId) || (req.body && req.body.projetoId);
+    if (projetoDaChamada) { try { galeria.sincronizarRecursos(CAMINHO_DADOS, projetoDaChamada, req.licencaUsuario, req.recursos); } catch (e) { /* não derruba a chamada */ } }
     req.limiteFotos = dados.limiteFotos;
     next();
   } catch (e) {
     res.status(500).json({ erro: 'Erro conferindo sessão: ' + e.message });
   }
+}
+
+// Trava por recurso da licença: o arquiteto sem o recurso recebe 403 (o app já esconde a tela; isto vale pra quem chamar a API direto).
+const NOME_RECURSO = { paginaProjeto: 'Página do projeto', orcamentos: 'Pasta de Orçamentos', memorial: 'Memorial de itens' };
+function exigirRecurso(recurso) {
+  return (req, res, next) => {
+    if (req.recursos && req.recursos[recurso] === true) return next();
+    res.status(403).json({ erro: `Sua licença não inclui o recurso "${NOME_RECURSO[recurso] || recurso}".`, recurso });
+  };
 }
 
 // Monta a resposta da galeria com URLs temporárias do R2 no lugar dos
@@ -177,8 +214,25 @@ async function galeriaComUrls(galeriaObj) {
     ...p,
     url: await storage.urlTemporaria(p.r2Key)
   })));
-  const { clienteSenhaHash, sessoesClienteAtivas, ...resto } = galeriaObj;
-  return { ...resto, categorias, plantas, fotos, marcaDagua, iconePersonalizado };
+  // Hub do cliente: já manda a lista de grupos do executivo resolvida (padrão quando o projeto não personalizou).
+  // `capaUrl` = a foto escolhida como capa (some se a foto foi apagada/arquivada: volta pra capa padrão).
+  const fotoCapa = galeriaObj.hub.capaFotoId ? fotos.find((f) => f.id === galeriaObj.hub.capaFotoId && !f.arquivada) : null;
+  // Sem o recurso "Página do projeto" no dono da galeria, o hub NÃO sai (o cliente cai na galeria clássica, como sempre foi).
+  const novoVisual = galeriaObj.recursosAtivos.paginaProjeto === true;
+  const hub = novoVisual
+    ? { ...galeriaObj.hub, gruposExecutivo: hubLib.gruposDoExecutivo(galeriaObj.hub), capaUrl: fotoCapa ? fotoCapa.url : null }
+    : { dadosProjeto: '', links: {}, gruposExecutivo: hubLib.gruposDoExecutivo({}), documentos: [], capaFotoId: null, capaUrl: null };
+  // `orcamentos` (valores, login e senha da Pasta de Orçamentos) NUNCA sai por aqui: esta resposta vai pro app E pro cliente
+  // da Pasta Cliente, e quem recebe a Pasta Cliente não pode alcançar os valores. O app lê os orçamentos por rotas próprias.
+  // Memorial de itens: só aparece pro cliente quando o dono tem o recurso "memorial" E a página do projeto (o cartão mora no hub).
+  // Nunca leva o valor nem as chaves do armazenamento (só a URL temporária da foto do produto).
+  let memorialCliente = { itens: [], setores: memLib.SETORES };
+  if (novoVisual && galeriaObj.recursosAtivos.memorial === true) {
+    const m = memLib.paraCliente(galeriaObj);
+    memorialCliente = { ...m, itens: await Promise.all(m.itens.map(async ({ fotoR2Key, ...i }) => ({ ...i, fotoUrl: fotoR2Key ? await storage.urlTemporaria(fotoR2Key) : null }))) };
+  }
+  const { clienteSenhaHash, sessoesClienteAtivas, orcamentos, recursosAtivos, memorial, ...resto } = galeriaObj;
+  return { ...resto, categorias, plantas, fotos, marcaDagua, iconePersonalizado, hub, novoVisual, memorial: memorialCliente };
 }
 
 app.get('/saude', (req, res) => res.json({ ok: true, servico: 'renderia-pasta-cliente' }));
@@ -208,6 +262,7 @@ app.post('/api/app/galeria', limitarPorIP, exigirSessaoArquiteto, (req, res) => 
     const g = galeria.criarOuAtualizarGaleria(CAMINHO_DADOS, {
       projetoId, licencaUsuario: req.licencaUsuario, nomeProjeto, clienteUsuario, clienteSenha
     });
+    galeria.sincronizarRecursos(CAMINHO_DADOS, projetoId, req.licencaUsuario, req.recursos); // galeria nova já nasce com a cópia dos recursos do dono
     res.json({ ok: true, linkToken: g.linkToken });
   } catch (e) {
     res.status(400).json({ erro: e.message });
@@ -474,7 +529,8 @@ app.put('/api/app/galeria/:projetoId/fotos/:fotoId/direcao', exigirSessaoArquite
 app.get('/api/app/status/:projetoId', exigirSessaoArquiteto, (req, res) => {
   const g = galeria.buscarGaleriaPorProjeto(CAMINHO_DADOS, req.params.projetoId);
   if (g && g.licencaUsuario !== req.licencaUsuario) return res.status(404).json({ existe: false, temComentarioNaoLido: false });
-  res.json({ existe: !!g, temComentarioNaoLido: g ? g.temComentarioNaoLido : false });
+  // O selo do app acende também quando o cliente mexeu num orçamento (status/comentário).
+  res.json({ existe: !!g, temComentarioNaoLido: g ? (g.temComentarioNaoLido || g.orcamentos.temNovidadeNaoLida) : false });
 });
 
 app.post('/api/app/galeria/:projetoId/fotos', exigirSessaoArquiteto, upload.single('arquivo'), async (req, res) => {
@@ -550,6 +606,169 @@ app.post('/api/app/galeria/:projetoId/marcar-lido', exigirSessaoArquiteto, (req,
   }
 });
 
+// --------------------------------------------------------------------
+// HUB DO CLIENTE (nov/2026): dados do projeto, links externos e documentos (links do Google Drive).
+// Toda rota confere POSSE pela licença da sessão (dentro de lib/hub.js, via exigirGaleriaDaLicenca).
+// Quem vira ANTIGA é sempre decidido pelo app (substituirIds) depois de mostrar a prévia ao arquiteto.
+// --------------------------------------------------------------------
+app.put('/api/app/galeria/:projetoId/hub', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), (req, res) => {
+  try {
+    const { dadosProjeto, links, gruposExecutivo, capaFotoId } = req.body || {};
+    const hub = hubLib.atualizarHub(CAMINHO_DADOS, req.params.projetoId, { dadosProjeto, links, gruposExecutivo, capaFotoId }, req.licencaUsuario);
+    res.json({ ok: true, hub: { ...hub, gruposExecutivo: hubLib.gruposDoExecutivo(hub) } });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// POST (e não GET) só pra mandar os campos no corpo; não grava nada.
+app.post('/api/app/galeria/:projetoId/documentos/previa', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), (req, res) => {
+  try {
+    res.json({ ok: true, ...hubLib.preverSubstituicao(CAMINHO_DADOS, req.params.projetoId, req.body || {}, req.licencaUsuario) });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.post('/api/app/galeria/:projetoId/documentos', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), (req, res) => {
+  try {
+    const r = hubLib.adicionarDocumento(CAMINHO_DADOS, req.params.projetoId, req.body || {}, req.licencaUsuario);
+    res.json({ ok: true, documento: r.documento, substituidos: r.substituidos });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.put('/api/app/galeria/:projetoId/documentos/:docId', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), (req, res) => {
+  try {
+    const r = hubLib.editarDocumento(CAMINHO_DADOS, req.params.projetoId, req.params.docId, req.body || {}, req.licencaUsuario);
+    res.json({ ok: true, documento: r.documento, substituidos: r.substituidos });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+app.delete('/api/app/galeria/:projetoId/documentos/:docId', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), (req, res) => {
+  try {
+    hubLib.excluirDocumento(CAMINHO_DADOS, req.params.projetoId, req.params.docId, req.licencaUsuario);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// --------------------------------------------------------------------
+// PASTA DE ORÇAMENTOS -- lado do ARQUITETO (nov/2026): login/senha/link próprios, itens com valor, comentários e a lista
+// de novidades (o cliente mudou um status / comentou). Posse conferida em lib/orcamentos.js (exigirGaleriaDaLicenca).
+// --------------------------------------------------------------------
+const rotaOrc = (fn) => (req, res) => {
+  try { res.json(Object.assign({ ok: true }, fn(req))); } catch (e) { res.status(400).json({ erro: e.message }); }
+};
+const baseOrc = (req) => [CAMINHO_DADOS, req.params.projetoId];
+
+app.get('/api/app/galeria/:projetoId/orcamentos', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => orcLib.lerParaArquiteto(...baseOrc(req), req.licencaUsuario)));
+app.put('/api/app/galeria/:projetoId/orcamentos/acesso', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ acesso: orcLib.definirAcesso(...baseOrc(req), req.body || {}, req.licencaUsuario) })));
+app.post('/api/app/galeria/:projetoId/orcamentos/itens', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ item: orcLib.adicionarItem(...baseOrc(req), req.body || {}, req.licencaUsuario) })));
+app.put('/api/app/galeria/:projetoId/orcamentos/itens/:itemId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ item: orcLib.editarItem(...baseOrc(req), req.params.itemId, req.body || {}, req.licencaUsuario) })));
+app.delete('/api/app/galeria/:projetoId/orcamentos/itens/:itemId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => { orcLib.excluirItem(...baseOrc(req), req.params.itemId, req.licencaUsuario); return {}; }));
+app.post('/api/app/galeria/:projetoId/orcamentos/itens/:itemId/comentarios', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ comentario: orcLib.comentarComoArquiteto(...baseOrc(req), req.params.itemId, (req.body || {}).texto, req.licencaUsuario) })));
+app.post('/api/app/galeria/:projetoId/orcamentos/marcar-lido', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => { orcLib.marcarNovidadesLidas(...baseOrc(req), req.licencaUsuario); return {}; }));
+
+// --------------------------------------------------------------------
+// MEMORIAL DE ITENS -- lado do ARQUITETO (nov/2026): tabela por setor com foto do produto e valor. Recurso `memorial`.
+// A foto vem do app já reduzida (~800 px, WebP); aqui só se confere tipo/tamanho/limite, grava e troca a antiga.
+// Posse conferida em lib/memorial.js (exigirGaleriaDaLicenca).
+// --------------------------------------------------------------------
+const comUrlDaFoto = async (item) => ({ ...item, fotoUrl: item.fotoR2Key ? await storage.urlTemporaria(item.fotoR2Key) : null });
+const apagarDoArmazenamento = async (chave) => { if (chave) { try { await storage.excluirArquivo(chave); } catch (e) { console.error('Aviso: falhou excluir do armazenamento:', e.message); } } };
+
+app.get('/api/app/galeria/:projetoId/memorial', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
+  try {
+    const r = memLib.lerParaArquiteto(CAMINHO_DADOS, req.params.projetoId, req.licencaUsuario);
+    res.json({ ok: true, ...r, itens: await Promise.all(r.itens.map(comUrlDaFoto)) });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+app.post('/api/app/galeria/:projetoId/memorial/itens', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
+  try { res.json({ ok: true, item: await comUrlDaFoto(memLib.adicionarItem(CAMINHO_DADOS, req.params.projetoId, req.body || {}, req.licencaUsuario)) }); }
+  catch (e) { res.status(400).json({ erro: e.message }); }
+});
+app.put('/api/app/galeria/:projetoId/memorial/itens/:itemId', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
+  try { res.json({ ok: true, item: await comUrlDaFoto(memLib.editarItem(CAMINHO_DADOS, req.params.projetoId, req.params.itemId, req.body || {}, req.licencaUsuario)) }); }
+  catch (e) { res.status(400).json({ erro: e.message }); }
+});
+app.delete('/api/app/galeria/:projetoId/memorial/itens/:itemId', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
+  try {
+    const chave = memLib.excluirItem(CAMINHO_DADOS, req.params.projetoId, req.params.itemId, req.licencaUsuario);
+    await apagarDoArmazenamento(chave);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+app.post('/api/app/galeria/:projetoId/memorial/itens/:itemId/foto', exigirSessaoArquiteto, exigirRecurso('memorial'), upload.single('arquivo'), async (req, res) => {
+  let chave = null;
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Nenhum arquivo enviado.' });
+    const extensao = memLib.TIPOS_FOTO[req.file.mimetype];
+    if (!extensao) return res.status(400).json({ erro: 'Envie a foto como WebP, JPG ou PNG.' });
+    if (req.file.size > memLib.LIMITE_BYTES_FOTO) return res.status(400).json({ erro: 'A foto do produto está grande demais (o app reduz sozinho; tente outra imagem).' });
+    memLib.conferirPodeReceberFoto(CAMINHO_DADOS, req.params.projetoId, req.params.itemId, req.licencaUsuario); // limite/posse ANTES de gravar (sem arquivo órfão)
+    chave = `${req.params.projetoId}/memorial-${crypto.randomUUID()}.${extensao}`;
+    await storage.salvarArquivo(chave, req.file.buffer, req.file.mimetype);
+    const { item, r2KeyAntiga } = memLib.definirFoto(CAMINHO_DADOS, req.params.projetoId, req.params.itemId, chave, req.licencaUsuario);
+    await apagarDoArmazenamento(r2KeyAntiga);
+    res.json({ ok: true, item: await comUrlDaFoto(item) });
+  } catch (e) {
+    await apagarDoArmazenamento(chave);
+    res.status(400).json({ erro: e.message });
+  }
+});
+app.delete('/api/app/galeria/:projetoId/memorial/itens/:itemId/foto', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
+  try {
+    const { item, r2KeyAntiga } = memLib.definirFoto(CAMINHO_DADOS, req.params.projetoId, req.params.itemId, null, req.licencaUsuario);
+    await apagarDoArmazenamento(r2KeyAntiga);
+    res.json({ ok: true, item: await comUrlDaFoto(item) });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+
+// ====================================================================
+// PASTA DE ORÇAMENTOS -- lado do CLIENTE FINAL (página /orcamentos?o=<link>, login próprio). A sessão daqui NÃO abre a
+// Pasta Cliente e a de lá NÃO abre isto (listas de sessão separadas, header diferente).
+// ====================================================================
+app.get('/api/orcamentos/:linkToken/info-publica', async (req, res) => {
+  const g = orcamentosDisponiveis(req.params.linkToken);
+  if (!g) return res.status(404).json({ erro: 'Link não encontrado.' });
+  let iconeUrl = null;
+  try {
+    const pers = galeria.resolverPersonalizacao(galeria.lerEstado(CAMINHO_DADOS), g);
+    if (pers.iconeExibir && pers.iconeR2Key) iconeUrl = await storage.urlTemporaria(pers.iconeR2Key);
+  } catch (e) { /* sem ícone: a página usa o padrão */ }
+  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl });
+});
+
+app.post('/api/orcamentos/:linkToken/login', limitarPorIP, (req, res) => {
+  if (!orcamentosDisponiveis(req.params.linkToken)) return res.status(404).json({ erro: 'Link não encontrado.' });
+  try {
+    const { usuario, senha } = req.body || {};
+    res.json({ ok: true, token: orcLib.loginCliente(CAMINHO_DADOS, req.params.linkToken, usuario, senha) });
+  } catch (e) {
+    res.status(401).json({ erro: e.message });
+  }
+});
+
+function exigirSessaoOrcamento(req, res, next) {
+  if (!orcamentosDisponiveis(req.params.linkToken)) return res.status(403).json({ erro: 'Esta pasta de orçamentos não está disponível no momento.' });
+  const token = req.headers['x-orcamento-token'];
+  if (!token || !orcLib.validarTokenCliente(CAMINHO_DADOS, req.params.linkToken, token)) {
+    return res.status(401).json({ erro: 'Faça login de novo.' });
+  }
+  next();
+}
+const rotaOrcCliente = (fn) => (req, res) => {
+  try { res.json(Object.assign({ ok: true }, fn(req))); } catch (e) { res.status(400).json({ erro: e.message }); }
+};
+app.get('/api/orcamentos/:linkToken/itens', exigirSessaoOrcamento, rotaOrcCliente((req) => orcLib.listarParaCliente(CAMINHO_DADOS, req.params.linkToken)));
+app.put('/api/orcamentos/:linkToken/itens/:itemId/status', exigirSessaoOrcamento, rotaOrcCliente((req) => orcLib.mudarStatusCliente(CAMINHO_DADOS, req.params.linkToken, req.params.itemId, (req.body || {}).status)));
+app.post('/api/orcamentos/:linkToken/itens/:itemId/comentarios', exigirSessaoOrcamento, rotaOrcCliente((req) => ({ comentario: orcLib.comentarCliente(CAMINHO_DADOS, req.params.linkToken, req.params.itemId, (req.body || {}).texto) })));
+
 // ====================================================================
 // ROTAS DO CLIENTE FINAL (público, via link -- nunca vê o servidor de
 // licenças, só entra com o login que o arquiteto configurou)
@@ -562,7 +781,8 @@ app.get('/api/cliente/:linkToken/info-publica', async (req, res) => {
   const g = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, req.params.linkToken);
   if (!g) return res.status(404).json({ erro: 'Link não encontrado.' });
   const iconeUrl = (g.iconePersonalizado && g.iconePersonalizado.r2Key) ? await storage.urlTemporaria(g.iconePersonalizado.r2Key) : null;
-  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl });
+  // `novoVisual`: o dono tem o recurso "Página do projeto" -> a página (inclusive o login) usa o tema claro/escuro novo.
+  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl, novoVisual: g.recursosAtivos.paginaProjeto === true });
 });
 
 app.post('/api/cliente/:linkToken/login', limitarPorIP, (req, res) => {
