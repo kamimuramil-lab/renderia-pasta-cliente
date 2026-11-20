@@ -36,20 +36,23 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
 .pagina:last-child { page-break-after: auto; break-after: auto; }
 .carimbo { position: absolute; right: 11mm; bottom: 6mm; font-size: 6.8pt; letter-spacing: .05em; color: #8a8a8a; text-align: right; }
 
-/* capa do projeto */
-.capa-projeto { background: #faf8f4; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-.capa-projeto.escura { background: #1d1d1f; color: #f2f2f2; }
-.capa-projeto.escura h1, .capa-projeto.escura .projeto { color: #fff; }
-.capa-projeto.escura .dados { color: #c9c9c9; }
-.capa-projeto.escura .data, .capa-projeto.escura .autoria, .capa-projeto.escura .carimbo { color: #9a9a9a; }
-.capa-projeto img.logo { max-width: 66mm; max-height: 36mm; object-fit: contain; margin-bottom: 13mm; }
-.capa-projeto h1 { font-size: 16pt; font-weight: 300; letter-spacing: .3em; margin: 0 0 5mm; }
-.capa-projeto .linha { width: 28mm; height: 1px; background: #b79d62; margin: 0 auto 6mm; }
-.capa-projeto .projeto { font-size: 54pt; line-height: 1.05; font-weight: 800; letter-spacing: -.01em; margin: 2mm 12mm 9mm; max-width: 262mm; overflow-wrap: anywhere; }
-.capa-projeto .dados { white-space: pre-line; font-size: 10.5pt; color: #555; max-width: 190mm; margin-bottom: 9mm; line-height: 1.5; }
-.capa-projeto .data { font-size: 9pt; color: #8a8a8a; letter-spacing: .06em; }
-.capa-projeto .autoria { margin-top: 3mm; font-size: 9pt; color: #6f6f6f; letter-spacing: .04em; }
-.capa-projeto .autoria small { display: block; margin-top: 1mm; font-size: 7pt; color: #9a9a9a; }
+/* capa do projeto (APRESENTAÇÃO): metade da folha é uma foto do projeto em preto e branco com um leve desfoque; do outro lado, num painel
+   escuro, o logo grande e centralizado, o nome do projeto e os dados. Rodapé: autoria e direitos autorais à esquerda, data e hora à direita. */
+.capa-projeto { background: #1b1c1e; color: #f2f2f2; display: flex; }
+.capa-projeto .foto-capa { position: relative; width: 46%; height: 100%; overflow: hidden; background: #000; flex-shrink: 0; }
+.capa-projeto .foto-capa img { position: absolute; inset: -4%; width: 108%; height: 108%; object-fit: cover; filter: grayscale(1) blur(2.2px); }
+.capa-projeto .foto-capa::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to right, rgba(27,28,30,0) 70%, rgba(27,28,30,.55) 100%); }
+.capa-projeto .painel { flex: 1; padding: 14mm 15mm 30mm 15mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.capa-projeto img.logo { max-width: 112mm; max-height: 58mm; object-fit: contain; margin: 0 auto 13mm; filter: brightness(0) invert(1); }
+.capa-projeto.escura img.logo { filter: none; }
+.capa-projeto h1 { font-size: 13pt; font-weight: 300; letter-spacing: .46em; text-indent: .46em; margin: 0 0 5mm; color: #cdb67a; }
+.capa-projeto .linha { width: 30mm; height: 1px; background: #b79d62; margin: 0 auto 8mm; }
+.capa-projeto .projeto { font-size: 46pt; line-height: 1.05; font-weight: 800; letter-spacing: -.01em; margin: 0 0 8mm; max-width: 140mm; overflow-wrap: anywhere; color: #fff; }
+.capa-projeto .dados { white-space: pre-line; font-size: 10pt; color: #c4c4c4; max-width: 128mm; margin-bottom: 6mm; line-height: 1.65; }
+.capa-projeto .data { font-size: 8.4pt; color: #8f8f8f; letter-spacing: .14em; text-transform: uppercase; }
+.capa-projeto .rodape-capa { position: absolute; left: calc(46% + 15mm); right: 15mm; bottom: 10mm; display: flex; justify-content: space-between; align-items: flex-end; gap: 6mm; border-top: 1px solid #3d3f43; padding-top: 3.2mm; font-size: 7.2pt; letter-spacing: .05em; line-height: 1.55; color: #9a9a9a; text-align: left; }
+.capa-projeto .rodape-capa b { color: #c9c9c9; }
+.capa-projeto .rodape-capa .dir { text-align: right; }
 
 /* capa do ambiente */
 .capa-ambiente { display: flex; }
@@ -124,14 +127,20 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
     const escritorio = String(o.escritorio || '').trim();
     const carimbo = `<div class="carimbo">PDF gerado em ${esc(dataHoraCurta(agora))}</div>`;
 
+    // Foto da capa: a primeira imagem do primeiro ambiente (qualquer imagem do projeto serve: sai em preto e branco, desfocada de leve).
+    const fotoDaCapa = ambientes[0].imagens[0] ? imagemSegura(ambientes[0].imagens[0].uri) : null;
+
     const paginas = [`<section class="pagina capa-projeto${o.logoClaro ? ' escura' : ''}">
-    ${logo ? `<img class="logo" src="${logo}" alt="">` : ''}
-    <h1>IMAGENS DO PROJETO</h1><div class="linha"></div>
-    <div class="projeto">${esc(o.nomeProjeto || '')}</div>
-    ${o.dadosProjeto ? `<div class="dados">${esc(o.dadosProjeto)}</div>` : ''}
-    <div class="data">${esc(dataPorExtenso(agora))} às ${esc(horaCompleta(agora))} · ${esc(plural(ambientes.length, 'ambiente', 'ambientes'))} · ${esc(plural(total, 'imagem', 'imagens'))}</div>
-    <div class="autoria">${escritorio ? `Projeto por: <b>${esc(escritorio)}</b>` : ''}<small>${esc(AVISO_AUTORAL)}</small></div>
-  </section>`]; // a capa do projeto não leva o carimbo de data/hora (a data aparece na linha do título)
+    ${fotoDaCapa ? `<div class="foto-capa"><img src="${fotoDaCapa}" alt=""></div>` : ''}
+    <div class="painel">
+      ${logo ? `<img class="logo" src="${logo}" alt="">` : ''}
+      <h1>APRESENTAÇÃO</h1><div class="linha"></div>
+      <div class="projeto">${esc(o.nomeProjeto || '')}</div>
+      ${o.dadosProjeto ? `<div class="dados">${esc(o.dadosProjeto)}</div>` : ''}
+      <div class="data">${esc(dataPorExtenso(agora))} · ${esc(plural(ambientes.length, 'ambiente', 'ambientes'))} · ${esc(plural(total, 'imagem', 'imagens'))}</div>
+    </div>
+    <div class="rodape-capa"><div>${escritorio ? `Projeto por: <b>${esc(escritorio)}</b><br>` : ''}${esc(AVISO_AUTORAL)}</div><div class="dir">PDF gerado em ${esc(dataHoraCurta(agora))}</div></div>
+  </section>`];
 
     ambientes.forEach((a, idx) => {
       const rotulo = `Ambiente ${dois(idx + 1)}`;
