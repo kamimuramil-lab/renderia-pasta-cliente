@@ -106,15 +106,29 @@
 
   // Decisão do cliente. Os botões são discretos (contorno): a cor forte fica SÓ para o orçamento já aprovado/recusado.
   const ROTULO_SITUACAO = { analise_cliente: 'Aguardando sua decisão', fechado: '✓ Aprovado por você', recusado: '✕ Recusado por você' };
-  // Botão de comentários (fica AO LADO da decisão); acende quando o escritório respondeu e este aparelho ainda não viu.
+  const ICONE_MENSAGEM = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 01-2 2H8l-5 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>';
+  // Comentários: só o ícone de mensagem + quantidade. Acende (vermelho, pulsando) quando o escritório respondeu e este aparelho ainda não viu.
+  function textoBotaoComentarios(item) {
+    const novas = novasDoEscritorio(item);
+    return `${ICONE_MENSAGEM}<span class="orc-n">${item.comentarios.length}</span>${novas ? '<span class="orc-ponto" aria-hidden="true"></span>' : ''}`;
+  }
+  function tituloBotaoComentarios(item) {
+    const novas = novasDoEscritorio(item);
+    return `Comentários (${item.comentarios.length})${novas ? ' — ' + (novas === 1 ? 'nova mensagem do escritório' : novas + ' novas mensagens do escritório') : ''}`;
+  }
   function botaoComentarios(item) {
     const novas = novasDoEscritorio(item);
-    return `<button class="orc-botao ${novas ? 'tem-novo' : ''}" data-acao="conversa">💬 Comentários (${item.comentarios.length})${novas ? ` · ${novas === 1 ? 'NOVA MENSAGEM' : novas + ' NOVAS MENSAGENS'}` : ''}</button>`;
+    return `<button class="orc-botao orc-icone ${novas ? 'tem-novo' : ''}" data-acao="conversa" title="${esc(tituloBotaoComentarios(item))}" aria-label="${esc(tituloBotaoComentarios(item))}">${textoBotaoComentarios(item)}</button>`;
   }
-  function decisao(item) {
-    if (!item.podeMudarStatus) return '';
-    if (item.status === 'fechado' || item.status === 'recusado') return '<button class="orc-botao" data-acao="reabrir" title="Voltar para análise e decidir de novo">Alterar decisão</button>';
-    return '<button class="orc-botao aprovar" data-acao="aprovar">✓ Aprovar</button><button class="orc-botao recusar" data-acao="recusar">✕ Recusar</button>';
+
+  // Decisão num menu (Em análise / Aprovado / Recusado): ocupa pouco espaço. A cor forte é só do aprovado/recusado.
+  const DECISAO_ROTULO = { analise_cliente: 'Em análise', fechado: 'Aprovado', recusado: 'Recusado' };
+  function seletorDecisao(item) {
+    if (!item.podeMudarStatus) return `<span class="orc-selo s-${esc(item.status)}">${esc(ROTULO[item.status] || item.status)}</span>`;
+    const foraDoMenu = !DECISAO_ROTULO[item.status]; // ex.: EVF / Em andamento: aparece como ponto de partida
+    const opcoes = (foraDoMenu ? `<option value="" selected>${esc(ROTULO[item.status] || item.status)}</option>` : '') +
+      Object.keys(DECISAO_ROTULO).map((st) => `<option value="${st}" ${st === item.status ? 'selected' : ''}>${esc(DECISAO_ROTULO[st])}</option>`).join('');
+    return `<select class="orc-decisao-sel s-${esc(item.status)}" data-acao-decisao aria-label="Decisão sobre ${esc(item.item)}">${opcoes}</select>`;
   }
 
   // Cada orçamento é uma LINHA (usa a largura toda da tela): Somar | Categoria e fornecedor | Valor | Observação | Decisão.
@@ -124,7 +138,6 @@
     const quem = [item.empresa, item.representante].filter(Boolean).map(esc).join(' · ');
     const aberto = abertos.has(item.id);
     const comentarios = item.comentarios.map((c) => `<div class="orc-msg ${c.autor === 'cliente' ? 'minha' : 'escritorio'}"><span class="orc-msg-autor">${c.autor === 'cliente' ? 'Você' : 'Escritório'}</span>${esc(c.texto)}</div>`).join('');
-    const selo = ROTULO_SITUACAO[item.status] || ROTULO[item.status] || item.status;
     return `<article class="orc-row status-${esc(item.status)}" data-id="${esc(item.id)}">
       <label class="orc-c-somar" title="${temValor(item) ? 'Incluir este valor na soma' : 'Sem valor ainda'}"><input type="checkbox" data-somar ${somar.has(item.id) && temValor(item) ? 'checked' : ''} ${temValor(item) ? '' : 'disabled'} aria-label="Somar ${esc(item.item)}"></label>
       <div class="orc-c-item">
@@ -132,13 +145,14 @@
         ${quem ? `<div class="orc-linha">${quem}</div>` : ''}
         ${telefone ? `<div class="orc-linha"><a href="tel:${esc(telefone)}">${esc(item.telefone)}</a></div>` : ''}
       </div>
-      <div class="orc-c-valor ${temValor(item) ? '' : 'sem'}">${moeda(item.valor)}</div>
+      <div class="orc-c-valor ${temValor(item) ? '' : 'sem'}">
+        <span class="orc-abrir-slot">${href ? `<a class="orc-botao orc-abrir" href="${esc(href)}" target="_blank" rel="noopener noreferrer" title="Abrir o orçamento (arquivo do fornecedor)">Abrir ↗</a>` : ''}</span>
+        <span class="orc-valor-num">${moeda(item.valor)}</span>
+      </div>
       <div class="orc-c-obs">${item.observacao ? esc(item.observacao) : '<span class="orc-vazio">—</span>'}</div>
       <div class="orc-c-acoes">
-        <span class="orc-selo s-${esc(item.status)}">${esc(selo)}</span>
-        ${decisao(item)}
+        ${seletorDecisao(item)}
         ${botaoComentarios(item)}
-        ${href ? `<a class="orc-botao principal" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Abrir orçamento ↗</a>` : ''}
       </div>
       <div class="orc-conversa" ${aberto ? '' : 'hidden'}>
         ${comentarios || '<div class="orc-obs">Nenhum comentário ainda.</div>'}
@@ -190,7 +204,21 @@
     reabrir: { status: 'analise_cliente', confirmar: null, ok: 'Voltou para análise. O escritório foi avisado.' }
   };
 
-  $('orcLista').addEventListener('change', (e) => {
+  $('orcLista').addEventListener('change', async (e) => {
+    const menu = e.target.closest('select[data-acao-decisao]');
+    if (menu) {
+      const linhaMenu = menu.closest('[data-id]');
+      const decisaoMenu = { analise_cliente: DECISOES.reabrir, fechado: DECISOES.aprovar, recusado: DECISOES.recusar }[menu.value];
+      if (!decisaoMenu) return;
+      if (decisaoMenu.confirmar && !window.confirm(decisaoMenu.confirmar)) { await carregar().catch(() => {}); return; } // cancelou: volta o menu ao que era
+      menu.disabled = true;
+      try {
+        await chamar(`/api/orcamentos/${LINK}/itens/${encodeURIComponent(linhaMenu.dataset.id)}/status`, enviarJson('PUT', { status: decisaoMenu.status }));
+        await carregar();
+        avisar(decisaoMenu.ok);
+      } catch (err) { avisar(err.message, true); await carregar().catch(() => {}); }
+      return;
+    }
     const caixa = e.target.closest('input[data-somar]');
     const linhaEl = caixa && caixa.closest('[data-id]');
     if (!linhaEl) return;
@@ -224,7 +252,7 @@
     if (botao.dataset.acao === 'conversa') {
       const caixa = cartaoEl.querySelector('.orc-conversa');
       caixa.hidden = !caixa.hidden;
-      if (caixa.hidden) abertos.delete(id); else { abertos.add(id); const it = dados.itens.find((x) => x.id === id); if (it) { marcarVistos(it); botao.classList.remove('tem-novo'); botao.textContent = `💬 Comentários (${it.comentarios.length})`; } }
+      if (caixa.hidden) abertos.delete(id); else { abertos.add(id); const it = dados.itens.find((x) => x.id === id); if (it) { marcarVistos(it); botao.classList.remove('tem-novo'); botao.innerHTML = textoBotaoComentarios(it); botao.title = tituloBotaoComentarios(it); } }
     } else if (botao.dataset.acao === 'enviar') {
       const area = cartaoEl.querySelector('textarea');
       const texto = area.value.trim();

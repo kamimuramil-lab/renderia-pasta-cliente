@@ -99,8 +99,9 @@ function entrarNoProjeto(galeria) {
     if (window.HubCliente.temConteudo(galeria)) { window.HubCliente.abrir(); return; }
   }
   if (window.PlantaCliente && window.PlantaCliente.temPlantaUtil(galeria)) window.PlantaCliente.abrir();
+  if (window.NavCliente) window.NavCliente.sincronizar(); // entrada (galeria direto, sem hub nem planta)
 }
-function mostrarTelaGaleriaDaPlanta() { $('telaGaleria').style.display = 'block'; }
+function mostrarTelaGaleriaDaPlanta() { $('telaGaleria').style.display = 'block'; if (window.NavCliente) window.NavCliente.sincronizar(); }
 $('btnIrParaPlanta').addEventListener('click', () => window.PlantaCliente.abrir());
 
 // ---------- Home: grade de categorias ----------
@@ -361,6 +362,7 @@ function renderizarFotoAtualNoVisualizador() {
       compass: false
     });
     posicionarMarcaDagua(foto);
+    ajustarLarguraPainelInferior(foto);
   } else {
     $('painelPanoramaCliente').style.display = 'none';
     const img = $('imgFotoVisualizador');
@@ -369,7 +371,7 @@ function renderizarFotoAtualNoVisualizador() {
     // exemplo) até a nova terminar de carregar, dando aquele "flash".
     img.style.visibility = 'hidden';
     img.style.display = 'block';
-    img.onload = () => { img.style.visibility = 'visible'; posicionarMarcaDagua(foto); };
+    img.onload = () => { img.style.visibility = 'visible'; posicionarMarcaDagua(foto); ajustarLarguraPainelInferior(foto); };
     img.src = foto.url;
   }
 
@@ -383,6 +385,16 @@ function renderizarFotoAtualNoVisualizador() {
 // pra funcionar igual em foto quadrada, retangular, vertical ou 360.
 // pointer-events:none no CSS garante que ela nunca atrapalha o desenho
 // do pincel por cima.
+// Os botões e o campo de comentário têm a MESMA largura da imagem mostrada (no 360 e nas capas, a largura toda).
+function ajustarLarguraPainelInferior(foto) {
+  const painel = $('painelInferiorVisualizador');
+  if (!foto || foto.tipo === '360' || foto.__ehMood) { painel.style.removeProperty('--larg-img'); return; }
+  const area = $('areaImagemVisualizador');
+  const r = retanguloImagemRenderizada($('imgFotoVisualizador'), area);
+  const minimo = Math.min(560, area.clientWidth); // foto vertical estreita: não deixa a barra apertada demais
+  painel.style.setProperty('--larg-img', Math.round(Math.max(r.width, minimo)) + 'px');
+}
+
 function posicionarMarcaDagua(foto) {
   const marca = estado.galeria ? estado.galeria.marcaDagua : null;
   const img = $('imgMarcaDagua');
@@ -411,7 +423,7 @@ function posicionarMarcaDagua(foto) {
 }
 window.addEventListener('resize', () => {
   const fotoAtual = estado.fotosCategoriaAtual[estado.indiceAtual];
-  if (fotoAtual && $('visualizador').style.display === 'flex') posicionarMarcaDagua(fotoAtual);
+  if (fotoAtual && $('visualizador').style.display === 'flex') { posicionarMarcaDagua(fotoAtual); ajustarLarguraPainelInferior(fotoAtual); }
 });
 
 function renderizarAprovacaoEComentarios(foto) {

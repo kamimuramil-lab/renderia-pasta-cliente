@@ -33,4 +33,16 @@ const linha = html.slice(html.indexOf('class="linha-acoes-visualizador"'), html.
 assert.ok(/\.linha-acoes-visualizador\{ flex-wrap:wrap; \}/.test(css), 'quebra de linha só quando não cabe (celular)');
 console.log('OK');
 
+console.log('== 5. Voltar do navegador: navegacao.js entre a miniatura e o hub, e ganchos nas telas ==');
+assert.ok(pos('planta-mini.js') < pos('navegacao.js') && pos('navegacao.js') < pos('hub.js') && pos('hub.js') < pos('main.js'));
+const hubjs = fs.readFileSync(path.join(pub, 'assets/js/hub.js'), 'utf8');
+assert.ok(/NavCliente\.sincronizar\(\)/.test(hubjs) && /NavCliente\.sincronizar\(\)/.test(planta) && /NavCliente\.sincronizar\(\)/.test(main));
+assert.ok(/secaoAberta: \(\) => secaoAberta/.test(hubjs) && /plantaAtual: \(\) => ST\.plantaId/.test(planta));
+console.log('OK');
+
+console.log('== 6. Dados do projeto com links: script carregado antes do hub ==');
+assert.ok(pos('dados-projeto.js') > 0 && pos('dados-projeto.js') < pos('hub.js'));
+assert.ok(/DadosProjeto\.htmlDosDados/.test(hubjs));
+console.log('OK');
+
 console.log('\nTODOS OS TESTES DO VISUALIZADOR (ESTRUTURA) PASSARAM');

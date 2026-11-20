@@ -241,6 +241,7 @@
     if (logo) pid('imgLogoPlanta').src = logo;
     renderizar();
     ajustarAoVisor(); // o visor só tem tamanho de verdade depois de aparecer
+    if (window.NavCliente) window.NavCliente.sincronizar(); // a planta vira uma entrada do botão voltar do navegador
   }
 
   function fechar() { pid('telaPlanta').style.display = 'none'; }
@@ -311,7 +312,10 @@
     pid('btnPlantaZoomMais').addEventListener('click', () => zoomEm(1.4));
     pid('btnPlantaZoomMenos').addEventListener('click', () => zoomEm(1 / 1.4));
     pid('btnPlantaZoomReset').addEventListener('click', resetarZoom);
-    pid('btnPlantaParaGaleria').addEventListener('click', () => { fechar(); mostrarTelaGaleriaDaPlanta(); });
+    pid('btnPlantaParaGaleria').addEventListener('click', () => {
+      if (window.NavCliente && window.NavCliente.voltarSePossivel({ t: 'galeria' })) return;
+      fechar(); mostrarTelaGaleriaDaPlanta();
+    });
     // Reencaixa a planta sempre que a ÁREA VISÍVEL mudar de tamanho (girar o celular, barra do
     // navegador que some/aparece, redimensionar a janela...). O ResizeObserver cobre isso melhor
     // que o evento "resize" da janela; o "resize" fica como reforço pra navegadores antigos.
@@ -325,5 +329,5 @@
 
   document.addEventListener('DOMContentLoaded', ligarEventos);
 
-  window.PlantaCliente = { abrirFoto: abrirFotoPeloId, temPlantaUtil, abrir, fechar, estaAberta, atualizarPins, plantaDaFoto: (f) => (f && f.plantaId) || null };
+  window.PlantaCliente = { plantaAtual: () => ST.plantaId, abrirFoto: abrirFotoPeloId, temPlantaUtil, abrir, fechar, estaAberta, atualizarPins, plantaDaFoto: (f) => (f && f.plantaId) || null };
 })();

@@ -110,7 +110,7 @@
 
     el('hubConteudo').innerHTML = `${capaHtml(g)}
       <div class="hub-corpo">
-        ${h.dadosProjeto ? `<div class="hub-dados">${esc(h.dadosProjeto)}</div>` : ''}
+        ${h.dadosProjeto ? `<div class="hub-dados">${window.DadosProjeto ? window.DadosProjeto.htmlDosDados(h.dadosProjeto, esc) : esc(h.dadosProjeto)}</div>` : ''}
         <div class="hub-grid">${cartoes.join('')}</div>
       </div>`;
     el('hubConteudo').querySelectorAll('[data-hub-acao]').forEach((b) => b.addEventListener('click', () => executarAcao(b.dataset.hubAcao)));
@@ -263,8 +263,12 @@
     el('telaHub').classList.toggle('largo', secaoAberta === 'memorial'); // Memorial usa a largura toda (computador/tablet deitado)
     el('btnHubVoltar').style.display = secaoAberta ? 'flex' : 'none'; // dentro de uma pasta, o voltar fica sempre no topo
     if (secaoAberta) renderizarSecao(); else renderizarInicio();
+    if (window.NavCliente) window.NavCliente.sincronizar(); // cada tela do hub vira uma entrada do botão voltar do navegador
   }
-  el('btnHubVoltar').addEventListener('click', () => { secaoAberta = null; renderizar(); window.scrollTo(0, 0); });
+  el('btnHubVoltar').addEventListener('click', () => {
+    if (window.NavCliente && window.NavCliente.voltarSePossivel({ t: 'hub', s: null })) return; // volta de verdade, sem empilhar
+    secaoAberta = null; renderizar(); window.scrollTo(0, 0);
+  });
 
   // ---------- Entrada/saída ----------
   // Chamado pelo main.js ao entrar: mostra (ou esconde) os botões "Voltar ao projeto" da galeria e da planta.
@@ -274,8 +278,8 @@
     ['btnGaleriaParaHub', 'btnPlantaParaHub'].forEach((id) => { if (el(id)) el(id).style.display = mostrar; });
   }
 
-  function abrir() {
-    secaoAberta = null;
+  function abrir(secao) {
+    secaoAberta = secao || null;
     ['telaGaleria', 'telaPlanta'].forEach((id) => { el(id).style.display = 'none'; });
     el('telaLogin').style.display = 'none';
     el('telaHub').style.display = 'block';
@@ -293,10 +297,11 @@
   ['btnGaleriaParaHub', 'btnPlantaParaHub'].forEach((id) => {
     if (!el(id)) return;
     el(id).addEventListener('click', () => {
+      if (window.NavCliente && window.NavCliente.voltarSePossivel({ t: 'hub', s: null })) return;
       if (window.PlantaCliente) window.PlantaCliente.fechar();
       abrir();
     });
   });
 
-  window.HubCliente = { temConteudo, preparar, abrir, fechar, estaAberta: () => el('telaHub').style.display !== 'none' };
+  window.HubCliente = { secaoAberta: () => secaoAberta, temConteudo, preparar, abrir, fechar, estaAberta: () => el('telaHub').style.display !== 'none' };
 })();

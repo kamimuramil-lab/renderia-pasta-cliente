@@ -49,8 +49,8 @@
     $('miniPlantaPins').innerHTML = fotos.map((f) => {
       const eh360 = f.tipo === '360';
       const ang = f.pinPlanta.angulo;
-      const leque = (f.id === atual && !eh360 && typeof ang === 'number' && Number.isFinite(ang))
-        ? `<i class="mini-leque" style="left:${f.pinPlanta.x * 100}%; top:${f.pinPlanta.y * 100}%; --ang:${ang}deg"></i>` : '';
+      const leque = (!eh360 && typeof ang === 'number' && Number.isFinite(ang))
+        ? `<i class="mini-leque ${f.id === atual ? 'ver' : ''}" data-foto-id="${esc(f.id)}" style="left:${f.pinPlanta.x * 100}%; top:${f.pinPlanta.y * 100}%; --ang:${ang}deg"></i>` : '';
       return leque + `<button type="button" class="mini-pin ${eh360 ? 'p360' : 'pfixa'} st-${statusDe(f)} ${f.id === atual ? 'atual' : ''}" data-foto-id="${esc(f.id)}" style="left:${f.pinPlanta.x * 100}%; top:${f.pinPlanta.y * 100}%" title="${esc(nomeDe(f))}" aria-label="${esc(nomeDe(f))}"></button>`;
     }).join('');
   }
@@ -119,6 +119,10 @@
       if (e.target.closest('.mini-pin')) return;
       if (M.ampliada && M.fixada) reduzir(); else ampliar(true);
     });
+    // passar o mouse no ícone mostra pra onde aquela imagem aponta (o leque); a imagem atual sempre mostra o dela
+    const leque = (e, ligar) => { const b = e.target.closest('.mini-pin'); if (!b) return; const l = $('miniPlantaPins').querySelector(`.mini-leque[data-foto-id="${b.dataset.fotoId}"]`); if (l && b.dataset.fotoId !== M.fotoId) l.classList.toggle('ver', ligar); };
+    $('miniPlantaPins').addEventListener('mouseover', (e) => leque(e, true));
+    $('miniPlantaPins').addEventListener('mouseout', (e) => leque(e, false));
     $('miniPlantaPins').addEventListener('click', (e) => {
       const b = e.target.closest('.mini-pin');
       if (!b) return;
