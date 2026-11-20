@@ -325,5 +325,5 @@
 
   document.addEventListener('DOMContentLoaded', ligarEventos);
 
-  window.PlantaCliente = { temPlantaUtil, abrir, fechar, estaAberta, atualizarPins, plantaDaFoto: (f) => (f && f.plantaId) || null };
+  window.PlantaCliente = { abrirFoto: abrirFotoPeloId, temPlantaUtil, abrir, fechar, estaAberta, atualizarPins, plantaDaFoto: (f) => (f && f.plantaId) || null };
 })();

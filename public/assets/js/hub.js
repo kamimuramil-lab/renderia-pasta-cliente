@@ -162,7 +162,7 @@
   function linhaMemorial(i) {
     const href = i.link ? hrefSeguro(i.link) : null;
     const foto = i.fotoUrl ? `<button class="mem-foto" data-mem-foto="${esc(i.fotoUrl)}" title="Ampliar"><img src="${esc(i.fotoUrl)}" alt="${esc(i.item)}" loading="lazy"></button>` : '<span class="mem-sem-foto">—</span>';
-    const selo = i.status === 'REVISAO' ? ' <span class="hub-selo hub-selo-revisao">EM REVISÃO</span>' : '';
+    const selo = ''; // o memorial não mostra status
     const amb = (i.ambientes || []).map((a) => `<span class="mem-amb">${esc(a)}</span>`).join('') || '—';
     return `<tr>
       <td data-rotulo="Nº">${esc(i.numero)}</td>

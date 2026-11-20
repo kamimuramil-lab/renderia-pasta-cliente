@@ -147,6 +147,18 @@
     <button class="btn-visualizador-canto btn-canto-planta" id="btnVisualizadorPlanta" style="display:none;" title="Voltar para a planta">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M9 3v8h12M9 11v10"/></svg>
     </button>
+    <div class="mini-planta" id="miniPlanta" style="display:none;">
+      <div class="mini-planta-topo">
+        <span class="mini-planta-nome" id="miniPlantaNome">Planta</span>
+        <span class="mini-planta-botoes">
+          <button type="button" id="btnMiniAmpliar" title="Ampliar a planta" aria-label="Ampliar a planta">⤢</button>
+          <button type="button" id="btnMiniEsconder" title="Esconder a planta" aria-label="Esconder a planta">–</button>
+        </span>
+      </div>
+      <div class="mini-planta-abas" id="miniPlantaAbas" style="display:none;"></div>
+      <div class="mini-planta-corpo" id="miniPlantaCorpo"><img id="miniPlantaImg" alt="Planta baixa" draggable="false"><div class="mini-planta-pins" id="miniPlantaPins"></div></div>
+    </div>
+    <button type="button" class="mini-planta-reabrir" id="btnMiniReabrir" style="display:none;" title="Mostrar a planta">🗺 Planta</button>
     <button class="btn-tela-cheia-visualizador" id="btnTelaCheiaVisualizador" title="Ver em tela cheia">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
     </button>
@@ -161,6 +173,11 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 114 4L7.5 20.5 2 22l1.5-5.5z"/></svg>
         <span id="textoBtnDesenho">Solicitar alteração</span>
       </button>
+      <div class="area-comentario">
+        <textarea id="inputComentario" placeholder="Escreva o que você quer que mude nessa imagem..." rows="1"></textarea>
+        <button id="btnEnviarComentario">Enviar</button>
+      </div>
+      <button class="btn-ver-historico" id="btnVerHistorico" style="display:none;">📋 Anotações (<span id="qtdHistoricoComentarios">0</span>)</button>
     </div>
     <div class="linha-cores-desenho" id="linhaCoresDesenho" style="display:none;">
       <button class="cor-caneta ativa" data-cor="#1a1a1a" style="background:#1a1a1a;"></button>
@@ -170,11 +187,6 @@
       <button class="cor-caneta" data-cor="#f2c230" style="background:#f2c230;"></button>
       <button class="btn-limpar-desenho" id="btnLimparDesenho">Limpar desenho</button>
     </div>
-    <div class="area-comentario">
-      <textarea id="inputComentario" placeholder="Escreva o que você quer que mude nessa imagem..." rows="2"></textarea>
-      <button id="btnEnviarComentario">Enviar</button>
-    </div>
-    <button class="btn-ver-historico" id="btnVerHistorico" style="display:none;">📋 Ver histórico de anotações (<span id="qtdHistoricoComentarios">0</span>)</button>
   </div>
 </div>
 
@@ -191,6 +203,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
 <script src="assets/js/planta.js"></script>
+<script src="assets/js/planta-mini.js"></script>
 <script src="assets/js/hub.js"></script>
 <script src="assets/js/main.js"></script>
 </body>

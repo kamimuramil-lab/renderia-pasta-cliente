@@ -211,6 +211,7 @@ function fecharVisualizadorDeVerdade() {
   if (elementoFullscreenAtual()) sairFullscreen(); // senão a planta/galeria ficam "atrás" da tela cheia e não recebem cliques
   $('visualizador').style.display = 'none';
   $('visualizador').classList.remove('modo-imersivo');
+  if (window.PlantaMini) window.PlantaMini.esconder();
   destruirPanoramaSeExistir();
   const acao = estado.acaoAposFecharVisualizador;
   estado.acaoAposFecharVisualizador = null;
@@ -374,6 +375,7 @@ function renderizarFotoAtualNoVisualizador() {
 
   $('modalHistoricoComentarios').classList.add('hidden');
   if (!foto.__ehMood) renderizarAprovacaoEComentarios(foto);
+  if (window.PlantaMini) window.PlantaMini.atualizar(foto); // miniatura da planta (some se a imagem não tem ícone)
 }
 
 // Marca d'água personalizada do arquiteto -- fica no canto superior
@@ -424,6 +426,7 @@ function renderizarAprovacaoEComentarios(foto) {
   }
   montarListaComentarios(foto);
   $('inputComentario').value = '';
+  if (window.PlantaMini) window.PlantaMini.atualizar(foto); // a cor do ícone acompanha aprovar/comentar
 }
 
 function montarListaComentarios(foto) {

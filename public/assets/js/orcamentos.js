@@ -113,11 +113,8 @@
   }
   function decisao(item) {
     if (!item.podeMudarStatus) return '';
-    if (item.status === 'fechado' || item.status === 'recusado') {
-      return `<div class="orc-decisao"><span class="orc-decisao-texto">${item.status === 'fechado' ? '✓ Você aprovou este orçamento.' : '✕ Você recusou este orçamento.'}</span>
-        <button class="orc-botao" data-acao="reabrir" title="Voltar para análise e decidir de novo">Alterar decisão</button>${botaoComentarios(item)}</div>`;
-    }
-    return `<div class="orc-decisao"><button class="orc-botao aprovar" data-acao="aprovar">✓ Aprovar</button><button class="orc-botao recusar" data-acao="recusar">✕ Recusar</button>${botaoComentarios(item)}</div>`;
+    if (item.status === 'fechado' || item.status === 'recusado') return '<button class="orc-botao" data-acao="reabrir" title="Voltar para análise e decidir de novo">Alterar decisão</button>';
+    return '<button class="orc-botao aprovar" data-acao="aprovar">✓ Aprovar</button><button class="orc-botao recusar" data-acao="recusar">✕ Recusar</button>';
   }
 
   // Cada orçamento é uma LINHA (usa a largura toda da tela): Somar | Categoria e fornecedor | Valor | Observação | Decisão.
@@ -140,10 +137,8 @@
       <div class="orc-c-acoes">
         <span class="orc-selo s-${esc(item.status)}">${esc(selo)}</span>
         ${decisao(item)}
-        <div class="orc-acoes">
-          ${href ? `<a class="orc-botao principal" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Abrir orçamento ↗</a>` : ''}
-          ${item.podeMudarStatus ? '' : botaoComentarios(item)}
-        </div>
+        ${botaoComentarios(item)}
+        ${href ? `<a class="orc-botao principal" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Abrir orçamento ↗</a>` : ''}
       </div>
       <div class="orc-conversa" ${aberto ? '' : 'hidden'}>
         ${comentarios || '<div class="orc-obs">Nenhum comentário ainda.</div>'}
