@@ -15,11 +15,11 @@
   --radius-s: 8px; --radius-m: 14px; --radius-l: 22px;
 }
 *,*::before,*::after{ box-sizing:border-box; }
-html{ overflow-x:hidden; }
+/* (sem overflow-x no html: html E body com overflow-x:hidden fazem o Safari do iPad/iPhone tratar o corpo como uma área de rolagem própria e a página "não acaba") */
 body{
   margin:0; background:var(--bg); color:var(--text);
   font-family:'Inter',-apple-system,"Segoe UI",sans-serif; font-size:16px; line-height:1.55;
-  -webkit-font-smoothing:antialiased; overflow-x:hidden; max-width:100vw;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden; overflow-x:clip; max-width:100%;
 }
 h1,h2,h3{ font-family:'Archivo','Inter',sans-serif; font-weight:800; letter-spacing:-.01em; margin:0; color:var(--steel-100); }
 p{ margin:0; }
@@ -29,7 +29,7 @@ img{ max-width:100%; display:block; }
 
 /* ---------- tela de login ---------- */
 .tela-login{
-  min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  min-height:100vh; min-height:100svh; display:flex; align-items:center; justify-content:center; padding:24px;
 }
 .card-login{
   width:100%; max-width:380px; background:var(--bg-elev); border:1px solid var(--line);
@@ -405,7 +405,7 @@ body.visual-novo[data-tema="claro"]{
 }
 .btn-tema{ padding:9px 11px; }
 
-#telaHub{ min-height:100vh; }
+#telaHub{ min-height:100vh; min-height:100svh; }
 .hub-wrap{ max-width:980px; margin:0 auto; padding:0 24px 60px; }
 .hub-capa{
   position:relative; overflow:hidden; margin:0 -24px 26px; min-height:clamp(190px, 30vw, 300px);

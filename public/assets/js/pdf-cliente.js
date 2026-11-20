@@ -22,7 +22,21 @@
     if (!g) return [];
     const capas = new Set((g.categorias || []).map((c) => c.moodFotoId).filter(Boolean));
     const elegivel = (f) => f.tipo !== '360' && !f.arquivada && !capas.has(f.id);
-    return (estado.categoriasOrdenadas || []).map((c, i) => ({ indice: i, nome: c.nome, capaUrl: c.moodUrl || null, fotos: (c.fotos || []).filter(elegivel) })).filter((a) => a.fotos.length);
+    const lista = (estado.categoriasOrdenadas || []).map((c, i) => ({ indice: i, nome: c.nome, capaUrl: c.moodUrl || null, fotos: (c.fotos || []).filter(elegivel) }));
+    // foto que não caiu em nenhum ambiente listado (ex.: ambiente apagado) também entra, em "Outras imagens"
+    const listadas = new Set((estado.categoriasOrdenadas || []).flatMap((c) => (c.fotos || []).map((x) => x.id)));
+    const soltas = (g.fotos || []).filter((f) => !listadas.has(f.id) && elegivel(f));
+    if (soltas.length) lista.push({ indice: lista.length, nome: 'Outras imagens', capaUrl: null, fotos: soltas });
+    return lista.filter((a) => a.fotos.length);
+  }
+  // Por que não há nada pra gerar? Conta onde estão as imagens do projeto (ajuda a achar o motivo quando a mensagem aparece).
+  function motivoDoVazio() {
+    const g = estado.galeria;
+    if (!g) return 'A galeria ainda não carregou. Atualize a página e tente de novo.';
+    const todas = g.fotos || [];
+    const capas = new Set((g.categorias || []).map((c) => c.moodFotoId).filter(Boolean));
+    const n360 = todas.filter((f) => f.tipo === '360').length, arq = todas.filter((f) => f.arquivada).length, nCapa = todas.filter((f) => capas.has(f.id) && f.tipo !== '360' && !f.arquivada).length;
+    return 'Ainda não há imagens (fora as de 360°) para gerar o PDF. No projeto há ' + todas.length + ' imagem(ns): ' + n360 + ' em 360°, ' + arq + ' arquivada(s) e ' + nCapa + ' usada(s) como capa de ambiente (a capa não se repete como página).';
   }
 
   // ---------- janela de escolha ----------
@@ -32,7 +46,7 @@
     $('pdfMensagem').textContent = '';
     $('pdfProgresso').hidden = true;
     if (!lista.length) {
-      caixa.innerHTML = '<div class="pdf-vazio">Ainda não há imagens (fora as de 360°) para gerar o PDF.</div>';
+      caixa.innerHTML = '<div class="pdf-vazio">' + escapeHtml(motivoDoVazio()) + '</div>';
       $('btnGerarPdfCliente').disabled = true;
     } else {
       caixa.innerHTML = lista.map((a) => `<label class="pdf-linha"><input type="checkbox" data-ambiente="${a.indice}" checked><span class="pdf-nome">${escapeHtml(a.nome)}</span><span class="pdf-qtd">${a.fotos.length} ${a.fotos.length === 1 ? 'imagem' : 'imagens'}</span></label>`).join('');
