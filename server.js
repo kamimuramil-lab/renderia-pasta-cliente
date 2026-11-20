@@ -613,8 +613,8 @@ app.post('/api/app/galeria/:projetoId/marcar-lido', exigirSessaoArquiteto, (req,
 // --------------------------------------------------------------------
 app.put('/api/app/galeria/:projetoId/hub', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), (req, res) => {
   try {
-    const { dadosProjeto, links, gruposExecutivo, capaFotoId } = req.body || {};
-    const hub = hubLib.atualizarHub(CAMINHO_DADOS, req.params.projetoId, { dadosProjeto, links, gruposExecutivo, capaFotoId }, req.licencaUsuario);
+    const { dadosProjeto, links, gruposExecutivo, capaFotoId, ordemGrupos } = req.body || {};
+    const hub = hubLib.atualizarHub(CAMINHO_DADOS, req.params.projetoId, { dadosProjeto, links, gruposExecutivo, capaFotoId, ordemGrupos }, req.licencaUsuario);
     res.json({ ok: true, hub: { ...hub, gruposExecutivo: hubLib.gruposDoExecutivo(hub) } });
   } catch (e) {
     res.status(400).json({ erro: e.message });
@@ -648,6 +648,16 @@ app.put('/api/app/galeria/:projetoId/documentos/:docId', exigirSessaoArquiteto, 
   }
 });
 
+// Ordem manual dos documentos (▲▼ no app): recebe os ids na ordem desejada.
+app.put('/api/app/galeria/:projetoId/documentos-ordem', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), (req, res) => {
+  try {
+    const ordem = hubLib.ordenarDocumentos(CAMINHO_DADOS, req.params.projetoId, (req.body || {}).ids, req.licencaUsuario);
+    res.json({ ok: true, ordem });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
 app.delete('/api/app/galeria/:projetoId/documentos/:docId', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), (req, res) => {
   try {
     hubLib.excluirDocumento(CAMINHO_DADOS, req.params.projetoId, req.params.docId, req.licencaUsuario);
@@ -668,6 +678,7 @@ const baseOrc = (req) => [CAMINHO_DADOS, req.params.projetoId];
 
 app.get('/api/app/galeria/:projetoId/orcamentos', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => orcLib.lerParaArquiteto(...baseOrc(req), req.licencaUsuario)));
 app.put('/api/app/galeria/:projetoId/orcamentos/acesso', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ acesso: orcLib.definirAcesso(...baseOrc(req), req.body || {}, req.licencaUsuario) })));
+app.put('/api/app/galeria/:projetoId/orcamentos/ordem', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => { orcLib.reordenarItens(...baseOrc(req), (req.body || {}).ids, req.licencaUsuario); return {}; }));
 app.post('/api/app/galeria/:projetoId/orcamentos/itens', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ item: orcLib.adicionarItem(...baseOrc(req), req.body || {}, req.licencaUsuario) })));
 app.put('/api/app/galeria/:projetoId/orcamentos/itens/:itemId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ item: orcLib.editarItem(...baseOrc(req), req.params.itemId, req.body || {}, req.licencaUsuario) })));
 app.delete('/api/app/galeria/:projetoId/orcamentos/itens/:itemId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => { orcLib.excluirItem(...baseOrc(req), req.params.itemId, req.licencaUsuario); return {}; }));

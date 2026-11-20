@@ -600,3 +600,78 @@ body.visual-novo .btn-tema{ display:flex; }
 .orc-grid .orc-card{ margin-bottom:0; }
 .orc-botao.tem-novo{ background:var(--hub-vermelho); border-color:var(--hub-vermelho); color:#fff; font-weight:800; animation:orc-pulso 1.6s ease-out infinite; }
 @keyframes orc-pulso{ 0%{ box-shadow:0 0 0 0 rgba(229,120,111,.7); } 70%{ box-shadow:0 0 0 9px rgba(229,120,111,0); } 100%{ box-shadow:0 0 0 0 rgba(229,120,111,0); } }
+
+/* ===== Letras maiores em toda a Pasta do Cliente (só na tela; o PDF do Memorial mantém o tamanho dele) ===== */
+@media screen{
+  body.visual-novo .hub-card-titulo{ font-size:18px; }
+  body.visual-novo .hub-card-detalhe{ font-size:14px; }
+  body.visual-novo .hub-aviso{ font-size:15px; }
+  body.visual-novo .hub-grupo h2{ font-size:15px; }
+  body.visual-novo .hub-doc-titulo{ font-size:16.5px; }
+  body.visual-novo .hub-doc-meta{ font-size:14px; }
+  body.visual-novo .hub-doc-obs{ font-size:14px; }
+  body.visual-novo .hub-selo{ font-size:12px; }
+  body.visual-novo .hub-doc-abrir{ font-size:14.5px; }
+  body.visual-novo .mem-tabela{ font-size:15px; }
+  body.visual-novo .mem-tabela th{ font-size:12.5px; }
+  body.visual-novo .mem-col-item a{ font-size:14px; }
+  body.visual-novo .mem-amb{ font-size:12.5px; }
+  body.visual-novo .mem-acoes select{ font-size:14.5px; }
+  body.visual-novo .topo-galeria h1{ font-size:18px; }
+}
+
+/* ===== Orçamentos do cliente: uma LINHA por orçamento, aproveitando a largura toda ===== */
+.orc-wrap{ max-width:min(1700px, 97vw); }
+.orc-tabela{ background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-m); overflow:hidden; font-size:15.5px; }
+.orc-cab, .orc-row{ display:grid; grid-template-columns:64px minmax(220px, 1.25fr) 170px minmax(200px, 1.3fr) minmax(320px, 1.15fr); gap:8px 22px; align-items:start; padding:18px 22px; }
+.orc-cab{ align-items:center; padding-top:13px; padding-bottom:13px; background:var(--bg); border-bottom:1px solid var(--line); font-size:12.5px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; color:var(--text-dim); }
+.orc-cab .orc-c-valor{ font-size:12.5px; font-weight:800; color:var(--text-dim); font-family:inherit; margin:0; }
+.orc-grupo-cab{ padding:13px 22px; background:var(--bg); border-top:1px solid var(--line); border-bottom:1px solid var(--line); font-size:13.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); }
+.orc-grupo-cab span{ margin-left:6px; font-weight:600; color:var(--text-faint); }
+.orc-row{ border-bottom:1px solid var(--line-soft); }
+.orc-row.status-recusado{ opacity:.6; }
+.orc-c-somar{ display:flex; justify-content:center; padding-top:3px; cursor:pointer; }
+.orc-c-somar input{ width:22px; height:22px; margin:0; cursor:pointer; accent-color:var(--steel-100); }
+.orc-c-somar input:disabled{ cursor:default; opacity:.35; }
+.orc-c-item h3{ font-size:18.5px; line-height:1.3; overflow-wrap:anywhere; }
+.orc-c-item .orc-linha{ font-size:15px; margin-top:5px; }
+.orc-c-valor{ font-family:'Archivo',sans-serif; font-weight:800; font-size:21px; color:var(--steel-100); white-space:nowrap; }
+.orc-c-valor.sem{ font-family:inherit; font-weight:600; font-size:15px; color:var(--text-dim); }
+.orc-c-obs{ font-size:14.5px; line-height:1.55; color:var(--text-dim); white-space:pre-wrap; overflow-wrap:anywhere; }
+.orc-vazio{ color:var(--text-faint); }
+.orc-c-acoes{ display:flex; flex-direction:column; align-items:flex-start; gap:10px; }
+.orc-row .orc-decisao{ margin:0; padding:0; border:0; gap:10px; }
+.orc-row .orc-decisao-texto{ font-size:15px; min-width:0; flex:1 1 100%; }
+.orc-row .orc-acoes{ margin-top:0; }
+.orc-conversa{ grid-column:1 / -1; }
+.orc-botao{ font-size:14.5px; padding:10px 18px; }
+.orc-selo{ font-size:13px; padding:6px 13px; }
+.orc-msg{ font-size:15px; }
+.orc-msg-autor{ font-size:12px; }
+.orc-escrever textarea{ font-size:15px; }
+
+/* Aprovar / Recusar discretos (contorno). A cor forte aparece só quando o orçamento JÁ está aprovado. */
+.orc-botao.aprovar{ background:transparent; border-color:var(--line); color:var(--green); font-weight:700; padding:10px 18px; font-size:14.5px; }
+.orc-botao.aprovar:hover{ background:rgba(63,233,138,.08); border-color:var(--green); filter:none; }
+.orc-botao.recusar{ background:transparent; border-color:var(--line); color:var(--hub-vermelho); font-weight:700; padding:10px 18px; font-size:14.5px; }
+.orc-botao.recusar:hover{ background:rgba(229,120,111,.08); border-color:var(--hub-vermelho); }
+.orc-selo.s-fechado{ background:var(--green); border-color:var(--green); color:#06210f; }
+.orc-selo.s-recusado{ background:var(--hub-vermelho); border-color:var(--hub-vermelho); color:#fff; }
+
+/* Rodapé com os totais */
+.orc-totais{ border-top:2px solid var(--line); background:var(--bg); }
+.orc-total-acoes{ display:flex; flex-wrap:wrap; gap:10px; padding:14px 22px; border-bottom:1px solid var(--line-soft); }
+.orc-total-linha{ display:flex; align-items:baseline; justify-content:space-between; gap:16px; padding:16px 22px; font-size:17px; font-weight:600; border-bottom:1px solid var(--line-soft); }
+.orc-total-linha:last-child{ border-bottom:0; }
+.orc-total-linha small{ color:var(--text-dim); font-weight:500; font-size:14px; }
+.orc-total-linha strong{ font-family:'Archivo',sans-serif; font-weight:800; font-size:22px; color:var(--steel-100); white-space:nowrap; }
+.orc-total-linha.destaque{ background:var(--bg-elev); }
+.orc-total-linha.destaque strong{ font-size:26px; }
+
+@media (max-width:980px){
+  .orc-cab{ display:none; }
+  .orc-row{ grid-template-columns:44px 1fr; gap:10px 14px; padding:16px; }
+  .orc-c-valor, .orc-c-obs, .orc-c-acoes{ grid-column:1 / -1; }
+  .orc-c-valor{ font-size:22px; }
+  .orc-total-linha{ flex-direction:column; align-items:flex-start; gap:4px; }
+}

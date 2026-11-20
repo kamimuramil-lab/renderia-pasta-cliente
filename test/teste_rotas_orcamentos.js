@@ -68,7 +68,7 @@ const portaLivre = () => new Promise((resolve, reject) => {
     const tokGaleria = (await api('POST', `/api/cliente/${linkGaleria}/login`, { corpo: { usuario: 'cli', senha: 'senha1234' } })).json.token;
 
     // ---- 2) rotas do arquiteto exigem a sessão do arquiteto
-    for (const [m, rota] of [['GET', '/orcamentos'], ['PUT', '/orcamentos/acesso'], ['POST', '/orcamentos/itens'], ['POST', '/orcamentos/marcar-lido']]) {
+    for (const [m, rota] of [['GET', '/orcamentos'], ['PUT', '/orcamentos/acesso'], ['POST', '/orcamentos/itens'], ['POST', '/orcamentos/marcar-lido'], ['PUT', '/orcamentos/ordem']]) {
       assert.strictEqual((await api(m, P + rota)).status, 401, `${m} ${rota} sem sessão`);
       assert.strictEqual((await api(m, P + rota, { sessao: 'invalida' })).status, 401, `${m} ${rota} sessão inválida`);
       assert.strictEqual((await api(m, P + rota, { cliente: tokGaleria })).status, 401, `${m} ${rota} com token de cliente`);
@@ -90,6 +90,16 @@ const portaLivre = () => new Promise((resolve, reject) => {
     assert.deepStrictEqual([r.json.itens.length, r.json.acesso.usuario, r.json.temNovidadeNaoLida], [2 + 13, 'orc', false]); // 13 = itens padrão do Notion
     assert.ok(!JSON.stringify(r.json).includes('senhaHash') && !JSON.stringify(r.json).includes('sessoesAtivas'));
     ok('acesso criado (link próprio), itens criados, link perigoso recusado, app nunca recebe hash');
+
+    // ordem manual (▲▼): o arquiteto reordena e a lista volta na ordem nova; ids estranhos não derrubam nada
+    const idsAntes = r.json.itens.map((i) => i.id);
+    r = await api('PUT', P + '/orcamentos/ordem', { sessao: 'tokA', corpo: { ids: [...idsAntes].reverse() } });
+    assert.strictEqual(r.status, 200);
+    r = await api('GET', P + '/orcamentos', { sessao: 'tokA' });
+    assert.deepStrictEqual(r.json.itens.map((i) => i.id), [...idsAntes].reverse());
+    assert.strictEqual((await api('PUT', P + '/orcamentos/ordem', { sessao: 'tokA', corpo: { ids: 'x' } })).status, 400);
+    await api('PUT', P + '/orcamentos/ordem', { sessao: 'tokA', corpo: { ids: idsAntes } }); // volta como estava
+    ok('ordem dos orçamentos pela rota (PUT /orcamentos/ordem)');
 
     // ---- 4) ISOLAMENTO: valores e login de orçamentos não saem pela Pasta Cliente nem pela rota do app da galeria
     r = await api('GET', `/api/cliente/${linkGaleria}/galeria`, { cliente: tokGaleria });

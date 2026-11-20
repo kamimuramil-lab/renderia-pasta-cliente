@@ -97,8 +97,15 @@
       escolhas.map((s) => `<option value="${s}" ${s === item.status ? 'selected' : ''}>${esc(ROTULO[s])}</option>`).join('');
   }
 
-  // Decisão do cliente: botões grandes e claros em vez de um menu escondido.
-  const ROTULO_SITUACAO = { analise_cliente: 'Aguardando sua decisão', fechado: 'Aprovado por você', recusado: 'Recusado por você' };
+  // ---------- "Somar": o cliente marca quais orçamentos entram na soma do rodapé (fica lembrado neste aparelho) ----------
+  const CHAVE_SOMAR = `renderia_orc_somar_${LINK}`;
+  let somar = new Set();
+  try { somar = new Set(JSON.parse(localStorage.getItem(CHAVE_SOMAR) || '[]')); } catch (e) { somar = new Set(); }
+  const gravarSomar = () => { try { localStorage.setItem(CHAVE_SOMAR, JSON.stringify([...somar])); } catch (e) { /* vale só nesta visita */ } };
+  const temValor = (i) => typeof i.valor === 'number';
+
+  // Decisão do cliente. Os botões são discretos (contorno): a cor forte fica SÓ para o orçamento já aprovado/recusado.
+  const ROTULO_SITUACAO = { analise_cliente: 'Aguardando sua decisão', fechado: '✓ Aprovado por você', recusado: '✕ Recusado por você' };
   // Botão de comentários (fica AO LADO da decisão); acende quando o escritório respondeu e este aparelho ainda não viu.
   function botaoComentarios(item) {
     const novas = novasDoEscritorio(item);
@@ -110,28 +117,33 @@
       return `<div class="orc-decisao"><span class="orc-decisao-texto">${item.status === 'fechado' ? '✓ Você aprovou este orçamento.' : '✕ Você recusou este orçamento.'}</span>
         <button class="orc-botao" data-acao="reabrir" title="Voltar para análise e decidir de novo">Alterar decisão</button>${botaoComentarios(item)}</div>`;
     }
-    return `<div class="orc-decisao"><button class="orc-botao aprovar" data-acao="aprovar">✓ Aprovar orçamento</button><button class="orc-botao recusar" data-acao="recusar">✕ Recusar</button>${botaoComentarios(item)}</div>`;
+    return `<div class="orc-decisao"><button class="orc-botao aprovar" data-acao="aprovar">✓ Aprovar</button><button class="orc-botao recusar" data-acao="recusar">✕ Recusar</button>${botaoComentarios(item)}</div>`;
   }
 
-  function cartao(item) {
+  // Cada orçamento é uma LINHA (usa a largura toda da tela): Somar | Categoria e fornecedor | Valor | Observação | Decisão.
+  function linha(item) {
     const href = hrefSeguro(item.url);
     const telefone = String(item.telefone || '').replace(/[^0-9+()\-\s]/g, '').trim();
     const quem = [item.empresa, item.representante].filter(Boolean).map(esc).join(' · ');
     const aberto = abertos.has(item.id);
     const comentarios = item.comentarios.map((c) => `<div class="orc-msg ${c.autor === 'cliente' ? 'minha' : 'escritorio'}"><span class="orc-msg-autor">${c.autor === 'cliente' ? 'Você' : 'Escritório'}</span>${esc(c.texto)}</div>`).join('');
-    return `<article class="orc-card status-${esc(item.status)}" data-id="${esc(item.id)}">
-      <div class="orc-card-topo">
+    const selo = ROTULO_SITUACAO[item.status] || ROTULO[item.status] || item.status;
+    return `<article class="orc-row status-${esc(item.status)}" data-id="${esc(item.id)}">
+      <label class="orc-c-somar" title="${temValor(item) ? 'Incluir este valor na soma' : 'Sem valor ainda'}"><input type="checkbox" data-somar ${somar.has(item.id) && temValor(item) ? 'checked' : ''} ${temValor(item) ? '' : 'disabled'} aria-label="Somar ${esc(item.item)}"></label>
+      <div class="orc-c-item">
         <h3>${esc(item.item)}</h3>
-        <span class="orc-selo s-${esc(item.status)}">${esc(ROTULO_SITUACAO[item.status] || ROTULO[item.status] || item.status)}</span>
+        ${quem ? `<div class="orc-linha">${quem}</div>` : ''}
+        ${telefone ? `<div class="orc-linha"><a href="tel:${esc(telefone)}">${esc(item.telefone)}</a></div>` : ''}
       </div>
-      ${quem ? `<div class="orc-linha">${quem}</div>` : ''}
-      ${telefone ? `<div class="orc-linha"><a href="tel:${esc(telefone)}">${esc(item.telefone)}</a></div>` : ''}
-      <div class="orc-valor">${moeda(item.valor)}</div>
-      ${item.observacao ? `<div class="orc-obs">${esc(item.observacao)}</div>` : ''}
-      ${decisao(item)}
-      <div class="orc-acoes">
-        ${href ? `<a class="orc-botao principal" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Abrir orçamento ↗</a>` : ''}
-        ${item.podeMudarStatus ? '' : botaoComentarios(item)}
+      <div class="orc-c-valor ${temValor(item) ? '' : 'sem'}">${moeda(item.valor)}</div>
+      <div class="orc-c-obs">${item.observacao ? esc(item.observacao) : '<span class="orc-vazio">—</span>'}</div>
+      <div class="orc-c-acoes">
+        <span class="orc-selo s-${esc(item.status)}">${esc(selo)}</span>
+        ${decisao(item)}
+        <div class="orc-acoes">
+          ${href ? `<a class="orc-botao principal" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Abrir orçamento ↗</a>` : ''}
+          ${item.podeMudarStatus ? '' : botaoComentarios(item)}
+        </div>
       </div>
       <div class="orc-conversa" ${aberto ? '' : 'hidden'}>
         ${comentarios || '<div class="orc-obs">Nenhum comentário ainda.</div>'}
@@ -143,13 +155,30 @@
     </article>`;
   }
 
+  // Rodapé: total de todos (sem os recusados) e total só dos marcados em "Somar".
+  function totaisHtml() {
+    const itens = dados.itens;
+    const soma = (lista) => lista.reduce((t, i) => t + (temValor(i) ? i.valor : 0), 0);
+    const marcados = itens.filter((i) => somar.has(i.id) && temValor(i));
+    const comValor = itens.filter(temValor).length;
+    return `<div class="orc-total-acoes"><button type="button" class="orc-botao" data-acao-somar="todos" ${comValor ? '' : 'disabled'}>☑ Somar todos</button><button type="button" class="orc-botao" data-acao-somar="nenhum" ${marcados.length ? '' : 'disabled'}>Limpar seleção</button></div>
+      <div class="orc-total-linha"><span>Total de todos os orçamentos <small>(sem os recusados)</small></span><strong>${moeda(soma(itens.filter((i) => i.status !== 'recusado')))}</strong></div>
+      <div class="orc-total-linha destaque"><span>Total dos selecionados <small>(${marcados.length} ${marcados.length === 1 ? 'orçamento' : 'orçamentos'})</small></span><strong>${moeda(soma(marcados))}</strong></div>`;
+  }
+  const atualizarTotais = () => { const caixa = $('orcTotais'); if (caixa) caixa.innerHTML = totaisHtml(); };
+
   function renderizar() {
     const itens = dados.itens;
     if (!itens.length) { $('orcLista').innerHTML = '<div class="vazio-galeria">Ainda não há orçamentos por aqui. Volte em breve!</div>'; return; }
-    $('orcLista').innerHTML = ORDEM_GRUPOS.map((st) => {
+    const grupos = ORDEM_GRUPOS.map((st) => {
       const doGrupo = itens.filter((i) => i.status === st);
-      return doGrupo.length ? `<section class="orc-grupo"><h2>${esc(TITULO_GRUPO[st])} <span>${doGrupo.length}</span></h2><div class="orc-grid">${doGrupo.map(cartao).join('')}</div></section>` : '';
+      return doGrupo.length ? `<div class="orc-grupo-cab">${esc(TITULO_GRUPO[st])} <span>${doGrupo.length}</span></div>${doGrupo.map(linha).join('')}` : '';
     }).join('');
+    $('orcLista').innerHTML = `<div class="orc-tabela">
+      <div class="orc-cab"><span>Somar</span><span>Categoria</span><span class="orc-c-valor">Valor</span><span>Observação</span><span>Decisão</span></div>
+      ${grupos}
+      <div class="orc-totais" id="orcTotais">${totaisHtml()}</div>
+    </div>`;
   }
 
   async function carregar() {
@@ -166,7 +195,22 @@
     reabrir: { status: 'analise_cliente', confirmar: null, ok: 'Voltou para análise. O escritório foi avisado.' }
   };
 
+  $('orcLista').addEventListener('change', (e) => {
+    const caixa = e.target.closest('input[data-somar]');
+    const linhaEl = caixa && caixa.closest('[data-id]');
+    if (!linhaEl) return;
+    if (caixa.checked) somar.add(linhaEl.dataset.id); else somar.delete(linhaEl.dataset.id);
+    gravarSomar(); atualizarTotais(); // só o rodapé muda: não refaz a lista (não perde o que está sendo digitado)
+  });
   $('orcLista').addEventListener('click', async (e) => {
+    const botaoSomar = e.target.closest('[data-acao-somar]');
+    if (botaoSomar && dados) {
+      somar = botaoSomar.dataset.acaoSomar === 'todos' ? new Set(dados.itens.filter(temValor).map((i) => i.id)) : new Set();
+      gravarSomar();
+      $('orcLista').querySelectorAll('input[data-somar]').forEach((c) => { c.checked = somar.has(c.closest('[data-id]').dataset.id); });
+      atualizarTotais();
+      return;
+    }
     const botao = e.target.closest('[data-acao]');
     if (!botao) return;
     const cartaoEl = botao.closest('[data-id]');

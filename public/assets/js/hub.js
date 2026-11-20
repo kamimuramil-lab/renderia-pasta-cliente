@@ -148,8 +148,10 @@
   function blocoDocumentos(docs) {
     const ordem = { ATUAL: 0, REVISAO: 1, ANTIGA: 2 };
     const porNome = (a, b) => (a.pavimento || '').localeCompare(b.pavimento || '', 'pt-BR') || a.titulo.localeCompare(b.titulo, 'pt-BR');
-    const vigentes = docs.filter((d) => d.status !== 'ANTIGA').sort((a, b) => (ordem[a.status] - ordem[b.status]) || porNome(a, b));
-    const antigas = docs.filter((d) => d.status === 'ANTIGA').sort((a, b) => b.revisao - a.revisao || porNome(a, b));
+    // Ordem escolhida pelo arquiteto (setinhas ▲▼ no app) vale primeiro; o que ainda não tem ordem segue a de sempre.
+    const posicao = (d) => (typeof d.ordem === 'number' ? d.ordem : 1e9);
+    const vigentes = docs.filter((d) => d.status !== 'ANTIGA').sort((a, b) => (posicao(a) - posicao(b)) || (ordem[a.status] - ordem[b.status]) || porNome(a, b));
+    const antigas = docs.filter((d) => d.status === 'ANTIGA').sort((a, b) => (posicao(a) - posicao(b)) || b.revisao - a.revisao || porNome(a, b));
     return `${vigentes.map(linhaDocumento).join('')}
       ${antigas.length ? `<details class="hub-antigas"><summary>Versões antigas (${antigas.length}) — não usar para execução</summary>${antigas.map(linhaDocumento).join('')}</details>` : ''}`;
   }
@@ -240,7 +242,13 @@
       docs.forEach((d) => { if (d.grupo && !base.some((n) => n.toLowerCase() === d.grupo.toLowerCase()) && !extras.some((n) => n.toLowerCase() === d.grupo.toLowerCase())) extras.push(d.grupo); }); // combinada ("A + B") ou grupo renomeado/removido: não some do cliente
       base.forEach((n) => { nomes.push(n); extras.filter((e) => e.split(' + ')[0].trim().toLowerCase() === n.toLowerCase()).forEach((e) => nomes.push(e)); });
       extras.forEach((e) => { if (!nomes.includes(e)) nomes.push(e); });
-      corpo = `<div class="hub-aviso"><b>ATENÇÃO</b><br>Use somente o arquivo com status <b class="hub-ok">ATUAL</b>. Arquivos em <b class="hub-alerta">REVISÃO</b> ou <b class="hub-alerta">ANTIGA</b> não devem ser usados para a execução. Se o projeto já estiver com algum fornecedor, confirme que todos estão com a última versão.</div>` +
+      // ordem manual das categorias (setinhas no app) vale por cima; as que não estão nela ficam no fim, na ordem de antes
+      const ordemManual = Array.isArray(h.ordemGrupos) ? h.ordemGrupos.map((n) => n.toLowerCase()) : [];
+      if (ordemManual.length) {
+        const pos = (n) => ordemManual.indexOf(n.toLowerCase());
+        nomes.splice(0, nomes.length, ...nomes.filter((n) => pos(n) >= 0).sort((a, b) => pos(a) - pos(b)), ...nomes.filter((n) => pos(n) < 0));
+      }
+      corpo =`<div class="hub-aviso"><b>ATENÇÃO</b><br>Use somente o arquivo com status <b class="hub-ok">ATUAL</b>. Arquivos em <b class="hub-alerta">REVISÃO</b> ou <b class="hub-alerta">ANTIGA</b> não devem ser usados para a execução. Se o projeto já estiver com algum fornecedor, confirme que todos estão com a última versão.</div>` +
         nomes.map((nome) => {
           const doGrupo = docs.filter((d) => (d.grupo || '').toLowerCase() === nome.toLowerCase());
           return doGrupo.length ? `<section class="hub-grupo"><h2>${esc(nome)}</h2>${blocoDocumentos(doGrupo)}</section>` : '';

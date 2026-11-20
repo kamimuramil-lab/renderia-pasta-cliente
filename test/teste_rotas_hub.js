@@ -105,6 +105,15 @@ function portaLivre() {
     assert.strictEqual(r.json.documento.observacao, 'conferir com a marcenaria');
     ok('prévia, criação, substituição confirmada (só o andar certo vira ANTIGA) e edição');
 
+    // ordem manual (▲▼): documentos e categorias; o cliente recebe `ordem` e `ordemGrupos`
+    r = await api('PUT', P + '/documentos-ordem', { sessao: 'tokA', corpo: { ids: [docSup.id, docTerreo.id] } });
+    assert.strictEqual(r.status, 200);
+    r = await api('PUT', P + '/hub', { sessao: 'tokA', corpo: { ordemGrupos: ['Planta de Forro', 'Demolição e Construção'] } });
+    assert.deepStrictEqual([r.status, r.json.hub.ordemGrupos], [200, ['Planta de Forro', 'Demolição e Construção']]);
+    r = await api('GET', `/api/cliente/${linkToken}/galeria`, { cliente: tokCli });
+    assert.deepStrictEqual([r.json.hub.documentos.find((d) => d.id === docSup.id).ordem, r.json.hub.ordemGrupos[0]], [0, 'Planta de Forro']);
+    ok('ordem dos documentos e das categorias pelas rotas, e o cliente recebe a ordem');
+
     // ---- 5) o que o cliente final enxerga
     r = await api('GET', `/api/cliente/${linkToken}/galeria`, { cliente: tokCli });
     const st = Object.fromEntries(r.json.hub.documentos.map((d) => [d.titulo, d.status]));
@@ -120,7 +129,9 @@ function portaLivre() {
       ['POST', P + '/documentos', { secao: 'visitas', titulo: 'x', url: URL1 }],
       ['POST', P + '/documentos/previa', { secao: 'executivo', grupo: 'Planta de Forro' }],
       ['PUT', `${P}/documentos/${docSup.id}`, { titulo: 'invadido' }],
-      ['DELETE', `${P}/documentos/${docSup.id}`, undefined]
+      ['DELETE', `${P}/documentos/${docSup.id}`, undefined],
+      ['PUT', P + '/documentos-ordem', { ids: [docSup.id] }],
+      ['PUT', P + '/hub', { ordemGrupos: ['invadido'] }]
     ]) {
       const x = await api(metodo, rota, { sessao: 'tokB', corpo });
       assert.strictEqual(x.status, 400, `${metodo} ${rota}`);
