@@ -53,7 +53,7 @@ assert.throws(() => orc.adicionarItem(CAMINHO, 'projO', { item: 'x', valor: -1 }
 assert.throws(() => orc.adicionarItem(CAMINHO, 'projO', { item: 'x', valor: 'abc' }, DONO), /Valor/);
 assert.throws(() => orc.adicionarItem(CAMINHO, 'projO', { item: 'x', url: 'javascript:alert(1)' }, DONO), /inválido/);
 assert.throws(() => orc.adicionarItem(CAMINHO, 'projO', { item: 'x', status: 'qualquer' }, DONO), /Status/);
-assert.strictEqual(lerO().itens.length, 3, 'nenhuma tentativa inválida criou item');
+assert.strictEqual(lerO().itens.length, 3 + orc.ITENS_PADRAO.length, 'nenhuma tentativa inválida criou item');
 console.log('OK');
 
 console.log('== 4. Editar: valida tudo antes de aplicar; o arquiteto escolhe qualquer status ==');
@@ -81,7 +81,7 @@ const vistaCliente = orc.listarParaCliente(CAMINHO, acesso.linkToken);
 const textoVista = JSON.stringify(vistaCliente);
 for (const proibido of ['senhaHash', 'sessoesAtivas', 'notificacoes', 'temNovidadeNaoLida', 'criadoEm":"20']) assert.ok(!textoVista.includes(proibido) || proibido.startsWith('criadoEm'), 'vazou: ' + proibido);
 assert.deepStrictEqual(vistaCliente.statusQueClienteEscolhe, ['analise_cliente', 'fechado', 'recusado']);
-assert.deepStrictEqual(vistaCliente.itens.map((x) => [x.item, x.podeMudarStatus]), [['Mármore da bancada', true], ['Sem valor nem link', false], ['Arredonda', false]]);
+assert.deepStrictEqual(vistaCliente.itens.map((x) => [x.item, x.podeMudarStatus]), [['Mármore da bancada', true], ['Arredonda', false]]); // item À fazer intocado (sem valor, link, empresa...) fica escondido do cliente
 console.log('OK');
 
 console.log('== 7. Mudar status pelo cliente: só 3 opções, só em orçamento já liberado, com NOVIDADE pro arquiteto ==');

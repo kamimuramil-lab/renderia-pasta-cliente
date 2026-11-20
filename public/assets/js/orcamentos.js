@@ -1,5 +1,5 @@
 // Pasta de Orçamentos (lado do cliente final). Página própria: /orcamentos?o=<link>, login próprio. O cliente lê, abre o
-// orçamento (link do Drive), muda o status (só Análise / Fechado / Recusado, nos orçamentos já liberados) e comenta.
+// orçamento (link do Drive), APROVA ou RECUSA com botões claros (nos orçamentos já liberados) e comenta.
 // Cada ação vira uma novidade pro arquiteto no servidor. Esta página NÃO fala com a Pasta Cliente (outras rotas, outro token).
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -91,6 +91,17 @@
       escolhas.map((s) => `<option value="${s}" ${s === item.status ? 'selected' : ''}>${esc(ROTULO[s])}</option>`).join('');
   }
 
+  // Decisão do cliente: botões grandes e claros em vez de um menu escondido.
+  const ROTULO_SITUACAO = { analise_cliente: 'Aguardando sua decisão', fechado: 'Aprovado por você', recusado: 'Recusado por você' };
+  function decisao(item) {
+    if (!item.podeMudarStatus) return '';
+    if (item.status === 'fechado' || item.status === 'recusado') {
+      return `<div class="orc-decisao"><span class="orc-decisao-texto">${item.status === 'fechado' ? '✓ Você aprovou este orçamento.' : '✕ Você recusou este orçamento.'}</span>
+        <button class="orc-botao" data-acao="reabrir" title="Voltar para análise e decidir de novo">Alterar decisão</button></div>`;
+    }
+    return `<div class="orc-decisao"><button class="orc-botao aprovar" data-acao="aprovar">✓ Aprovar orçamento</button><button class="orc-botao recusar" data-acao="recusar">✕ Recusar</button></div>`;
+  }
+
   function cartao(item) {
     const href = hrefSeguro(item.url);
     const telefone = String(item.telefone || '').replace(/[^0-9+()\-\s]/g, '').trim();
@@ -100,14 +111,13 @@
     return `<article class="orc-card status-${esc(item.status)}" data-id="${esc(item.id)}">
       <div class="orc-card-topo">
         <h3>${esc(item.item)}</h3>
-        ${item.podeMudarStatus
-          ? `<select class="orc-status s-${esc(item.status)}" data-acao="status" aria-label="Status do orçamento">${opcoesStatus(item)}</select>`
-          : `<span class="orc-selo s-${esc(item.status)}">${esc(ROTULO[item.status] || item.status)}</span>`}
+        <span class="orc-selo s-${esc(item.status)}">${esc(ROTULO_SITUACAO[item.status] || ROTULO[item.status] || item.status)}</span>
       </div>
       ${quem ? `<div class="orc-linha">${quem}</div>` : ''}
       ${telefone ? `<div class="orc-linha"><a href="tel:${esc(telefone)}">${esc(item.telefone)}</a></div>` : ''}
       <div class="orc-valor">${moeda(item.valor)}</div>
       ${item.observacao ? `<div class="orc-obs">${esc(item.observacao)}</div>` : ''}
+      ${decisao(item)}
       <div class="orc-acoes">
         ${href ? `<a class="orc-botao principal" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Abrir orçamento ↗</a>` : ''}
         <button class="orc-botao" data-acao="conversa">Comentários (${item.comentarios.length})</button>
@@ -139,22 +149,28 @@
     renderizar();
   }
 
-  $('orcLista').addEventListener('change', async (e) => {
-    const sel = e.target.closest('select[data-acao="status"]');
-    if (!sel || !sel.value) return;
-    const id = sel.closest('[data-id]').dataset.id;
-    try {
-      await chamar(`/api/orcamentos/${LINK}/itens/${encodeURIComponent(id)}/status`, enviarJson('PUT', { status: sel.value }));
-      await carregar();
-      avisar('Status atualizado. O escritório foi avisado.');
-    } catch (err) { avisar(err.message, true); await carregar().catch(() => {}); }
-  });
+  const DECISOES = {
+    aprovar: { status: 'fechado', confirmar: 'Aprovar este orçamento? O escritório será avisado.', ok: 'Orçamento aprovado. O escritório foi avisado.' },
+    recusar: { status: 'recusado', confirmar: 'Recusar este orçamento? O escritório será avisado.', ok: 'Orçamento recusado. O escritório foi avisado.' },
+    reabrir: { status: 'analise_cliente', confirmar: null, ok: 'Voltou para análise. O escritório foi avisado.' }
+  };
 
   $('orcLista').addEventListener('click', async (e) => {
     const botao = e.target.closest('[data-acao]');
     if (!botao) return;
     const cartaoEl = botao.closest('[data-id]');
     const id = cartaoEl.dataset.id;
+    const decisaoDoClique = DECISOES[botao.dataset.acao];
+    if (decisaoDoClique) {
+      if (decisaoDoClique.confirmar && !window.confirm(decisaoDoClique.confirmar)) return;
+      botao.disabled = true;
+      try {
+        await chamar(`/api/orcamentos/${LINK}/itens/${encodeURIComponent(id)}/status`, enviarJson('PUT', { status: decisaoDoClique.status }));
+        await carregar();
+        avisar(decisaoDoClique.ok);
+      } catch (err) { avisar(err.message, true); await carregar().catch(() => {}); }
+      return;
+    }
     if (botao.dataset.acao === 'conversa') {
       const caixa = cartaoEl.querySelector('.orc-conversa');
       caixa.hidden = !caixa.hidden;

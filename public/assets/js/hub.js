@@ -12,7 +12,7 @@
     visitas: 'M4 7h3l2-3h6l2 3h3v13H4zM12 17a4 4 0 100-8 4 4 0 000 8z',
     memorial: 'M4 4h16v16H4zM4 10h16M4 15h16M10 10v10'
   };
-  const TITULOS = { planta_original: 'Planta original', conceitual: 'Projeto conceitual', executivo: 'Projeto executivo', visitas: 'Fotos das visitas' };
+  const TITULOS = { planta_original: 'Planta original', conceitual: 'Projeto conceitual', executivo: 'Projeto executivo', visitas: 'Fotos' };
   const ROTULO_STATUS = { ATUAL: 'ATUAL', REVISAO: 'REVISÃO', ANTIGA: 'ANTIGA' };
   const CHAVE_TEMA = 'renderia_tema_hub';
   const ICONE_SOL = 'M12 17a5 5 0 100-10 5 5 0 000 10zM12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1';
@@ -68,8 +68,8 @@
     const logoUrl = g.marcaDagua && g.marcaDagua.url && g.marcaDagua.ativa !== false ? g.marcaDagua.url : null; // o logo das configurações do RENDERIA (respeita "Exibir logo" do projeto)
     return `<div class="hub-capa ${h.capaUrl ? 'com-foto' : ''}">
       ${h.capaUrl ? `<img class="hub-capa-img" src="${esc(h.capaUrl)}" alt="">` : ''}
+      ${logoUrl ? `<img class="hub-capa-logo" src="${esc(logoUrl)}" alt="">` : ''}
       <div class="hub-capa-conteudo">
-        ${logoUrl ? `<img class="hub-capa-logo" src="${esc(logoUrl)}" alt="">` : ''}
         <div class="hub-capa-titulo">${esc(g.nomeProjeto)}</div>
       </div>
     </div>`;
@@ -192,13 +192,34 @@
     const blocos = setores.map((setor) => {
       const doSetor = m.itens.filter((i) => i.setor === setor);
       if (!doSetor.length) return '';
-      return `<section class="hub-grupo mem-setor"><h2>${esc(setor)} <span class="mem-contagem">${doSetor.length}</span></h2>
+      return `<section class="hub-grupo mem-setor" data-setor="${esc(setor)}"><h2>${esc(setor)} <span class="mem-contagem">${doSetor.length}</span></h2>
         <table class="mem-tabela"><thead><tr><th>Nº</th><th>Foto</th><th>Item</th><th>Ambiente</th><th>Empresa</th><th>Especificações</th><th>Dimensões</th><th>Qtd.</th></tr></thead>
         <tbody>${doSetor.map(linhaMemorial).join('')}</tbody></table></section>`;
     }).join('');
-    el('hubConteudo').innerHTML = `<div class="hub-corpo"><h2 class="hub-titulo-secao">Memorial de itens</h2>
+    const opcoesSetor = setores.filter((s) => m.itens.some((i) => i.setor === s)).map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
+    const logoMem = galeriaAtual.marcaDagua && galeriaAtual.marcaDagua.url && galeriaAtual.marcaDagua.ativa !== false ? galeriaAtual.marcaDagua.url : null;
+    el('hubConteudo').innerHTML = `<div class="hub-corpo">
+      <div class="mem-impressao-cabecalho">${logoMem ? `<img src="${esc(logoMem)}" alt="">` : ''}<div><div class="mem-imp-titulo">MEMORIAL DE ITENS</div><div class="mem-imp-projeto">${esc(galeriaAtual.nomeProjeto)}</div><div class="mem-imp-data">${esc(new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }))}</div></div></div>
+      <div class="mem-barra"><h2 class="hub-titulo-secao">Memorial de itens</h2>
+        <div class="mem-acoes"><select id="selSetorMemorialCliente" aria-label="Setor"><option value="">Todos os setores</option>${opcoesSetor}</select><button class="hub-doc-abrir" id="btnPdfMemorialCliente" type="button">Gerar PDF</button></div></div>
       <div class="hub-aviso"><b>ATENÇÃO</b><br>Valide cada item com o fornecedor e com a arquitetura antes da compra: medidas, modelos e acabamentos podem variar conforme a marca/modelo adquirido ou a etapa de instalação.</div>${blocos}</div>`;
     el('hubConteudo').querySelectorAll('[data-mem-foto]').forEach((b) => b.addEventListener('click', () => ampliarFotoMemorial(b.dataset.memFoto)));
+    el('btnPdfMemorialCliente').addEventListener('click', gerarPdfMemorialCliente);
+  }
+
+  // PDF do memorial pelo próprio navegador (sem servidor, sem custo): mostra só o setor escolhido, abre a janela de imprimir
+  // ("Salvar como PDF") em A4 paisagem e depois devolve a tela como estava.
+  function gerarPdfMemorialCliente() {
+    const setor = el('selSetorMemorialCliente').value;
+    const secoes = [...document.querySelectorAll('.mem-setor')];
+    if (setor) secoes.forEach((s) => { if (s.dataset.setor !== setor) s.classList.add('mem-fora-do-pdf'); });
+    document.body.classList.add('imprimindo-memorial');
+    const nomeAntes = document.title;
+    const hoje = new Date().toLocaleDateString('pt-BR').split('/').join('-');
+    document.title = `${galeriaAtual.nomeProjeto} - Memorial de itens${setor ? ' - ' + setor : ''} - ${hoje}`; // vira o nome sugerido do arquivo
+    const limpar = () => { document.body.classList.remove('imprimindo-memorial'); secoes.forEach((s) => s.classList.remove('mem-fora-do-pdf')); document.title = nomeAntes; window.removeEventListener('afterprint', limpar); };
+    window.addEventListener('afterprint', limpar);
+    setTimeout(() => { window.print(); }, 150);
   }
 
   function renderizarSecao() {
@@ -221,6 +242,7 @@
   }
 
   function renderizar() {
+    el('telaHub').classList.toggle('largo', secaoAberta === 'memorial'); // Memorial usa a largura toda (computador/tablet deitado)
     el('btnHubVoltar').style.display = secaoAberta ? 'flex' : 'none'; // dentro de uma pasta, o voltar fica sempre no topo
     if (secaoAberta) renderizarSecao(); else renderizarInicio();
   }

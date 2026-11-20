@@ -688,6 +688,19 @@ app.get('/api/app/galeria/:projetoId/memorial', exigirSessaoArquiteto, exigirRec
     res.json({ ok: true, ...r, itens: await Promise.all(r.itens.map(comUrlDaFoto)) });
   } catch (e) { res.status(400).json({ erro: e.message }); }
 });
+// Setores do memorial (criar, renomear, excluir -- só vazio): devolve a lista nova.
+app.post('/api/app/galeria/:projetoId/memorial/setores', exigirSessaoArquiteto, exigirRecurso('memorial'), (req, res) => {
+  try { res.json({ ok: true, setores: memLib.adicionarSetor(CAMINHO_DADOS, req.params.projetoId, (req.body || {}).nome, req.licencaUsuario) }); }
+  catch (e) { res.status(400).json({ erro: e.message }); }
+});
+app.post('/api/app/galeria/:projetoId/memorial/setores/renomear', exigirSessaoArquiteto, exigirRecurso('memorial'), (req, res) => {
+  try { res.json({ ok: true, setores: memLib.renomearSetor(CAMINHO_DADOS, req.params.projetoId, (req.body || {}).de, (req.body || {}).para, req.licencaUsuario) }); }
+  catch (e) { res.status(400).json({ erro: e.message }); }
+});
+app.post('/api/app/galeria/:projetoId/memorial/setores/excluir', exigirSessaoArquiteto, exigirRecurso('memorial'), (req, res) => {
+  try { res.json({ ok: true, setores: memLib.excluirSetor(CAMINHO_DADOS, req.params.projetoId, (req.body || {}).nome, req.licencaUsuario) }); }
+  catch (e) { res.status(400).json({ erro: e.message }); }
+});
 app.post('/api/app/galeria/:projetoId/memorial/itens', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
   try { res.json({ ok: true, item: await comUrlDaFoto(memLib.adicionarItem(CAMINHO_DADOS, req.params.projetoId, req.body || {}, req.licencaUsuario)) }); }
   catch (e) { res.status(400).json({ erro: e.message }); }
