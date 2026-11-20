@@ -193,6 +193,24 @@ const espera = (ms) => new Promise((r) => setTimeout(r, ms));
     assert.deepStrictEqual((await api('GET', `/api/cliente/${linkB}/galeria`, { cliente: tokB })).json.novidadesCliente, {});
     ok('foto base silenciosa, novo x atualizado, escritório vê sem apagar, aba aberta zera só ela, contas separadas');
 
+    // projeto ANTIGO que o cliente ainda não abriu: a primeira mudança do escritório já conta como novidade (a base nasce antes dela)
+    const linkC = (await criar('tokA', 'pC', 'Projeto Antigo')).json.linkToken;
+    const linkD = (await criar('tokA', 'pD', 'Projeto Recém-criado')).json.linkToken;
+    const est2 = JSON.parse(fs.readFileSync(CAM, 'utf8'));
+    est2.galerias.find((g) => g.projetoId === 'pC').criadoEm = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString();
+    fs.writeFileSync(CAM, JSON.stringify(est2));
+    await api('POST', '/api/app/galeria/pC/memorial/itens', { sessao: 'tokA', corpo: { setor: 'Acessórios', item: 'Item que o cliente ainda não viu' } });
+    await api('POST', '/api/app/galeria/pD/memorial/itens', { sessao: 'tokA', corpo: { setor: 'Acessórios', item: 'Projeto em montagem' } });
+    await api('POST', '/api/app/galeria/pB/memorial/itens', { sessao: 'tokB', corpo: { setor: 'Acessórios', item: 'B' } }); // contas separadas: mexer na B não cria base na C
+    const antes = galeria.buscarGaleriaPorLinkToken(CAM, linkC);
+    assert.ok(antes.vistoCliente && antes.vistoCliente.base, 'a base nasceu na 1ª mudança do projeto antigo');
+    assert.strictEqual(galeria.garantirBaseAntesDeMudar(CAM, 'pC', 'arqB'), false, 'outra conta não mexe na base');
+    r = await api('GET', `/api/cliente/${linkC}/galeria`, { cliente: await loginCli(linkC) });
+    assert.deepStrictEqual([r.json.novidadesCliente.memorial.length, r.json.novidadesCliente.memorial[0].tag], [1, 'NOVO'], 'o cliente entra pela 1ª vez e o item novo já aparece como novidade');
+    r = await api('GET', `/api/cliente/${linkD}/galeria`, { cliente: await loginCli(linkD) });
+    assert.deepStrictEqual(r.json.novidadesCliente, {}, 'projeto com menos de 24 h continua em silêncio na 1ª visita');
+    ok('projeto antigo ainda não aberto: a 1ª mudança vira novidade; projeto recém-criado fica em silêncio; outra conta não interfere');
+
     console.log('== 5. Registro de atividades pelo servidor ==');
     assert.strictEqual((await api('POST', `/api/cliente/${linkA}/login`, { corpo: { usuario: 'cli', senha: 'errada' }, ip: '200.1.2.3' })).status, 401);
     assert.strictEqual((await api('POST', `/api/dashboard/${linkDash}/login`, { corpo: { senha: 'errada' }, ip: '200.1.2.3' })).status, 401);

@@ -479,8 +479,8 @@ body.visual-novo[data-tema="claro"]{
 .mem-sem-foto{ color:var(--text-dim); }
 .mem-ampliada{ position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.82); display:flex; align-items:center; justify-content:center; padding:20px; cursor:zoom-out; }
 .mem-ampliada img{ max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:8px; }
-@media screen and (max-width:760px){
-  /* no celular cada item vira um cartão (a tabela larga não cabe) */
+@media screen and (max-width:900px){
+  /* celular E iPad em pé (até 900 px): cada item vira um cartão (a tabela de 8 colunas não cabe e saía cortada) */
   .mem-tabela, .mem-tabela tbody, .mem-tabela tr, .mem-tabela td{ display:block; }
   .mem-tabela{ background:none; border:0; }
   .mem-tabela thead{ display:none; }
@@ -1009,7 +1009,7 @@ button.dash-chip-opcao:hover{ border-color:var(--steel-500); }
 .mem-seta{ display:inline-block; transition:transform .15s; font-size:14px; }
 .mem-setor.recolhido .mem-seta{ transform:rotate(-90deg); }
 .mem-setor.recolhido .mem-tabela{ display:none !important; }
-@media screen and (max-width:760px){
+@media screen and (max-width:900px){
   /* celular em pé: a foto do item ocupa a largura do cartão (antes era um quadradinho de 76 px) */
   .mem-tabela td.mem-col-foto{ padding:8px 0 4px; }
   .mem-tabela .mem-foto{ width:100%; height:min(62vw, 300px); }

@@ -10,13 +10,18 @@
   const hrefSeguro = (url) => { try { const u = new URL(url); return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : null; } catch (e) { return null; } };
   const dataPorExtenso = (d) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
-  const CSS = `
-@page { size: A4 landscape; margin: 10mm 10mm 17mm; @bottom-right { content: counter(page) " / " counter(pages); font-size: 8pt; color: #888; } }
+  // O texto do rodapé do escritório vai pra DENTRO do @page (caixa da margem de baixo, que o navegador repete em todas as folhas sem ocupar
+  // espaço do conteúdo). Antes era um bloco "fixo" que empurrava uma folha em branco só com o rodapé no fim do PDF.
+  const textoCss = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/</g, '\\3C ').replace(/[\r\n]+/g, ' ');
+  const CSS = (rodapeTexto) => `
+@page { size: A4 landscape; margin: 10mm 10mm 17mm;
+  ${rodapeTexto ? `@bottom-center { content: "${textoCss(rodapeTexto)}"; font-size: 8pt; color: #666; vertical-align: middle; }` : ''}
+  @bottom-right { content: counter(page) " / " counter(pages); font-size: 8pt; color: #888; vertical-align: middle; } }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: #fff; }
 body { font-family: 'Inter', 'Segoe UI', Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.55; color: #1c1c1c; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .folha { width: 297mm; padding: 10mm; margin: 0 auto; background: #fff; }
-@media print { .folha { width: auto; padding: 0; margin: 0; } .rodape-escritorio { position: fixed; left: 0; right: 0; bottom: -12mm; } }
+@media print { .folha { width: auto; padding: 0; margin: 0; } .rodape-escritorio { display: none; } html.sem-margem .rodape-escritorio { display: block; margin-top: 8mm; } }
 @media screen { .rodape-escritorio { margin-top: 8mm; padding-top: 3mm; border-top: 1px solid #ddd; } }
 .rodape-escritorio { text-align: center; font-size: 8pt; color: #666; line-height: 1.4; }
 .cabecalho { display: flex; align-items: center; gap: 16px; margin-bottom: 6mm; border-bottom: 2px solid #1c1c1c; padding-bottom: 4mm; }
@@ -43,6 +48,10 @@ td.texto { white-space: pre-line; min-width: 150px; }
 .sem { color: #888; }
 `;
 
+  // Navegadores SEM suporte às caixas de margem do @page (Safari/iPhone, Chrome antigo) não mostrariam o rodapé do escritório nem a contagem de
+  // páginas: neles o rodapé vai em linha, no fim do documento (a marca "sem-margem" liga isso só no papel). Chrome/Edge 131+ usam a margem.
+  const SCRIPT_MARGEM = '<script>(function(){var m=/(?:Chrome|Edg)[/]([0-9]+)/.exec(navigator.userAgent||"");if(!(m&&+m[1]>=131))document.documentElement.className+=" sem-margem";})();</' + 'script>';
+
   function linha(i) {
     const href = i.link ? hrefSeguro(i.link) : null;
     const foto = i.fotoUrl ? `<span class="foto"><img src="${esc(i.fotoUrl)}" alt="${esc(i.item)}"></span>` : '<span class="sem">—</span>';
@@ -50,10 +59,11 @@ td.texto { white-space: pre-line; min-width: 150px; }
     return `<tr><td class="num">${esc(i.numero)}</td><td>${foto}</td><td class="item"><b>${esc(i.item)}</b>${href ? `<br><a href="${esc(href)}">Ver produto ↗</a>` : ''}</td><td>${amb}</td><td>${esc(i.empresa) || '—'}</td><td class="texto">${esc(i.especificacoes) || '—'}</td><td class="texto">${esc(i.dimensoes) || '—'}</td><td>${esc(i.quantidade) || '—'}</td></tr>`;
   }
 
-  // O rodapé de TODAS as páginas: nome, telefone, e-mail e Instagram do escritório (só o que foi cadastrado). Fixo no papel (repete em cada folha).
+  // O rodapé de TODAS as páginas: nome, telefone, e-mail e Instagram do escritório (só o que foi cadastrado).
+  // No papel vai na margem de baixo de cada folha (@page, ver acima); na tela (prévia do celular) aparece no fim do documento.
+  const partesDoRodape = (e) => { const o = e || {}; return [o.nome, o.whatsapp, o.email, o.instagram].map((x) => String(x || '').trim()).filter(Boolean); };
   function rodapeDoEscritorio(e) {
-    const o = e || {};
-    const partes = [o.nome, o.whatsapp, o.email, o.instagram].map((x) => String(x || '').trim()).filter(Boolean);
+    const partes = partesDoRodape(e);
     return partes.length ? `<div class="rodape-escritorio">${partes.map(esc).join(' &nbsp;·&nbsp; ')}</div>` : '';
   }
 
@@ -74,7 +84,7 @@ td.texto { white-space: pre-line; min-width: 150px; }
     const total = incluidos.reduce((s, setor) => s + itens.filter((i) => i.setor === setor).length, 0);
     const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Memorial de itens — ${esc(o.nomeProjeto || '')}</title>` +
       '<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">' +
-      `<style>${CSS}</style></head><body><div class="folha"><div class="cabecalho">${logo}<div><div class="titulo">MEMORIAL DE ITENS</div><div class="projeto">${esc(o.nomeProjeto || '')}</div><div class="data">${esc(dataPorExtenso(agora))}</div></div></div>${blocos}${rodapeDoEscritorio(o.escritorio)}</div></body></html>`;
+      `<style>${CSS(partesDoRodape(o.escritorio).join('  ·  '))}</style></head><body><div class="folha"><div class="cabecalho">${logo}<div><div class="titulo">MEMORIAL DE ITENS</div><div class="projeto">${esc(o.nomeProjeto || '')}</div><div class="data">${esc(dataPorExtenso(agora))}</div></div></div>${blocos}${rodapeDoEscritorio(o.escritorio)}</div>${SCRIPT_MARGEM}</body></html>`;
     return { html, totalItens: total, setores: incluidos };
   }
 

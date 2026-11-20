@@ -189,6 +189,8 @@ async function exigirSessaoArquiteto(req, res, next) {
     req.recursos = (dados.recursos && typeof dados.recursos === 'object') ? dados.recursos : {};
     const projetoDaChamada = (req.params && req.params.projetoId) || (req.body && req.body.projetoId);
     if (projetoDaChamada) { try { galeria.sincronizarRecursos(CAMINHO_DADOS, projetoDaChamada, req.licencaUsuario, req.recursos); } catch (e) { /* não derruba a chamada */ } }
+    // Mudança do escritório num projeto antigo que o cliente ainda não abriu: a "foto base" das bolinhas nasce ANTES da mudança.
+    if (projetoDaChamada && req.method !== 'GET') { try { galeria.garantirBaseAntesDeMudar(CAMINHO_DADOS, projetoDaChamada, req.licencaUsuario); } catch (e) { /* só as bolinhas */ } }
     req.limiteFotos = dados.limiteFotos;
     next();
   } catch (e) {

@@ -31,6 +31,7 @@
 @page { size: A4 landscape; margin: 0; }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; } /* o celular não pode "inflar" os textos da folha (ficavam sobrepostos) */
 body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .pagina { position: relative; width: 297mm; height: 209.6mm; overflow: hidden; page-break-after: always; break-after: page; }
 .pagina:last-child { page-break-after: auto; break-after: auto; }
@@ -41,6 +42,7 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
 .capa-projeto { background: #1b1c1e; color: #f2f2f2; display: flex; }
 .capa-projeto .foto-capa { position: relative; width: 46%; height: 100%; overflow: hidden; background: #000; flex-shrink: 0; }
 .capa-projeto .foto-capa img { position: absolute; inset: -4%; width: 108%; height: 108%; object-fit: cover; filter: grayscale(1) blur(2.2px); }
+.capa-projeto .foto-capa.pronta img { inset: 0; width: 100%; height: 100%; filter: none; } /* foto já tratada (preto e branco + desfoque) por quem montou: sem filtro no papel */
 .capa-projeto .foto-capa::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to right, rgba(27,28,30,0) 70%, rgba(27,28,30,.55) 100%); }
 .capa-projeto .painel { flex: 1; padding: 14mm 15mm 30mm 15mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .capa-projeto img.logo { max-width: 112mm; max-height: 58mm; object-fit: contain; margin: 0 auto 13mm; filter: brightness(0) invert(1); }
@@ -53,6 +55,15 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
 .capa-projeto .rodape-capa { position: absolute; left: calc(46% + 15mm); right: 15mm; bottom: 10mm; display: flex; justify-content: space-between; align-items: flex-end; gap: 6mm; border-top: 1px solid #3d3f43; padding-top: 3.2mm; font-size: 7.2pt; letter-spacing: .05em; line-height: 1.55; color: #9a9a9a; text-align: left; }
 .capa-projeto .rodape-capa b { color: #c9c9c9; }
 .capa-projeto .rodape-capa .dir { text-align: right; }
+
+/* página final: agradecimento minimalista + dados do escritório */
+.encerramento { background: #1b1c1e; color: #f2f2f2; display: flex; align-items: center; justify-content: center; text-align: center; }
+.encerramento .centro { display: flex; flex-direction: column; align-items: center; padding: 0 20mm 8mm; }
+.encerramento .obrigado { font-size: 30pt; font-weight: 300; letter-spacing: .34em; text-indent: .34em; color: #fff; line-height: 1.2; }
+.encerramento .linha { width: 26mm; height: 1px; background: #b79d62; margin: 9mm auto 9mm; }
+.encerramento .escritorio-nome { font-size: 11pt; letter-spacing: .22em; text-indent: .22em; text-transform: uppercase; color: #cdb67a; margin-bottom: 4mm; }
+.encerramento .contato { font-size: 10.5pt; letter-spacing: .06em; color: #c4c4c4; line-height: 1.9; overflow-wrap: anywhere; }
+.encerramento .rodape-fim { position: absolute; left: 0; right: 0; bottom: 9mm; text-align: center; font-size: 6.8pt; letter-spacing: .05em; color: #7d7d7d; }
 
 /* capa do ambiente */
 .capa-ambiente { display: flex; }
@@ -110,6 +121,8 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
 
   // opcoes: { nomeProjeto, dadosProjeto, escritorio (nome do escritório na capa; vazio = sem "Projeto por"), logo (data URI da capa), logoClaro,
   //   marca (data URI do logo OU do ícone que vai pequeno no canto superior direito de cada imagem; vazio = sem marca), mostrarNomes,
+  //   contatos ({ whatsapp, email, instagram } já formatados pra ler, ex. "(11) 98380-0042", "@perfil"; vazio = só o nome) na página final "MUITO OBRIGADO!",
+  //   fotoCapa (data URI de uma foto JÁ em preto e branco e desfocada pra metade da capa; vazio = a 1ª imagem, tratada por filtro CSS),
   //   mostrarPaleta (padrão true), agora (Date; padrão = o momento da geração), ambientes: [{ nome, capa (data URI|null),
   //   imagens: [{ id, nome, uri (data URI), paleta: [{hex, rgb, pct}] }] }] }
   // -> { html, totalImagens, ambientesIncluidos, geradoEm }  (lança erro se não houver nenhuma imagem)
@@ -128,10 +141,11 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
     const carimbo = `<div class="carimbo">PDF gerado em ${esc(dataHoraCurta(agora))}</div>`;
 
     // Foto da capa: a primeira imagem do primeiro ambiente (qualquer imagem do projeto serve: sai em preto e branco, desfocada de leve).
-    const fotoDaCapa = ambientes[0].imagens[0] ? imagemSegura(ambientes[0].imagens[0].uri) : null;
+    const fotoPronta = imagemSegura(o.fotoCapa);
+    const fotoDaCapa = fotoPronta || (ambientes[0].imagens[0] ? imagemSegura(ambientes[0].imagens[0].uri) : null);
 
     const paginas = [`<section class="pagina capa-projeto${o.logoClaro ? ' escura' : ''}">
-    ${fotoDaCapa ? `<div class="foto-capa"><img src="${fotoDaCapa}" alt=""></div>` : ''}
+    ${fotoDaCapa ? `<div class="foto-capa${fotoPronta ? ' pronta' : ''}"><img src="${fotoDaCapa}" alt=""></div>` : ''}
     <div class="painel">
       ${logo ? `<img class="logo" src="${logo}" alt="">` : ''}
       <h1>APRESENTAÇÃO</h1><div class="linha"></div>
@@ -156,6 +170,11 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
         <div class="rodape-dir"><div class="data-geracao">PDF gerado em ${esc(dataHoraCurta(agora))}</div><div class="aviso">${esc(AVISO_AUTORAL)}</div></div></section>`);
       });
     });
+
+    // Página final: só o agradecimento e os dados do escritório (nome, WhatsApp, e-mail, Instagram; só o que existir).
+    const c = o.contatos && typeof o.contatos === 'object' ? o.contatos : {};
+    const linhasContato = [c.whatsapp, c.email, c.instagram].map((x) => String(x || '').trim()).filter(Boolean).map((x) => `<div class="contato">${esc(x)}</div>`).join('');
+    paginas.push(`<section class="pagina encerramento"><div class="centro"><div class="obrigado">MUITO OBRIGADO!</div><div class="linha"></div>${escritorio ? `<div class="escritorio-nome">${esc(escritorio)}</div>` : ''}${linhasContato}</div><div class="rodape-fim">${esc(AVISO_AUTORAL)}</div></section>`);
 
     const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Imagens do projeto — ${esc(o.nomeProjeto || '')}</title><style>${CSS}</style></head><body>${paginas.join('')}</body></html>`;
     return { html, totalImagens: total, ambientesIncluidos: ambientes.map((a) => a.nome), geradoEm: dataHoraCurta(agora) };

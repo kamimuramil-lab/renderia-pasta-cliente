@@ -107,7 +107,19 @@ console.log('== 3. Documento do PDF do memorial (igual no computador e no celula
   // rodapé do escritório em TODAS as páginas (fixo no papel), só com o que foi cadastrado
   const comRodape = MemorialDoc.montarHtml({ ...base, escritorio: { nome: 'Escritório <K>', whatsapp: '+55 (11) 91234-5678', email: 'contato@x.com', instagram: '@perfil' } });
   assert.ok(comRodape.html.includes('<div class="rodape-escritorio">Escritório &lt;K&gt; &nbsp;·&nbsp; +55 (11) 91234-5678 &nbsp;·&nbsp; contato@x.com &nbsp;·&nbsp; @perfil</div>'), 'nome, telefone, e-mail e Instagram no rodapé (escapado)');
-  assert.ok(/\.rodape-escritorio \{ position: fixed; left: 0; right: 0; bottom: -12mm; \}/.test(comRodape.html), 'no papel o rodapé é fixo e se repete em cada folha');
+  // no papel o rodapé vai na caixa da margem de baixo do @page (repete em cada folha SEM ocupar espaço: um bloco "fixo" gerava uma folha extra só com ele)
+  assert.ok(comRodape.html.includes('@bottom-center { content: "Escritório \\3C K>  ·  +55'), 'o texto do rodapé entra no @page (com "<" escapado)');
+  assert.ok(comRodape.html.includes('@media print {') && comRodape.html.includes('.rodape-escritorio { display: none; }'), 'no papel o bloco da tela some (só a margem do @page vale)');
+  // navegador SEM caixas de margem do @page (Safari/iPhone, Chrome < 131) recebe o rodapé em linha, no fim do documento
+  assert.ok(comRodape.html.includes('html.sem-margem .rodape-escritorio { display: block;'), 'rodapé em linha só quando a margem não é suportada');
+  const scriptMargem = comRodape.html.match(/<script>([\s\S]*?)<\/script>/)[1];
+  const classeDe = (ua) => { const dom = { documentElement: { className: '' } }; new Function('navigator', 'document', scriptMargem)({ userAgent: ua }, dom); return dom.documentElement.className.trim(); };
+  assert.deepStrictEqual(
+    ['Mozilla/5.0 (Windows NT 10.0) Chrome/131.0.0.0 Safari/537.36', 'Mozilla/5.0 (Linux; Android 14) Chrome/140.0.0.0 Mobile Safari/537.36', 'Mozilla/5.0 (Windows NT 10.0) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0', 'Mozilla/5.0 (Windows NT 10.0) Chrome/120.0.0.0', 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) Version/17.0 Mobile Safari/604.1', 'Mozilla/5.0 (iPhone) CriOS/140.0 Mobile'].map(classeDe),
+    ['', '', '', 'sem-margem', 'sem-margem', 'sem-margem'], 'Chrome/Edge 131+ usam a margem do papel; Safari, iPhone (inclusive Chrome do iPhone) e Chrome antigo usam o rodapé em linha');
+  assert.ok(!/position:\s*fixed/.test(comRodape.html), 'nada de posição fixa no rodapé');
+  assert.ok(comRodape.html.includes('+55 (11) 91234-5678  ·  contato@x.com  ·  @perfil"'), 'telefone, e-mail e Instagram no texto do rodapé da margem');
+  assert.ok(!r.html.includes('@bottom-center'), 'sem dados do escritório não cria rodapé de margem');
   assert.ok(!r.html.includes('<div class="rodape-escritorio">') && MemorialDoc.montarHtml({ ...base, escritorio: { email: 'a@b.co' } }).html.includes('>a@b.co</div>'), 'sem dados do escritório não desenha rodapé; só mostra o que existe');
   ok('A4 deitado em mm, 8 colunas por setor, escape, só link http(s), filtro de setor, sem valores, rodapé do escritório, erro claro');
 }
@@ -128,6 +140,8 @@ console.log('== 4. Impressão: computador x celular, documento da aba ==');
   assert.ok(doc.indexOf('<body class="x">') < doc.indexOf('class="rt-barra"') && doc.indexOf('id="rt-folhas"') < doc.indexOf('<section class="pagina">A') && doc.indexOf('<section class="pagina">B') < doc.lastIndexOf('</div>'), 'as folhas ficam dentro da área; a barra vem antes');
   assert.ok(/@media print\{\.rt-barra\{display:none!important\}/.test(doc), 'a barra nunca sai no PDF');
   assert.ok(doc.includes('beforeprint') && doc.includes('afterprint') && doc.includes('--rt-z'), 'zoom da pré-visualização some na hora de imprimir');
+  assert.ok(!/zoom\s*:/.test(doc) && doc.includes('transform:none!important') && doc.includes('"scale("') && doc.includes('text-size-adjust:100%'), 'prévia encolhe com scale (o zoom do CSS engordava as letras pequenas no celular) e some na impressão; letras não são inchadas');
+  assert.ok(doc.includes('#rt-folhas{width:1123px;'), 'a área das folhas tem a largura da folha (A4 deitado) antes de encolher');
   assert.ok(doc.includes('window.print()') && doc.includes('setTimeout(function(){try{window.print();}catch(e){}},500)'), 'imprime sozinho quando pedido');
   assert.ok(!Impressao.prepararDocumento(original, 'x', 1123, false).includes('setTimeout(function(){try{window.print();'), 'sem imprimir sozinho (botão "Abrir o PDF"): só o botão');
   assert.strictEqual((doc.match(/<\/script>/g) || []).length, 1, 'um único script de apoio, bem fechado');
@@ -191,7 +205,8 @@ console.log('== 4. Impressão: computador x celular, documento da aba ==');
   assert.ok(pdfjs.indexOf('Impressao.iniciar()') < pdfjs.indexOf('await prepararImagem') && pdfjs.indexOf('Impressao.iniciar()') < pdfjs.indexOf('await prepararLogo'), 'a aba do celular abre ANTES de qualquer espera (senão é bloqueada)');
   assert.ok(/iniciarAjuda\(galeria\)/.test(main) && /AjudaCliente\.iniciar/.test(orcjs), 'balão de ajuda iniciado nas duas páginas');
   ['radioPdfLogo', 'radioPdfIcone', 'radioPdfNenhuma', 'pdfMarca'].forEach((id) => assert.ok(html.includes(`id="${id}"`), id));
-  assert.ok(/marca,\s*ambientes/.test(pdfjs) && /marcaEscolhida\(\)/.test(pdfjs), 'a marca escolhida vai pro gerador do PDF');
+  assert.ok(/marca, fotoCapa, contatos: contatosParaOPdf\(g\), ambientes/.test(pdfjs) && /marcaEscolhida\(\)/.test(pdfjs), 'a marca escolhida, a foto da capa já tratada e os contatos do escritório vão pro gerador do PDF');
+  assert.ok(/prepararFotoDaCapa/.test(pdfjs) && /logoEmBranco/.test(pdfjs) && /getImageData/.test(pdfjs), 'celular: capa em preto e branco com desfoque e logo em branco feitos no canvas (sem filtro CSS no papel)');
   assert.ok(/\.ajuda-botao\{[^}]*position:fixed; right:16px; bottom:16px; z-index:45/.test(css) && /\.visualizador\{[^}]*z-index:50/.test(css.replace(/\n/g, ' ')) || /position:fixed; inset:0; background:var\(--bg\); z-index:50/.test(css), 'o balão fica embaixo à direita e por baixo do visualizador de imagens');
   ok('scripts na ordem certa, ganchos ligados, memorial abaixo do executivo no celular, abas abertas antes de esperar');
 

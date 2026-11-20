@@ -100,6 +100,37 @@
     return { uri: g.canvas.toDataURL('image/png'), claro: n > 0 && soma / n > 200 };
   }
 
+  // Capa e logo SEM filtro CSS: o celular tem dificuldade em imprimir/mostrar `filter` (blur, invert) em imagens grandes. Aqui o preto e
+  // branco + desfoque leve da foto da capa e o logo em branco são feitos no próprio desenho (canvas), e o PDF recebe imagens prontas.
+  const imagemDeUri = (uri) => new Promise((ok, erro) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => erro(new Error('imagem inválida')); im.src = uri; });
+  async function prepararFotoDaCapa(uri) {
+    const im = await imagemDeUri(uri);
+    const { canvas, ctx } = desenhar(im, 1100);
+    const dados = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const d = dados.data;
+    for (let i = 0; i < d.length; i += 4) { const y = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]); d[i] = d[i + 1] = d[i + 2] = y; }
+    ctx.putImageData(dados, 0, 0);
+    const pequeno = document.createElement('canvas'); // desfoque leve: encolhe e amplia de volta
+    pequeno.width = Math.max(1, Math.round(canvas.width / 4)); pequeno.height = Math.max(1, Math.round(canvas.height / 4));
+    const pc = pequeno.getContext('2d'); pc.imageSmoothingEnabled = true; pc.imageSmoothingQuality = 'high'; pc.drawImage(canvas, 0, 0, pequeno.width, pequeno.height);
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(pequeno, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.82);
+  }
+  async function logoEmBranco(uri) {
+    const im = await imagemDeUri(uri);
+    const c = document.createElement('canvas'); c.width = im.naturalWidth || im.width; c.height = im.naturalHeight || im.height;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(im, 0, 0);
+    ctx.globalCompositeOperation = 'source-in'; ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height); // só onde havia logo (o fundo transparente continua)
+    return c.toDataURL('image/png');
+  }
+  // Dados do escritório já formatados pra ler (página final "MUITO OBRIGADO!"): WhatsApp (11) 98380-0042, e-mail, @instagram.
+  function contatosParaOPdf(g) {
+    const A = window.AjudaCliente;
+    const c = A ? A.contatosValidos(g.contatosEscritorio) : {};
+    return { whatsapp: c.whatsapp && A ? A.formatarWhatsapp(c.whatsapp) : '', email: c.email || '', instagram: c.instagram ? '@' + c.instagram : '' };
+  }
+
   // ---------- gerar ----------
   const dois = (n) => String(n).padStart(2, '0');
   function nomeDoArquivo(nomeProjeto, d) {
@@ -147,7 +178,10 @@
       }
       let logo = null, logoClaro = false;
       const urlLogo = g.marcaDagua && g.marcaDagua.ativa !== false ? g.marcaDagua.url : null;
-      if (urlLogo) { try { const l = await prepararLogo(urlLogo); logo = l.uri; logoClaro = l.claro; } catch (e) { logo = null; } }
+      if (urlLogo) { try { const l = await prepararLogo(urlLogo); logo = l.claro ? l.uri : await logoEmBranco(l.uri); logoClaro = true; } catch (e) { logo = null; logoClaro = false; } } // a capa é escura: o logo já vai claro (sem filtro CSS)
+      let fotoCapa = null;
+      const primeira = ambientes[0] && ambientes[0].imagens[0];
+      if (primeira) { try { fotoCapa = await prepararFotoDaCapa(primeira.uri); } catch (e) { fotoCapa = null; } } // sem ela, o imagens-pdf usa a 1ª imagem com filtro CSS
       // marca pequena no canto superior direito de cada imagem (logo ou ícone, a escolha do cliente no PDF)
       let marca = null;
       const tipoMarca = marcaEscolhida();
@@ -156,7 +190,7 @@
       const agora = new Date(); // o horário da geração: cada PDF baixado tem o seu
       const { html } = window.ImagensPdf.montarHtml({
         nomeProjeto: g.nomeProjeto, dadosProjeto: (g.hub && g.hub.dadosProjeto) || '', escritorio: g.nomeEscritorio || '',
-        logo, logoClaro, marca, ambientes, mostrarNomes, mostrarPaleta, agora
+        logo, logoClaro, marca, fotoCapa, contatos: contatosParaOPdf(g), ambientes, mostrarNomes, mostrarPaleta, agora
       });
       const aviso = falhas ? `${falhas} imagem(ns) não puderam ser carregadas e ficaram de fora do PDF.` : '';
       const entrega = await sessao.entregar(html, nomeDoArquivo(g.nomeProjeto, agora), { aviso }); // o aviso também aparece na aba do PDF (o painel some)

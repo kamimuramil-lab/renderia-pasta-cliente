@@ -7,6 +7,8 @@
 //   - no celular: abre uma ABA NOVA com o documento (pré-visualização, que já mostra como o PDF vai ficar) e um botão grande
 //     "Salvar como PDF". A aba precisa ser aberta NO TOQUE do botão (senão o navegador bloqueia), por isso `iniciar()` deve
 //     ser chamado de dentro do clique, ANTES de qualquer espera; depois a aba recebe o documento pronto e abre a impressão.
+// A pré-visualização no celular encolhe com transform:scale (NÃO com o `zoom` do CSS: o Chrome do celular aplica um tamanho mínimo de letra
+// depois do zoom e as letras pequenas "engordavam", ficando uma por cima da outra).
 // Se o navegador bloquear a aba, `entregar()` devolve { via: 'toque', abrir } e quem chamou mostra um botão "Abrir o PDF".
 (function () {
   'use strict';
@@ -40,22 +42,25 @@
   // O documento que a aba recebe: o HTML do PDF + barra de ações (só na tela) + zoom pra caber no celular (só na tela).
   function prepararDocumento(html, tituloArquivo, largura, imprimirSozinho, aviso) {
     const estilo = '<style>' +
-      '@media screen{html{background:#26282c}body{margin:0;padding-top:var(--rt-barra,72px)}' +
+      '@media screen{html{background:#26282c;-webkit-text-size-adjust:100%;text-size-adjust:100%}body{margin:0;padding-top:var(--rt-barra,72px);display:flow-root}' + // flow-root: a margem negativa que desconta a altura do scale fica DENTRO do corpo (senão o corpo continua com a altura cheia)
       '.rt-barra{position:fixed;top:0;left:0;right:0;z-index:2147483000;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 12px;background:#101114;color:#fff;font:600 15px/1.3 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.5)}' +
       '.rt-barra #rt-estado{flex:1 1 180px;min-width:0}.rt-barra button{font:700 15px system-ui,-apple-system,Segoe UI,sans-serif;border:0;border-radius:999px;padding:12px 20px;background:#fff;color:#111;cursor:pointer}' +
       '.rt-barra button:disabled{opacity:.5}.rt-barra #rt-fechar{background:transparent;color:#ddd;border:1px solid #555;padding:11px 16px}' +
-      '#rt-folhas{zoom:var(--rt-z,1);display:flex;flex-direction:column;align-items:center;gap:12px;padding-bottom:30px}#rt-folhas>*{box-shadow:0 4px 22px rgba(0,0,0,.45);flex:none}' +
-      'html.rt-imprimindo .rt-barra{display:none!important}html.rt-imprimindo #rt-folhas{zoom:1!important;display:block!important}html.rt-imprimindo body{padding-top:0!important}}' +
-      '@media print{.rt-barra{display:none!important}#rt-folhas{display:block!important;zoom:1!important}}' +
+      '#rt-folhas{width:' + Number(largura) + 'px;transform-origin:0 0;display:flex;flex-direction:column;align-items:center;gap:12px;padding-bottom:30px}#rt-folhas>*{box-shadow:0 4px 22px rgba(0,0,0,.45);flex:none}' +
+      'html.rt-imprimindo .rt-barra{display:none!important}html.rt-imprimindo #rt-folhas{transform:none!important;margin:0!important;width:auto!important;display:block!important}html.rt-imprimindo body{padding-top:0!important}}' +
+      '@media print{.rt-barra{display:none!important}#rt-folhas{display:block!important;transform:none!important;margin:0!important;width:auto!important}}' +
       '</style>';
     const barra = '<div class="rt-barra"><span id="rt-estado">Preparando…</span><button type="button" id="rt-imprimir">Salvar como PDF</button><button type="button" id="rt-fechar">Fechar</button></div>';
     const script = '<script>(function(){' +
       'var W=' + Number(largura) + ',raiz=document.documentElement,barra=document.querySelector(".rt-barra"),est=document.getElementById("rt-estado"),bt=document.getElementById("rt-imprimir");' +
-      'function ajustar(){var z=Math.min(1,(raiz.clientWidth-16)/W);if(z<0.2)z=0.2;raiz.style.setProperty("--rt-z",z);raiz.style.setProperty("--rt-barra",(barra.offsetHeight+8)+"px");}' +
+      'var folhas=document.getElementById("rt-folhas");' +
+      // a prévia encolhe com "scale" (a altura que sobra é descontada na margem de baixo; o "zoom" do CSS engordava as letras pequenas no celular)
+      'function ajustar(){var z=Math.min(1,(raiz.clientWidth-16)/W);if(z<0.2)z=0.2;raiz.style.setProperty("--rt-z",z);raiz.style.setProperty("--rt-barra",(barra.offsetHeight+8)+"px");' +
+      'folhas.style.transform=z<1?"scale("+z+")":"none";folhas.style.marginLeft=Math.max(0,(raiz.clientWidth-W*z)/2)+"px";folhas.style.marginBottom=z<1?(-(folhas.offsetHeight*(1-z)))+"px":"0";}' +
       'ajustar();window.addEventListener("resize",ajustar);' +
-      'window.addEventListener("beforeprint",function(){raiz.classList.add("rt-imprimindo");raiz.style.setProperty("--rt-z",1);});' +
+      'var abriuImpressao=false;window.addEventListener("beforeprint",function(){abriuImpressao=true;raiz.classList.add("rt-imprimindo");});' +
       'window.addEventListener("afterprint",function(){raiz.classList.remove("rt-imprimindo");ajustar();});' +
-      'bt.onclick=function(){try{window.print();}catch(e){est.textContent="Seu navegador não abriu a impressão. Use o menu do navegador: Imprimir ou Compartilhar.";}};document.getElementById("rt-fechar").onclick=function(){window.close();};' +
+      'var DICA="A janela de impressão não abriu? Toque nos três pontinhos do navegador e escolha Compartilhar > Imprimir (ou Imprimir), depois salve como PDF.";bt.onclick=function(){abriuImpressao=false;try{window.print();}catch(e){est.textContent=DICA;return;}setTimeout(function(){if(!abriuImpressao)est.textContent=DICA;},2000);};document.getElementById("rt-fechar").onclick=function(){window.close();};' +
       'var fontes=document.fonts&&document.fonts.ready?Promise.race([document.fonts.ready,new Promise(function(ok){setTimeout(ok,4000);})]):Promise.resolve();' +
       'var prontas=Promise.all([fontes].concat([].map.call(document.images,function(im){return im.decode?im.decode().catch(function(){}):Promise.resolve();})));' +
       'Promise.race([prontas,new Promise(function(ok){setTimeout(ok,12000);})]).then(function(){' + // o botão NUNCA fica preso esperando uma imagem lenta
