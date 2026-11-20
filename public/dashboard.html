@@ -53,8 +53,9 @@
 
 <!-- Editar as etiquetas de um projeto -->
 <div class="dash-modal hidden" id="dashModal" role="dialog" aria-modal="true" aria-labelledby="dashModalTitulo">
-  <div class="dash-modal-caixa">
+  <div class="dash-modal-caixa larga">
     <div class="dash-modal-topo"><strong id="dashModalTitulo">Etiquetas do projeto</strong><button type="button" id="dashModalFechar" aria-label="Fechar">✕</button></div>
+    <div class="dash-modal-grade">
     <div class="dash-campo">
       <span class="dash-rotulo">Arquiteto(s) deste projeto</span>
       <div class="dash-chips-edicao" id="dashArqChips"></div>
@@ -62,11 +63,12 @@
       <div class="dash-chips-lista" id="dashArqLista"></div>
       <div class="dash-add-arq"><input type="text" id="dashArqNovo" maxlength="40" placeholder="Cadastrar arquiteto novo (nome)" autocomplete="off"><button type="button" id="dashArqAdd">Cadastrar</button></div>
     </div>
-    <div class="dash-modal-linha">
+    <div class="dash-modal-direita">
       <div class="dash-campo"><label class="dash-rotulo" for="dashTipo">Tipo</label><select id="dashTipo"><option value="">—</option></select>
         <div class="dash-add-arq"><input type="text" id="dashTipoNovo" maxlength="40" placeholder="Novo tipo" autocomplete="off"><button type="button" id="dashTipoAdd" aria-label="Cadastrar o tipo">+</button></div></div>
       <div class="dash-campo"><label class="dash-rotulo" for="dashSituacao">Situação</label><select id="dashSituacao"></select>
         <div class="dash-add-arq"><input type="text" id="dashSituacaoNova" maxlength="40" placeholder="Nova situação" autocomplete="off"><button type="button" id="dashSituacaoAdd" aria-label="Cadastrar a situação">+</button></div></div>
+    </div>
     </div>
     <details class="dash-listas">
       <summary>Gerenciar as listas cadastradas</summary>

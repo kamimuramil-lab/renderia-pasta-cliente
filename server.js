@@ -9,6 +9,8 @@ const orcLib = require('./lib/orcamentos');
 const memLib = require('./lib/memorial');
 const dashLib = require('./lib/dashboard');
 const storage = require('./lib/storage');
+const backup = require('./lib/backup');
+const atividades = require('./lib/atividades');
 
 const app = express();
 // O padrão do Express (100kb) é pequeno demais pro desenho de anotação
@@ -149,6 +151,15 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 
 const PORTA = process.env.PORT || 3000;
 const CAMINHO_DADOS = galeria.caminhoPadrao(__dirname);
 const LICENCA_SERVIDOR_URL = process.env.LICENCA_SERVIDOR_URL || null;
+
+// Backup diário do arquivo de dados no R2 (60 dias) e limpeza do registro de atividades (180 dias).
+backup.iniciarRotina(CAMINHO_DADOS);
+atividades.limparAntigas(CAMINHO_DADOS);
+setInterval(() => atividades.limparAntigas(CAMINHO_DADOS), 24 * 60 * 60 * 1000).unref();
+
+// IP de quem chamou (o Render fica na frente: o primeiro do X-Forwarded-For). Só vai pro registro de atividades, e já pela metade.
+const ipDaRequisicao = (req) => String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || (req.socket && req.socket.remoteAddress) || '';
+const registrarAtividade = (req, tipo, licenca, projetoId, detalhe) => atividades.registrar(CAMINHO_DADOS, { tipo, licenca, projetoId, detalhe, ip: ipDaRequisicao(req) });
 
 // --------------------------------------------------------------------
 // Middleware: confere a sessão do ARQUITETO direto no servidor de
@@ -800,8 +811,13 @@ app.post('/api/orcamentos/:linkToken/login', limitarPorIP, (req, res) => {
   if (!orcamentosDisponiveis(req.params.linkToken)) return res.status(404).json({ erro: 'Link não encontrado.' });
   try {
     const { usuario, senha } = req.body || {};
-    res.json({ ok: true, token: orcLib.loginCliente(CAMINHO_DADOS, req.params.linkToken, usuario, senha) });
+    const token = orcLib.loginCliente(CAMINHO_DADOS, req.params.linkToken, usuario, senha);
+    const dono = orcamentosDisponiveis(req.params.linkToken);
+    if (dono) registrarAtividade(req, 'orcamentos_login', dono.licencaUsuario, dono.projetoId);
+    res.json({ ok: true, token });
   } catch (e) {
+    const dono = orcamentosDisponiveis(req.params.linkToken);
+    if (dono) registrarAtividade(req, 'orcamentos_login_falha', dono.licencaUsuario, dono.projetoId);
     res.status(401).json({ erro: e.message });
   }
 });
@@ -847,8 +863,11 @@ app.post('/api/cliente/:linkToken/login', limitarPorIP, (req, res) => {
   try {
     const { usuario, senha } = req.body || {};
     const token = galeria.loginCliente(CAMINHO_DADOS, req.params.linkToken, usuario, senha);
+    const dono = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, req.params.linkToken);
+    if (dono) registrarAtividade(req, 'cliente_login', dono.licencaUsuario, dono.projetoId);
     res.json({ ok: true, token });
   } catch (e) {
+    try { const dono = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, req.params.linkToken); if (dono) registrarAtividade(req, 'cliente_login_falha', dono.licencaUsuario, dono.projetoId); } catch (e2) { /* só o registro */ }
     res.status(401).json({ erro: e.message });
   }
 });
@@ -868,16 +887,30 @@ function exigirQueNaoSejaLeitura(req, res, next) {
 
 app.get('/api/cliente/:linkToken/galeria', exigirSessaoCliente, async (req, res) => {
   try {
-    const g = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, req.params.linkToken);
+    let g = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, req.params.linkToken);
     if (!g) return res.status(404).json({ erro: 'Link não encontrado.' });
+    if (!req.somenteLeitura) {
+      // Cliente de verdade: no primeiro acesso nasce a "foto base" das novidades; cada acesso entra no registro (no máx. 1 a cada 30 min).
+      if (galeria.garantirBaseVistoCliente(CAMINHO_DADOS, req.params.linkToken)) g = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, req.params.linkToken);
+      registrarAtividade(req, 'cliente_abriu', g.licencaUsuario, g.projetoId);
+    }
     const resultado = await galeriaComUrls(g);
     resultado.fotos = resultado.fotos.filter((f) => !f.arquivada); // cliente nunca vê arquivadas
     delete resultado.meta; // etiquetas do dashboard (arquitetos etc.) são do escritório
+    delete resultado.vistoCliente;
+    resultado.novidadesCliente = galeria.novidadesDoCliente(g); // bolinhas: o que mudou desde que o CLIENTE abriu cada aba (o escritório vê o mesmo, só lendo)
     if (req.somenteLeitura) resultado.modoEscritorio = true;
     res.json(resultado);
   } catch (e) {
     res.status(500).json({ erro: e.message });
   }
+});
+
+// O cliente abriu uma aba (Projeto executivo, Memorial...): a bolinha dela some. Em modo escritório não grava nada.
+app.post('/api/cliente/:linkToken/visto', exigirSessaoCliente, (req, res) => {
+  if (req.somenteLeitura) return res.json({ ok: true, ignorado: true });
+  try { galeria.marcarVistoCliente(CAMINHO_DADOS, req.params.linkToken, (req.body || {}).secao); res.json({ ok: true }); }
+  catch (e) { res.status(400).json({ erro: e.message }); }
 });
 
 app.post('/api/cliente/:linkToken/fotos/:fotoId/comentar', exigirSessaoCliente, exigirQueNaoSejaLeitura, async (req, res) => {
@@ -890,6 +923,8 @@ app.post('/api/cliente/:linkToken/fotos/:fotoId/comentar', exigirSessaoCliente, 
       await storage.salvarArquivo(desenhoR2Key, buffer, 'image/png');
     }
     galeria.comentarFoto(CAMINHO_DADOS, req.params.linkToken, req.params.fotoId, { texto, desenhoR2Key });
+    const dono = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, req.params.linkToken);
+    if (dono) registrarAtividade(req, 'cliente_comentou', dono.licencaUsuario, dono.projetoId);
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ erro: e.message });
@@ -900,6 +935,8 @@ app.post('/api/cliente/:linkToken/fotos/:fotoId/aprovar', exigirSessaoCliente, e
   try {
     const { aprovada } = req.body || {};
     galeria.aprovarFoto(CAMINHO_DADOS, req.params.linkToken, req.params.fotoId, aprovada !== false);
+    const dono = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, req.params.linkToken);
+    if (dono) registrarAtividade(req, aprovada !== false ? 'cliente_aprovou' : 'cliente_desaprovou', dono.licencaUsuario, dono.projetoId);
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ erro: e.message });
@@ -924,8 +961,15 @@ app.get('/api/dashboard/:linkDash/info-publica', (req, res) => {
   res.json({ ok: true });
 });
 app.post('/api/dashboard/:linkDash/login', limitarPorIP, (req, res) => {
-  try { res.json({ ok: true, token: dashLib.login(CAMINHO_DADOS, req.params.linkDash, (req.body || {}).senha) }); }
-  catch (e) { res.status(401).json({ erro: e.message }); }
+  const dono = dashLib.licencaDoLink(CAMINHO_DADOS, req.params.linkDash);
+  try {
+    const token = dashLib.login(CAMINHO_DADOS, req.params.linkDash, (req.body || {}).senha);
+    if (dono) registrarAtividade(req, 'dashboard_login', dono, null);
+    res.json({ ok: true, token });
+  } catch (e) {
+    if (dono) registrarAtividade(req, 'dashboard_login_falha', dono, null);
+    res.status(401).json({ erro: e.message });
+  }
 });
 app.post('/api/dashboard/:linkDash/sair', exigirSessaoDashboard, rotaDash((req) => { dashLib.sair(CAMINHO_DADOS, req.params.linkDash, req.headers['x-dashboard-token']); return {}; }));
 app.get('/api/dashboard/:linkDash/projetos', exigirSessaoDashboard, rotaDash(async (req) => {
@@ -938,11 +982,45 @@ app.get('/api/dashboard/:linkDash/projetos', exigirSessaoDashboard, rotaDash(asy
 app.post('/api/dashboard/:linkDash/catalogo', exigirSessaoDashboard, rotaDash((req) => dashLib.adicionarAoCatalogo(CAMINHO_DADOS, req.licencaConta, (req.body || {}).lista, (req.body || {}).nome)));
 app.post('/api/dashboard/:linkDash/catalogo/remover', exigirSessaoDashboard, rotaDash((req) => dashLib.removerDoCatalogo(CAMINHO_DADOS, req.licencaConta, (req.body || {}).lista, (req.body || {}).chave)));
 app.put('/api/dashboard/:linkDash/projetos/:projetoId/meta', exigirSessaoDashboard, rotaDash((req) => ({ meta: dashLib.definirMeta(CAMINHO_DADOS, req.licencaConta, req.params.projetoId, req.body || {}) })));
-app.post('/api/dashboard/:linkDash/projetos/:projetoId/abrir', exigirSessaoDashboard, rotaDash((req) => dashLib.abrirComoEscritorio(CAMINHO_DADOS, req.licencaConta, req.params.projetoId)));
+app.post('/api/dashboard/:linkDash/projetos/:projetoId/abrir', exigirSessaoDashboard, rotaDash((req) => {
+  const r = dashLib.abrirComoEscritorio(CAMINHO_DADOS, req.licencaConta, req.params.projetoId);
+  registrarAtividade(req, 'escritorio_abriu', req.licencaConta, req.params.projetoId);
+  return r;
+}));
 
 // Lado do ARQUITETO (app): senha mestra, link e etiquetas. Recurso da licença: o mesmo da Página do projeto (nível Completo).
 app.get('/api/app/dashboard', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => dashLib.infoDaConta(CAMINHO_DADOS, req.licencaUsuario)));
-app.put('/api/app/dashboard/senha', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => dashLib.definirSenha(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).senha)));
+app.put('/api/app/dashboard/senha', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => {
+  const r = dashLib.definirSenha(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).senha);
+  registrarAtividade(req, 'dashboard_senha_trocada', req.licencaUsuario, null);
+  return r;
+}));
+
+// ====================================================================
+// EXCLUIR A PASTA DO CLIENTE INTEIRA (LGPD: eliminação) e REGISTRO DE ATIVIDADES -- só o dono (posse pela sessão).
+// Exclusão: confirmação pelo NOME do projeto (o app pede pra digitar), backup na hora (por segurança: fica 60 dias), apaga TODOS os
+// arquivos do projeto no armazenamento e só então o cadastro. Se algum arquivo não puder ser apagado, nada é removido e dá pra tentar de novo.
+// ====================================================================
+app.delete('/api/app/galeria/:projetoId', exigirSessaoArquiteto, async (req, res) => {
+  try {
+    const { nomeProjeto, chaves } = galeria.chavesDoProjeto(CAMINHO_DADOS, req.params.projetoId, req.licencaUsuario);
+    const confirmacao = String((req.body || {}).confirmacao || '').trim().toLowerCase();
+    if (!confirmacao || confirmacao !== String(nomeProjeto).trim().toLowerCase()) return res.status(400).json({ erro: 'A confirmação não confere com o nome do projeto. Nada foi excluído.' });
+    try { await backup.criarAgora(CAMINHO_DADOS, 'antes-de-excluir'); } catch (e) { console.error('Backup antes de excluir FALHOU:', e.message); }
+    const falhas = [];
+    for (const chave of chaves) { try { await storage.excluirArquivo(chave); } catch (e) { falhas.push(chave); } }
+    if (falhas.length) return res.status(502).json({ erro: `${falhas.length} de ${chaves.length} arquivos não puderam ser apagados agora. Nada foi removido do cadastro: tente de novo em alguns minutos.` });
+    galeria.removerGaleria(CAMINHO_DADOS, req.params.projetoId, req.licencaUsuario);
+    atividades.apagarDoProjeto(CAMINHO_DADOS, req.licencaUsuario, req.params.projetoId);
+    registrarAtividade(req, 'pasta_excluida', req.licencaUsuario, null, nomeProjeto);
+    res.json({ ok: true, arquivosApagados: chaves.length });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+
+// Registro de atividades: com ?projetoId = daquele projeto; sem = da conta (acessos ao dashboard, exclusões). Só o que é da PRÓPRIA conta.
+app.get('/api/app/atividades', exigirSessaoArquiteto, (req, res) => {
+  res.json({ ok: true, atividades: atividades.listar(CAMINHO_DADOS, { licenca: req.licencaUsuario, projetoId: req.query.projetoId || null, limite: req.query.limite }) });
+});
 app.get('/api/app/dashboard/projetos', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => ({
   projetos: dashLib.listarProjetos(CAMINHO_DADOS, req.licencaUsuario).map(({ projetoId, nome, meta }) => ({ projetoId, nome, meta })),
   catalogo: dashLib.catalogoDaConta(CAMINHO_DADOS, req.licencaUsuario)

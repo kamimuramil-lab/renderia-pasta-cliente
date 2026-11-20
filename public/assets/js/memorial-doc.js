@@ -11,12 +11,14 @@
   const dataPorExtenso = (d) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
   const CSS = `
-@page { size: A4 landscape; margin: 10mm; }
+@page { size: A4 landscape; margin: 10mm 10mm 17mm; @bottom-right { content: counter(page) " / " counter(pages); font-size: 8pt; color: #888; } }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: #fff; }
 body { font-family: 'Inter', 'Segoe UI', Arial, Helvetica, sans-serif; font-size: 16px; line-height: 1.55; color: #1c1c1c; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 .folha { width: 297mm; padding: 10mm; margin: 0 auto; background: #fff; }
-@media print { .folha { width: auto; padding: 0; margin: 0; } }
+@media print { .folha { width: auto; padding: 0; margin: 0; } .rodape-escritorio { position: fixed; left: 0; right: 0; bottom: -12mm; } }
+@media screen { .rodape-escritorio { margin-top: 8mm; padding-top: 3mm; border-top: 1px solid #ddd; } }
+.rodape-escritorio { text-align: center; font-size: 8pt; color: #666; line-height: 1.4; }
 .cabecalho { display: flex; align-items: center; gap: 16px; margin-bottom: 6mm; border-bottom: 2px solid #1c1c1c; padding-bottom: 4mm; }
 .cabecalho img { max-height: 16mm; max-width: 50mm; object-fit: contain; }
 .titulo { font-size: 15pt; letter-spacing: .14em; font-weight: 300; }
@@ -48,7 +50,14 @@ td.texto { white-space: pre-line; min-width: 150px; }
     return `<tr><td class="num">${esc(i.numero)}</td><td>${foto}</td><td class="item"><b>${esc(i.item)}</b>${href ? `<br><a href="${esc(href)}">Ver produto ↗</a>` : ''}</td><td>${amb}</td><td>${esc(i.empresa) || '—'}</td><td class="texto">${esc(i.especificacoes) || '—'}</td><td class="texto">${esc(i.dimensoes) || '—'}</td><td>${esc(i.quantidade) || '—'}</td></tr>`;
   }
 
-  // opcoes: { nomeProjeto, logo (url|null), itens, setores, setor ('' = todos), agora (Date) } -> { html, totalItens, setores }
+  // O rodapé de TODAS as páginas: nome, telefone, e-mail e Instagram do escritório (só o que foi cadastrado). Fixo no papel (repete em cada folha).
+  function rodapeDoEscritorio(e) {
+    const o = e || {};
+    const partes = [o.nome, o.whatsapp, o.email, o.instagram].map((x) => String(x || '').trim()).filter(Boolean);
+    return partes.length ? `<div class="rodape-escritorio">${partes.map(esc).join(' &nbsp;·&nbsp; ')}</div>` : '';
+  }
+
+  // opcoes: { nomeProjeto, logo (url|null), itens, setores, setor ('' = todos), agora (Date), escritorio: { nome, whatsapp (formatado), email, instagram (com @) } } -> { html, totalItens, setores }
   function montarHtml(opcoes) {
     const o = opcoes || {};
     const itens = Array.isArray(o.itens) ? o.itens : [];
@@ -65,7 +74,7 @@ td.texto { white-space: pre-line; min-width: 150px; }
     const total = incluidos.reduce((s, setor) => s + itens.filter((i) => i.setor === setor).length, 0);
     const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Memorial de itens — ${esc(o.nomeProjeto || '')}</title>` +
       '<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">' +
-      `<style>${CSS}</style></head><body><div class="folha"><div class="cabecalho">${logo}<div><div class="titulo">MEMORIAL DE ITENS</div><div class="projeto">${esc(o.nomeProjeto || '')}</div><div class="data">${esc(dataPorExtenso(agora))}</div></div></div>${blocos}</div></body></html>`;
+      `<style>${CSS}</style></head><body><div class="folha"><div class="cabecalho">${logo}<div><div class="titulo">MEMORIAL DE ITENS</div><div class="projeto">${esc(o.nomeProjeto || '')}</div><div class="data">${esc(dataPorExtenso(agora))}</div></div></div>${blocos}${rodapeDoEscritorio(o.escritorio)}</div></body></html>`;
     return { html, totalItens: total, setores: incluidos };
   }
 

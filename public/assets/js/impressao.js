@@ -38,7 +38,7 @@
   }
 
   // O documento que a aba recebe: o HTML do PDF + barra de ações (só na tela) + zoom pra caber no celular (só na tela).
-  function prepararDocumento(html, tituloArquivo, largura, imprimirSozinho) {
+  function prepararDocumento(html, tituloArquivo, largura, imprimirSozinho, aviso) {
     const estilo = '<style>' +
       '@media screen{html{background:#26282c}body{margin:0;padding-top:var(--rt-barra,72px)}' +
       '.rt-barra{position:fixed;top:0;left:0;right:0;z-index:2147483000;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 12px;background:#101114;color:#fff;font:600 15px/1.3 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.5)}' +
@@ -48,17 +48,18 @@
       'html.rt-imprimindo .rt-barra{display:none!important}html.rt-imprimindo #rt-folhas{zoom:1!important;display:block!important}html.rt-imprimindo body{padding-top:0!important}}' +
       '@media print{.rt-barra{display:none!important}#rt-folhas{display:block!important;zoom:1!important}}' +
       '</style>';
-    const barra = '<div class="rt-barra"><span id="rt-estado">Preparando as imagens…</span><button type="button" id="rt-imprimir" disabled>Salvar como PDF</button><button type="button" id="rt-fechar">Fechar</button></div>';
+    const barra = '<div class="rt-barra"><span id="rt-estado">Preparando…</span><button type="button" id="rt-imprimir">Salvar como PDF</button><button type="button" id="rt-fechar">Fechar</button></div>';
     const script = '<script>(function(){' +
       'var W=' + Number(largura) + ',raiz=document.documentElement,barra=document.querySelector(".rt-barra"),est=document.getElementById("rt-estado"),bt=document.getElementById("rt-imprimir");' +
       'function ajustar(){var z=Math.min(1,(raiz.clientWidth-16)/W);if(z<0.2)z=0.2;raiz.style.setProperty("--rt-z",z);raiz.style.setProperty("--rt-barra",(barra.offsetHeight+8)+"px");}' +
       'ajustar();window.addEventListener("resize",ajustar);' +
       'window.addEventListener("beforeprint",function(){raiz.classList.add("rt-imprimindo");raiz.style.setProperty("--rt-z",1);});' +
       'window.addEventListener("afterprint",function(){raiz.classList.remove("rt-imprimindo");ajustar();});' +
-      'bt.onclick=function(){window.print();};document.getElementById("rt-fechar").onclick=function(){window.close();};' +
+      'bt.onclick=function(){try{window.print();}catch(e){est.textContent="Seu navegador não abriu a impressão. Use o menu do navegador: Imprimir ou Compartilhar.";}};document.getElementById("rt-fechar").onclick=function(){window.close();};' +
       'var fontes=document.fonts&&document.fonts.ready?Promise.race([document.fonts.ready,new Promise(function(ok){setTimeout(ok,4000);})]):Promise.resolve();' +
-      'Promise.all([fontes].concat([].map.call(document.images,function(im){return im.decode?im.decode().catch(function(){}):Promise.resolve();}))).then(function(){' +
-      'est.textContent="Pronto. Toque em \\u201cSalvar como PDF\\u201d e, na janela que abrir, escolha salvar como PDF.";bt.disabled=false;ajustar();' +
+      'var prontas=Promise.all([fontes].concat([].map.call(document.images,function(im){return im.decode?im.decode().catch(function(){}):Promise.resolve();})));' +
+      'Promise.race([prontas,new Promise(function(ok){setTimeout(ok,12000);})]).then(function(){' + // o botão NUNCA fica preso esperando uma imagem lenta
+      'est.textContent=' + JSON.stringify(aviso ? 'Pronto. ' + aviso + ' Toque em \u201cSalvar como PDF\u201d.' : 'Pronto. Toque em \u201cSalvar como PDF\u201d e, na janela que abrir, escolha salvar como PDF.') + ';ajustar();' +
       (imprimirSozinho ? 'setTimeout(function(){try{window.print();}catch(e){}},500);' : '') +
       '});})();' + '</' + 'script>';
     let h = String(html);
@@ -117,7 +118,7 @@
         const largura = (opcoes && opcoes.largura) || LARGURA_A4_PAISAGEM;
         if (janela) {
           if (janela.closed) throw new Error('A aba do PDF foi fechada. Toque em Gerar PDF de novo.');
-          escrever(janela, prepararDocumento(html, tituloArquivo, largura, true));
+          escrever(janela, prepararDocumento(html, tituloArquivo, largura, true, opcoes && opcoes.aviso));
           return { via: 'janela' };
         }
         if (celular) {
@@ -126,7 +127,7 @@
             abrir() {
               const w = window.open('', '_blank');
               if (!w) throw new Error('O navegador bloqueou a abertura do PDF. Permita pop-ups para este site e tente de novo.');
-              escrever(w, prepararDocumento(html, tituloArquivo, largura, false));
+              escrever(w, prepararDocumento(html, tituloArquivo, largura, false, opcoes && opcoes.aviso));
             }
           };
         }

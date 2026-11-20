@@ -93,7 +93,7 @@ console.log('== 3. Documento do PDF do memorial (igual no computador e no celula
   assert.deepStrictEqual([r.totalItens, r.setores], [3, ['Acessórios', 'Metais']], 'setor sem itens (Louças) não aparece');
   assert.ok(r.html.includes('Apto &lt;Teste&gt;') && r.html.includes('Varal &lt;b&gt;') && !r.html.includes('Varal <b>'), 'texto escapado');
   assert.ok(r.html.includes('20 de novembro de 2026') && r.html.includes('MEMORIAL DE ITENS'));
-  assert.ok(r.html.includes('@page { size: A4 landscape; margin: 10mm; }') && r.html.includes('width: 297mm'), 'A4 deitado e medidas em mm: independe da tela (é por isso que sai igual no celular)');
+  assert.ok(r.html.includes('@page { size: A4 landscape; margin: 10mm 10mm 17mm;') && r.html.includes('width: 297mm'), 'A4 deitado e medidas em mm: independe da tela (é por isso que sai igual no celular)');
   assert.ok(!/@media\s*\(max-width/.test(r.html), 'nenhuma regra de tela estreita no documento');
   assert.ok(r.html.includes('href="https://loja.example/x"') && !r.html.includes('javascript:'), 'só link http(s)');
   assert.strictEqual((r.html.match(/<th>Nº<\/th>/g) || []).length, 2, 'uma tabela por setor, com as 8 colunas');
@@ -104,7 +104,12 @@ console.log('== 3. Documento do PDF do memorial (igual no computador e no celula
   assert.ok(!r.html.includes('Varal'));
   assert.throws(() => MemorialDoc.montarHtml({ ...base, setor: 'Louças' }), /Não há itens/);
   assert.throws(() => MemorialDoc.montarHtml({ ...base, itens: [] }), /Não há itens/);
-  ok('A4 deitado em mm, 8 colunas por setor, escape, só link http(s), filtro de setor, sem valores, erro claro');
+  // rodapé do escritório em TODAS as páginas (fixo no papel), só com o que foi cadastrado
+  const comRodape = MemorialDoc.montarHtml({ ...base, escritorio: { nome: 'Escritório <K>', whatsapp: '+55 (11) 91234-5678', email: 'contato@x.com', instagram: '@perfil' } });
+  assert.ok(comRodape.html.includes('<div class="rodape-escritorio">Escritório &lt;K&gt; &nbsp;·&nbsp; +55 (11) 91234-5678 &nbsp;·&nbsp; contato@x.com &nbsp;·&nbsp; @perfil</div>'), 'nome, telefone, e-mail e Instagram no rodapé (escapado)');
+  assert.ok(/\.rodape-escritorio \{ position: fixed; left: 0; right: 0; bottom: -12mm; \}/.test(comRodape.html), 'no papel o rodapé é fixo e se repete em cada folha');
+  assert.ok(!r.html.includes('<div class="rodape-escritorio">') && MemorialDoc.montarHtml({ ...base, escritorio: { email: 'a@b.co' } }).html.includes('>a@b.co</div>'), 'sem dados do escritório não desenha rodapé; só mostra o que existe');
+  ok('A4 deitado em mm, 8 colunas por setor, escape, só link http(s), filtro de setor, sem valores, rodapé do escritório, erro claro');
 }
 
 console.log('== 4. Impressão: computador x celular, documento da aba ==');
@@ -126,6 +131,10 @@ console.log('== 4. Impressão: computador x celular, documento da aba ==');
   assert.ok(doc.includes('window.print()') && doc.includes('setTimeout(function(){try{window.print();}catch(e){}},500)'), 'imprime sozinho quando pedido');
   assert.ok(!Impressao.prepararDocumento(original, 'x', 1123, false).includes('setTimeout(function(){try{window.print();'), 'sem imprimir sozinho (botão "Abrir o PDF"): só o botão');
   assert.strictEqual((doc.match(/<\/script>/g) || []).length, 1, 'um único script de apoio, bem fechado');
+  assert.ok(!/id="rt-imprimir"[^>]*disabled/.test(doc) && doc.includes('setTimeout(ok,12000)'), 'o botão "Salvar como PDF" NUNCA fica preso esperando imagem (liberado desde o começo)');
+  assert.ok(Impressao.prepararDocumento(original, 'x', 1123, true, '2 imagem(ns) ficaram de fora.').includes('2 imagem(ns) ficaram de fora.'), 'aviso de imagens que falharam aparece na aba do PDF');
+  const pdfCli = fs.readFileSync(js('pdf-cliente.js'), 'utf8');
+  assert.ok(/sessao\.celular \? 1500 : 2000/.test(pdfCli) && /sessao\.celular \? 0\.8 : 0\.88/.test(pdfCli), 'no celular as imagens do PDF vão menores (monta e imprime bem mais rápido)');
   assert.ok(Impressao.prepararDocumento('<html><head><title>t</title></head><body>preço $& e $1 ficam</body></html>', 'a', 1123, false).includes('preço $& e $1 ficam'), 'o conteúdo do PDF nunca é "interpretado" pelo replace');
   // sem celular: iniciar() não abre aba
   trocarNavegador('Mozilla/5.0 (Windows NT 10.0) Chrome/130');
@@ -170,7 +179,11 @@ console.log('== 4. Impressão: computador x celular, documento da aba ==');
   ['novidades.js', 'ajuda.js', 'impressao.js', 'memorial-doc.js'].forEach((n) => assert.ok(pos(html, n) > 0 && pos(html, n) < pos(html, 'hub.js'), `${n} carregado antes do hub.js`));
   assert.ok(pos(html, 'impressao.js') < pos(html, 'pdf-cliente.js'), 'impressao.js antes do pdf-cliente.js');
   assert.ok(pos(orc, 'novidades.js') > 0 && pos(orc, 'ajuda.js') > 0 && pos(orc, 'novidades.js') < pos(orc, 'orcamentos.js'), 'a página de orçamentos também carrega novidades e ajuda');
-  assert.ok(/prepararNovidades\(galeria\)/.test(hub) && /registrarVisto\(secaoAberta\)/.test(hub) && /registrarVisto\('criativo'\)/.test(hub) && /galeria\.modoEscritorio/.test(hub), 'hub: calcula as novidades, marca a aba aberta e não mexe nelas no modo escritório');
+  const blocoNovidades = hub.slice(hub.indexOf('Novidades por aba'), hub.indexOf('Tema claro/escuro'));
+  assert.ok(/galeriaAtual\.novidadesCliente/.test(blocoNovidades) && !/localStorage/.test(blocoNovidades) && /\/visto/.test(blocoNovidades) && /registrarVisto\(secaoAberta\)/.test(hub) && /registrarVisto\('criativo'\)/.test(hub) && /galeriaAtual\.modoEscritorio/.test(blocoNovidades), 'hub: novidades vêm do SERVIDOR (valem em qualquer aparelho e no modo escritório), abrir a aba avisa o servidor, o escritório só olha');
+  assert.ok(/data-ir-inicio/.test(html) && (html.match(/data-ir-inicio/g) || []).length === 6 && /function irParaInicio/.test(hub), 'logo e nome do projeto (hub, galeria e planta) levam à tela inicial');
+  assert.ok(/data-recolher/.test(hub) && /\.mem-setor\.recolhido \.mem-tabela\{ display:none !important; \}/.test(css) && /\.mem-tabela \.mem-foto\{ width:100%; height:min\(62vw, 300px\); \}/.test(css), 'memorial: título do setor recolhe; no celular a foto ocupa a largura do cartão');
+  assert.ok(/contarSemCapa/.test(main) && /capasDeAmbiente/.test(hub), 'a capa do ambiente não conta como imagem a mais (igual ao PDF)');
   assert.ok(/data-card="\$\{esc\(id\)\}"/.test(hub) && /hub-bolinha/.test(hub) && /AjudaCliente\.htmlRodape/.test(hub), 'cartões com data-card, bolinha e rodapé do escritório');
   assert.ok(/\.hub-card\[data-card="memorial"\]\{ order:4; \}/.test(css) && /\.hub-card\[data-card="visitas"\]\{ order:5; \}/.test(css) && /@media \(max-width:519px\)/.test(css), 'celular: o Memorial fica logo abaixo do Projeto executivo');
   assert.ok(/MemorialDoc\.montarHtml/.test(hub) && /Impressao\.iniciar\(\)/.test(hub) && !/window\.print\(\)/.test(hub) && !/imprimindo-memorial/.test(hub + css), 'PDF do memorial: documento próprio pela impressao.js (sem imprimir a própria página)');

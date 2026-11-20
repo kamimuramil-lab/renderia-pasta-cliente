@@ -121,6 +121,8 @@
     const mostrarPaleta = $('chkPdfPaleta').checked;
     const total = escolhidos.reduce((s, a) => s + a.fotos.length, 0);
     const sessao = window.Impressao.iniciar(); // NO TOQUE: no celular abre a aba do PDF agora (depois o navegador bloquearia)
+    // No celular as imagens vão menores (1500 px, JPEG 0,8: ~3x mais leve): o aparelho monta e imprime o PDF bem mais rápido. A foto do PDF no computador continua em 2000 px.
+    const ladoMaximo = sessao.celular ? 1500 : 2000, qualidadeJpeg = sessao.celular ? 0.8 : 0.88;
     gerando = true;
     $('btnGerarPdfCliente').disabled = true; $('btnCancelarPdfCliente').disabled = true;
     $('pdfMensagem').textContent = '';
@@ -130,13 +132,13 @@
       const ambientes = [];
       for (const a of escolhidos) {
         let capa = null;
-        if (a.capaUrl) { try { capa = (await prepararImagem(a.capaUrl, 2200, 0.9, false)).uri; } catch (e) { capa = null; } }
+        if (a.capaUrl) { try { capa = (await prepararImagem(a.capaUrl, sessao.celular ? 1600 : 2200, sessao.celular ? 0.8 : 0.9, false)).uri; } catch (e) { capa = null; } }
         const imagens = [];
         for (const f of a.fotos) {
           if (sessao.cancelada()) throw new Error('A aba do PDF foi fechada. Toque em Gerar PDF de novo.');
           mostrarProgresso(`Preparando a imagem ${feitas + 1} de ${total}...`, feitas, total, sessao);
           try {
-            const p = await prepararImagem(f.url, 2000, 0.88, mostrarPaleta);
+            const p = await prepararImagem(f.url, ladoMaximo, qualidadeJpeg, mostrarPaleta);
             imagens.push({ id: f.id, nome: window.nomeParaCliente ? window.nomeParaCliente(f) : f.nomeExibicao, uri: p.uri, paleta: mostrarPaleta ? window.PaletaCores.paletaDominante(p.pixels, 5) : [] });
           } catch (e) { falhas++; }
           feitas++;
@@ -156,8 +158,8 @@
         nomeProjeto: g.nomeProjeto, dadosProjeto: (g.hub && g.hub.dadosProjeto) || '', escritorio: g.nomeEscritorio || '',
         logo, logoClaro, marca, ambientes, mostrarNomes, mostrarPaleta, agora
       });
-      const entrega = await sessao.entregar(html, nomeDoArquivo(g.nomeProjeto, agora));
-      const aviso = falhas ? `${falhas} imagem(ns) não puderam ser carregadas e ficaram de fora.` : '';
+      const aviso = falhas ? `${falhas} imagem(ns) não puderam ser carregadas e ficaram de fora do PDF.` : '';
+      const entrega = await sessao.entregar(html, nomeDoArquivo(g.nomeProjeto, agora), { aviso }); // o aviso também aparece na aba do PDF (o painel some)
       if (entrega.via === 'toque') {
         // celular com a aba bloqueada pelo navegador: um botão (o toque libera a abertura)
         const caixa = $('pdfMensagem');

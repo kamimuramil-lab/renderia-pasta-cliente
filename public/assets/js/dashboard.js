@@ -10,6 +10,7 @@
   }
   const CHAVE_TOKEN = `renderia_dash_token_${LINK}`;
   const CHAVE_FILTROS = `renderia_dash_filtros_${LINK}`;
+  const CHAVE_RECOLHIDOS = `renderia_dash_recolhidos_${LINK}`;
   const CHAVE_TEMA = 'renderia_tema_hub'; // a mesma escolha de tema da Pasta do Cliente (mesmo site, mesmo aparelho)
   const PADRAO_SITUACOES = [{ id: 'andamento', nome: 'Em andamento' }, { id: 'concluido', nome: 'Concluído' }];
 
@@ -118,6 +119,10 @@
   ['fBusca', 'fArquiteto', 'fTipo', 'fSituacao'].forEach((id) => $(id).addEventListener(id === 'fBusca' ? 'input' : 'change', () => { gravarFiltros(); desenhar(); }));
   $('btnLimparFiltros').addEventListener('click', () => { $('fBusca').value = ''; $('fArquiteto').value = ''; $('fTipo').value = ''; $('fSituacao').value = ''; gravarFiltros(); desenhar(); });
 
+  // Grupos (Em andamento, Concluído...) que o arquiteto recolheu: ficam lembrados neste aparelho.
+  const lerRecolhidos = () => { try { const v = JSON.parse(localStorage.getItem(CHAVE_RECOLHIDOS) || '[]'); return new Set(Array.isArray(v) ? v : []); } catch (e) { return new Set(); } };
+  const gravarRecolhidos = (conjunto) => { try { localStorage.setItem(CHAVE_RECOLHIDOS, JSON.stringify([...conjunto])); } catch (e) { /* vale só nesta visita */ } };
+
   function passaNoFiltro(p, f) {
     if (f.busca && !semAcento(p.nome).includes(semAcento(f.busca))) return false;
     if (f.arquiteto === '__sem__') { if (p.meta.arquitetos.length) return false; }
@@ -152,9 +157,12 @@
     $('dashResumo').textContent = projetos.length ? `${lista.length} de ${projetos.length} ${projetos.length === 1 ? 'projeto' : 'projetos'}` : '';
     if (!projetos.length) { $('dashLista').innerHTML = '<div class="vazio-galeria">Ainda não há projetos com Pasta do Cliente. Crie a Pasta do Cliente de um projeto no RENDERIA e ele aparece aqui.</div>'; return; }
     if (!lista.length) { $('dashLista').innerHTML = '<div class="vazio-galeria">Nenhum projeto com esses filtros.</div>'; return; }
+    const recolhidos = lerRecolhidos();
     $('dashLista').innerHTML = catalogo.situacoes.map((sit) => {
       const doGrupo = lista.filter((p) => p.meta.situacao === sit.id);
-      return doGrupo.length ? `<section class="dash-grupo"><h2>${esc(sit.nome.toUpperCase())} <span>${doGrupo.length}</span></h2><div class="dash-grid">${doGrupo.map(cartao).join('')}</div></section>` : '';
+      if (!doGrupo.length) return '';
+      const fechado = recolhidos.has(sit.id);
+      return `<section class="dash-grupo${fechado ? ' recolhido' : ''}" data-sit="${esc(sit.id)}"><h2 class="dash-grupo-titulo" role="button" tabindex="0" aria-expanded="${fechado ? 'false' : 'true'}" title="Tocar para recolher ou abrir"><span class="dash-seta" aria-hidden="true">▾</span>${esc(sit.nome.toUpperCase())} <span>${doGrupo.length}</span></h2><div class="dash-grid">${doGrupo.map(cartao).join('')}</div></section>`;
     }).join('');
   }
 
@@ -178,13 +186,23 @@
       avisar(e.message, true);
     }
   }
+  function alternarGrupo(titulo) {
+    const secao = titulo.closest('.dash-grupo');
+    const recolher = !secao.classList.contains('recolhido');
+    secao.classList.toggle('recolhido', recolher);
+    titulo.setAttribute('aria-expanded', recolher ? 'false' : 'true');
+    const r = lerRecolhidos(); if (recolher) r.add(secao.dataset.sit); else r.delete(secao.dataset.sit); gravarRecolhidos(r);
+  }
   $('dashLista').addEventListener('click', (e) => {
+    const titulo = e.target.closest('.dash-grupo-titulo');
+    if (titulo) { alternarGrupo(titulo); return; }
     const card = e.target.closest('.dash-card');
     if (!card) return;
     if (e.target.closest('[data-editar]')) { abrirEdicao(card.dataset.id); return; }
     abrirProjeto(card.dataset.id);
   });
   $('dashLista').addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('dash-grupo-titulo')) { e.preventDefault(); alternarGrupo(e.target); return; }
     if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('dash-card')) { e.preventDefault(); abrirProjeto(e.target.dataset.id); }
   });
 
@@ -291,6 +309,12 @@
       avisar('Etiquetas salvas.');
     } catch (e) { avisar(e.message, true); } finally { $('dashModalSalvar').disabled = false; }
   });
+
+  // Voltando da pasta do cliente (botão Voltar do navegador), a página volta do cache do jeito que saiu: com o cartão ainda marcado como
+  // "abrindo" (apagado e sem clique). Sempre que a página reaparece, tira essa marca.
+  const liberarCartoes = () => document.querySelectorAll('.dash-card.abrindo').forEach((c) => c.classList.remove('abrindo'));
+  window.addEventListener('pageshow', liberarCartoes);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) liberarCartoes(); });
 
   // ---------- entrada: sessão lembrada ----------
   (async function iniciar() {

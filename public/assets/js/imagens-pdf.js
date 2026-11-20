@@ -80,7 +80,7 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
 .pagina-imagem .foto { position: relative; display: block; flex: 0 0 auto; line-height: 0; }
 .pagina-imagem .foto img.principal { display: block; width: auto; height: auto; max-width: 253mm; max-height: 188mm; }
 .pagina-imagem .grupo.sem-paleta .foto img.principal { max-width: 281mm; }
-.pagina-imagem .foto img.marca { position: absolute; top: 2.4%; right: 2%; width: auto; height: auto; max-width: 14%; max-height: 11%; object-fit: contain; opacity: .94; }
+.pagina-imagem .foto img.marca { position: absolute; top: 2.4%; right: 2%; width: auto; height: auto; max-width: 14%; max-height: 11%; object-fit: contain; }
 .paleta-v { align-self: stretch; width: 24mm; display: flex; flex-direction: column; gap: .7mm; border-radius: 2.4mm; overflow: hidden; flex-shrink: 0; }
 .paleta-v .cor { flex-basis: 0; min-height: 13mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .paleta-v .hex { font-size: 6.4pt; font-weight: 700; letter-spacing: .05em; }
@@ -131,8 +131,7 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
     ${o.dadosProjeto ? `<div class="dados">${esc(o.dadosProjeto)}</div>` : ''}
     <div class="data">${esc(dataPorExtenso(agora))} às ${esc(horaCompleta(agora))} · ${esc(plural(ambientes.length, 'ambiente', 'ambientes'))} · ${esc(plural(total, 'imagem', 'imagens'))}</div>
     <div class="autoria">${escritorio ? `Projeto por: <b>${esc(escritorio)}</b>` : ''}<small>${esc(AVISO_AUTORAL)}</small></div>
-    ${carimbo}
-  </section>`];
+  </section>`]; // a capa do projeto não leva o carimbo de data/hora (a data aparece na linha do título)
 
     ambientes.forEach((a, idx) => {
       const rotulo = `Ambiente ${dois(idx + 1)}`;
