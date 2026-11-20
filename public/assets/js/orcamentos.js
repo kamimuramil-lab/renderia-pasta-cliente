@@ -141,7 +141,7 @@
     return `<article class="orc-row status-${esc(item.status)}" data-id="${esc(item.id)}">
       <label class="orc-c-somar" title="${temValor(item) ? 'Incluir este valor na soma' : 'Sem valor ainda'}"><input type="checkbox" data-somar ${somar.has(item.id) && temValor(item) ? 'checked' : ''} ${temValor(item) ? '' : 'disabled'} aria-label="Somar ${esc(item.item)}"></label>
       <div class="orc-c-item">
-        <h3>${esc(item.item)}</h3>
+        <h3>${esc(item.item)}${tagNovidade(item.id)}</h3>
         ${quem ? `<div class="orc-linha">${quem}</div>` : ''}
         ${telefone ? `<div class="orc-linha"><a href="tel:${esc(telefone)}">${esc(item.telefone)}</a></div>` : ''}
       </div>
@@ -176,6 +176,16 @@
   }
   const atualizarTotais = () => { const caixa = $('orcTotais'); if (caixa) caixa.innerHTML = totaisHtml(); };
 
+  // ---------- Novidades: orçamento novo ou alterado pelo escritório desde a última visita deste aparelho ----------
+  // A marca ("NOVO"/"ATUALIZADO" no item + contagem no topo) vale pra esta visita; o que o cliente já viu vira "visto" ao abrir a página.
+  let novidades = null;
+  const itensParaNovidades = () => ({ orcamentos: dados.itens.map((i) => ({ id: i.id, versao: [i.atualizadoEm || '', i.valor, i.url].join('|') })) });
+  const tagNovidade = (id) => { const t = novidades ? novidades.tag('orcamentos', id) : ''; return t ? `<span class="hub-novo">${t}</span>` : ''; };
+  function avisoDeNovidades() {
+    const n = novidades ? novidades.total('orcamentos') : 0;
+    return n ? `<div class="orc-novidades"><span class="hub-bolinha-fixa">${n}</span> ${n === 1 ? 'novidade' : 'novidades'} desde a sua última visita</div>` : '';
+  }
+
   function renderizar() {
     const itens = dados.itens;
     if (!itens.length) { $('orcLista').innerHTML = '<div class="vazio-galeria">Ainda não há orçamentos por aqui. Volte em breve!</div>'; return; }
@@ -183,7 +193,7 @@
       const doGrupo = itens.filter((i) => i.status === st);
       return doGrupo.length ? `<div class="orc-grupo-cab">${esc(TITULO_GRUPO[st])} <span>${doGrupo.length}</span></div>${doGrupo.map(linha).join('')}` : '';
     }).join('');
-    $('orcLista').innerHTML = `<div class="orc-tabela">
+    $('orcLista').innerHTML = `${avisoDeNovidades()}<div class="orc-tabela">
       <div class="orc-cab"><span>Somar</span><span>Categoria</span><span class="orc-c-valor">Valor</span><span>Observação</span><span>Decisão</span></div>
       ${grupos}
       <div class="orc-totais" id="orcTotais">${totaisHtml()}</div>
@@ -195,7 +205,10 @@
     $('telaLogin').style.display = 'none'; $('telaOrcamentos').style.display = 'block';
     $('nomeProjetoOrc').textContent = dados.nomeProjeto;
     document.title = `${dados.nomeProjeto} — Orçamentos`;
+    if (!novidades && window.Novidades && !dados.modoEscritorio) { try { novidades = window.Novidades.abrir('renderia_orc_novidades_' + LINK, itensParaNovidades()); } catch (e) { novidades = null; } }
     renderizar();
+    if (novidades) novidades.marcarVisto('orcamentos'); // já viu: na próxima visita só aparece o que mudar daqui pra frente (inclusive o que o cliente mesmo decidiu)
+    if (window.AjudaCliente) window.AjudaCliente.iniciar({ nomeProjeto: dados.nomeProjeto, nomeEscritorio: dados.nomeEscritorio, contatos: dados.contatosEscritorio, telaAtual: () => 'orcamentos', nomeDaTela: () => 'Orçamentos' });
   }
 
   const DECISOES = {

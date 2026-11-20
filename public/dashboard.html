@@ -42,8 +42,8 @@
     <div class="dash-filtros" id="dashFiltros">
       <input type="search" id="fBusca" placeholder="Buscar pelo nome do projeto..." aria-label="Buscar pelo nome do projeto" autocomplete="off">
       <label class="dash-filtro"><span>Arquiteto</span><select id="fArquiteto"></select></label>
-      <label class="dash-filtro"><span>Tipo</span><select id="fTipo"><option value="">Todos</option><option value="Arquitetura">Arquitetura</option><option value="Interiores">Interiores</option></select></label>
-      <label class="dash-filtro"><span>Situação</span><select id="fSituacao"><option value="">Todas</option><option value="andamento">Em andamento</option><option value="concluido">Concluídos</option></select></label>
+      <label class="dash-filtro"><span>Tipo</span><select id="fTipo"><option value="">Todos</option></select></label>
+      <label class="dash-filtro"><span>Situação</span><select id="fSituacao"><option value="">Todas</option></select></label>
       <button class="dash-limpar" id="btnLimparFiltros" type="button" style="display:none;">Limpar filtros</button>
     </div>
     <div class="dash-resumo" id="dashResumo"></div>
@@ -56,15 +56,23 @@
   <div class="dash-modal-caixa">
     <div class="dash-modal-topo"><strong id="dashModalTitulo">Etiquetas do projeto</strong><button type="button" id="dashModalFechar" aria-label="Fechar">✕</button></div>
     <div class="dash-campo">
-      <span class="dash-rotulo">Arquiteto(s)</span>
+      <span class="dash-rotulo">Arquiteto(s) deste projeto</span>
       <div class="dash-chips-edicao" id="dashArqChips"></div>
-      <div class="dash-add-arq"><input type="text" id="dashArqNovo" list="dashArqLista" maxlength="40" placeholder="Adicionar arquiteto (nome)"><button type="button" id="dashArqAdd">Adicionar</button></div>
-      <datalist id="dashArqLista"></datalist>
+      <span class="dash-sublegenda">Toque num nome para escolher</span>
+      <div class="dash-chips-lista" id="dashArqLista"></div>
+      <div class="dash-add-arq"><input type="text" id="dashArqNovo" maxlength="40" placeholder="Cadastrar arquiteto novo (nome)" autocomplete="off"><button type="button" id="dashArqAdd">Cadastrar</button></div>
     </div>
     <div class="dash-modal-linha">
-      <label class="dash-campo"><span class="dash-rotulo">Tipo</span><select id="dashTipo"><option value="">—</option><option value="Interiores">Interiores</option><option value="Arquitetura">Arquitetura</option></select></label>
-      <label class="dash-campo"><span class="dash-rotulo">Situação</span><select id="dashSituacao"><option value="andamento">Em andamento</option><option value="concluido">Concluído</option></select></label>
+      <div class="dash-campo"><label class="dash-rotulo" for="dashTipo">Tipo</label><select id="dashTipo"><option value="">—</option></select>
+        <div class="dash-add-arq"><input type="text" id="dashTipoNovo" maxlength="40" placeholder="Novo tipo" autocomplete="off"><button type="button" id="dashTipoAdd" aria-label="Cadastrar o tipo">+</button></div></div>
+      <div class="dash-campo"><label class="dash-rotulo" for="dashSituacao">Situação</label><select id="dashSituacao"></select>
+        <div class="dash-add-arq"><input type="text" id="dashSituacaoNova" maxlength="40" placeholder="Nova situação" autocomplete="off"><button type="button" id="dashSituacaoAdd" aria-label="Cadastrar a situação">+</button></div></div>
     </div>
+    <details class="dash-listas">
+      <summary>Gerenciar as listas cadastradas</summary>
+      <p class="dash-sublegenda">Só dá pra remover o que nenhum projeto está usando.</p>
+      <div id="dashListasGerenciar"></div>
+    </details>
     <div class="dash-modal-acoes"><button type="button" class="dash-btn-sec" id="dashModalCancelar">Cancelar</button><button type="button" class="dash-btn-pri" id="dashModalSalvar">Salvar</button></div>
   </div>
 </div>

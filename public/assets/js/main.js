@@ -90,8 +90,25 @@ function escapeHtml(s) {
 
 // ---------- Entrada: se o arquiteto montou uma planta baixa (com ícones), ela
 // é a primeira tela; senão, abre a galeria como sempre foi. ----------
+// ---------- Balão de ajuda "?" (canto inferior direito): explica a tela em que o cliente está + atalho do WhatsApp do escritório ----------
+function telaVisivel(id) { const e = $(id); return !!e && e.style.display !== 'none' && getComputedStyle(e).display !== 'none'; }
+function telaAtualParaAjuda() {
+  if (telaVisivel('telaPlanta')) return 'planta';
+  if (telaVisivel('telaHub')) { const s = window.HubCliente && window.HubCliente.secaoAberta(); return s ? 'secao:' + s : 'inicio'; }
+  return 'galeria';
+}
+const NOME_DA_TELA_NA_AJUDA = { planta: 'Planta baixa', galeria: 'Imagens do projeto', inicio: 'Tela inicial', 'secao:planta_original': 'Planta original', 'secao:conceitual': 'Projeto conceitual', 'secao:executivo': 'Projeto executivo', 'secao:visitas': 'Fotos', 'secao:memorial': 'Memorial de itens' };
+function iniciarAjuda(galeria) {
+  if (!window.AjudaCliente) return;
+  window.AjudaCliente.iniciar({
+    nomeProjeto: galeria.nomeProjeto, nomeEscritorio: galeria.nomeEscritorio, contatos: galeria.contatosEscritorio,
+    telaAtual: telaAtualParaAjuda, nomeDaTela: () => NOME_DA_TELA_NA_AJUDA[telaAtualParaAjuda()] || ''
+  });
+}
+
 function entrarNoProjeto(galeria) {
   mostrarGaleria(galeria);
+  iniciarAjuda(galeria);
   // Hub do cliente (dados do projeto, links, documentos): quando existe, é a primeira tela. Sem conteúdo de hub
   // nada muda -- o projeto abre direto na galeria/planta como sempre foi.
   if (window.HubCliente) {

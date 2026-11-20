@@ -6,7 +6,12 @@
 // o mesmo arquivo do app) e abre a janela de imprimir -- é só escolher "Salvar como PDF". Sem servidor, sem custo, sem I.A.
 // Imagens 360° nunca entram (e a foto que serve de capa do ambiente não repete como página).
 //
-// Carregado DEPOIS do paleta-cores.js e do imagens-pdf.js e ANTES do main.js. Usa `estado` e `escapeHtml` só em tempo de chamada.
+// Entrega do PDF: impressao.js. No computador abre a janela de imprimir; no CELULAR abre uma aba nova com o PDF pronto e o
+// botão "Salvar como PDF" (o quadro escondido que funcionava no computador não imprime no celular). Por isso o clique em
+// "Gerar PDF" abre essa aba ANTES de baixar as imagens (senão o navegador do celular bloqueia a aba).
+// Marca no canto da imagem: o cliente escolhe Logo, Ícone ou Nenhuma (o logo/ícone da empresa que o arquiteto configurou).
+//
+// Carregado DEPOIS do paleta-cores.js, do imagens-pdf.js e do impressao.js e ANTES do main.js. Usa `estado` e `escapeHtml` só em tempo de chamada.
 (function () {
   const $ = (id) => document.getElementById(id);
   let gerando = false;
@@ -33,8 +38,23 @@
       caixa.innerHTML = lista.map((a) => `<label class="pdf-linha"><input type="checkbox" data-ambiente="${a.indice}" checked><span class="pdf-nome">${escapeHtml(a.nome)}</span><span class="pdf-qtd">${a.fotos.length} ${a.fotos.length === 1 ? 'imagem' : 'imagens'}</span></label>`).join('');
       $('btnGerarPdfCliente').disabled = false;
     }
+    prepararOpcoesDeMarca();
     $('modalPdfCliente').classList.remove('hidden');
   }
+  // Logo / ícone / nenhuma: só liga a opção que existe. Padrão = o que o cliente já vê nas imagens (o logo, senão o ícone, senão nada).
+  const urlDaMarca = (tipo) => {
+    const g = estado.galeria || {};
+    if (tipo === 'logo') return (g.marcaDagua && g.marcaDagua.url) || null;
+    return (g.iconePersonalizado && (g.iconePersonalizado.urlArquivo || g.iconePersonalizado.url)) || null;
+  };
+  function prepararOpcoesDeMarca() {
+    const temLogo = !!urlDaMarca('logo'), temIcone = !!urlDaMarca('icone');
+    $('radioPdfLogo').disabled = !temLogo; $('radioPdfIcone').disabled = !temIcone;
+    $('pdfMarca').hidden = !temLogo && !temIcone; // sem logo nem ícone cadastrados não há o que escolher
+    const escolha = temLogo ? 'logo' : (temIcone ? 'icone' : 'nenhuma');
+    ['logo', 'icone', 'nenhuma'].forEach((v) => { const r = document.querySelector('input[name="pdfMarca"][value="' + v + '"]'); if (r) r.checked = (v === escolha); });
+  }
+  const marcaEscolhida = () => { const r = document.querySelector('input[name="pdfMarca"]:checked'); return r ? r.value : 'nenhuma'; };
   function fecharModal() { if (!gerando) $('modalPdfCliente').classList.add('hidden'); }
 
   // ---------- preparar imagens (no navegador) ----------
@@ -70,9 +90,9 @@
     return { uri, pixels };
   }
   // Logo: fica em PNG (fundo transparente) e diz se é claro (aí a capa do PDF fica escura, senão o logo some no papel branco).
-  async function prepararLogo(url) {
+  async function prepararLogo(url, ladoMax) {
     const bmp = await carregarBitmap(url);
-    const g = desenhar(bmp, 700);
+    const g = desenhar(bmp, ladoMax || 700);
     const d = g.ctx.getImageData(0, 0, g.canvas.width, g.canvas.height).data;
     let soma = 0, n = 0;
     for (let i = 0; i < d.length; i += 4) { if (d[i + 3] > 128) { soma += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]; n++; } }
@@ -85,10 +105,11 @@
   function nomeDoArquivo(nomeProjeto, d) {
     return `${nomeProjeto} - Imagens do Projeto - ${dois(d.getDate())}-${dois(d.getMonth() + 1)}-${d.getFullYear()} ${dois(d.getHours())}h${dois(d.getMinutes())}`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
-  function mostrarProgresso(texto, feito, total) {
+  function mostrarProgresso(texto, feito, total, sessao) {
     $('pdfProgresso').hidden = false;
     $('pdfProgressoTexto').textContent = texto;
     $('pdfProgressoBarra').style.width = total ? `${Math.round((feito / total) * 100)}%` : '0%';
+    if (sessao) sessao.progresso(texto, total ? feito / total : 0); // a aba do PDF (celular) mostra o mesmo andamento
   }
 
   async function gerar() {
@@ -99,6 +120,7 @@
     const mostrarNomes = $('chkPdfNomes').checked;
     const mostrarPaleta = $('chkPdfPaleta').checked;
     const total = escolhidos.reduce((s, a) => s + a.fotos.length, 0);
+    const sessao = window.Impressao.iniciar(); // NO TOQUE: no celular abre a aba do PDF agora (depois o navegador bloquearia)
     gerando = true;
     $('btnGerarPdfCliente').disabled = true; $('btnCancelarPdfCliente').disabled = true;
     $('pdfMensagem').textContent = '';
@@ -111,7 +133,8 @@
         if (a.capaUrl) { try { capa = (await prepararImagem(a.capaUrl, 2200, 0.9, false)).uri; } catch (e) { capa = null; } }
         const imagens = [];
         for (const f of a.fotos) {
-          mostrarProgresso(`Preparando a imagem ${feitas + 1} de ${total}...`, feitas, total);
+          if (sessao.cancelada()) throw new Error('A aba do PDF foi fechada. Toque em Gerar PDF de novo.');
+          mostrarProgresso(`Preparando a imagem ${feitas + 1} de ${total}...`, feitas, total, sessao);
           try {
             const p = await prepararImagem(f.url, 2000, 0.88, mostrarPaleta);
             imagens.push({ id: f.id, nome: window.nomeParaCliente ? window.nomeParaCliente(f) : f.nomeExibicao, uri: p.uri, paleta: mostrarPaleta ? window.PaletaCores.paletaDominante(p.pixels, 5) : [] });
@@ -123,47 +146,38 @@
       let logo = null, logoClaro = false;
       const urlLogo = g.marcaDagua && g.marcaDagua.ativa !== false ? g.marcaDagua.url : null;
       if (urlLogo) { try { const l = await prepararLogo(urlLogo); logo = l.uri; logoClaro = l.claro; } catch (e) { logo = null; } }
-      mostrarProgresso('Montando o PDF...', total, total);
+      // marca pequena no canto superior direito de cada imagem (logo ou ícone, a escolha do cliente no PDF)
+      let marca = null;
+      const tipoMarca = marcaEscolhida();
+      if (tipoMarca !== 'nenhuma' && urlDaMarca(tipoMarca)) { try { marca = (await prepararLogo(urlDaMarca(tipoMarca), 400)).uri; } catch (e) { marca = null; } }
+      mostrarProgresso('Montando o PDF...', total, total, sessao);
       const agora = new Date(); // o horário da geração: cada PDF baixado tem o seu
       const { html } = window.ImagensPdf.montarHtml({
         nomeProjeto: g.nomeProjeto, dadosProjeto: (g.hub && g.hub.dadosProjeto) || '', escritorio: g.nomeEscritorio || '',
-        logo, logoClaro, ambientes, mostrarNomes, mostrarPaleta, agora
+        logo, logoClaro, marca, ambientes, mostrarNomes, mostrarPaleta, agora
       });
-      await imprimir(html, nomeDoArquivo(g.nomeProjeto, agora));
-      $('pdfMensagem').textContent = falhas ? `${falhas} imagem(ns) não puderam ser carregadas e ficaram de fora.` : '';
-      $('modalPdfCliente').classList.add('hidden');
+      const entrega = await sessao.entregar(html, nomeDoArquivo(g.nomeProjeto, agora));
+      const aviso = falhas ? `${falhas} imagem(ns) não puderam ser carregadas e ficaram de fora.` : '';
+      if (entrega.via === 'toque') {
+        // celular com a aba bloqueada pelo navegador: um botão (o toque libera a abertura)
+        const caixa = $('pdfMensagem');
+        caixa.textContent = 'O PDF está pronto. ' + aviso + ' ';
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'dash-btn-pri'; b.textContent = 'Abrir o PDF';
+        b.addEventListener('click', () => { try { entrega.abrir(); $('modalPdfCliente').classList.add('hidden'); } catch (e) { caixa.textContent = e.message; } });
+        caixa.appendChild(b);
+      } else {
+        $('pdfMensagem').textContent = aviso;
+        $('modalPdfCliente').classList.add('hidden');
+      }
     } catch (e) {
+      sessao.fechar();
       $('pdfMensagem').textContent = e.message || 'Não consegui gerar o PDF.';
     } finally {
       gerando = false;
       $('btnGerarPdfCliente').disabled = false; $('btnCancelarPdfCliente').disabled = false;
       $('pdfProgresso').hidden = true;
     }
-  }
-
-  // Abre a janela de imprimir com o PDF montado num quadro escondido; o nome sugerido do arquivo vem do título da página.
-  function imprimir(html, tituloArquivo) {
-    return new Promise((resolve, reject) => {
-      const quadro = document.createElement('iframe');
-      quadro.setAttribute('aria-hidden', 'true');
-      quadro.style.cssText = 'position:fixed; right:0; bottom:0; width:0; height:0; border:0; visibility:hidden;';
-      const tituloAntes = document.title;
-      const limpar = () => { document.title = tituloAntes; setTimeout(() => quadro.remove(), 500); };
-      quadro.onload = async () => {
-        try {
-          const doc = quadro.contentDocument;
-          await Promise.all([...doc.images].map((im) => (im.decode ? im.decode().catch(() => {}) : Promise.resolve())));
-          document.title = tituloArquivo;
-          quadro.contentWindow.addEventListener('afterprint', limpar, { once: true });
-          setTimeout(limpar, 10 * 60 * 1000); // garantia
-          quadro.contentWindow.focus();
-          quadro.contentWindow.print();
-          resolve();
-        } catch (e) { limpar(); reject(new Error('Não consegui abrir a janela de impressão. Tente de novo.')); }
-      };
-      document.body.appendChild(quadro);
-      quadro.srcdoc = html;
-    });
   }
 
   // ---------- ligações ----------

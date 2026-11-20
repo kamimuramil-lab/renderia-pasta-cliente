@@ -177,6 +177,88 @@ const portaLivre = () => new Promise((resolve, reject) => {
     assert.strictEqual((await api('GET', `/api/cliente/${linkA1}/galeria`, { cliente: tokCli2 })).json.nomeEscritorio, '', 'vazio = sem "Projeto por"');
     ok('nome do escritório: validado, por conta, chega ao cliente');
 
+    console.log('== 9. Contatos do escritório (WhatsApp, e-mail, Instagram): normalizados, por conta, chegam ao cliente ==');
+    r = await api('PUT', '/api/app/perfil/nome', { sessao: 'tokA', corpo: { nome: 'Escritório A', whatsapp: '(11) 91234-5678', email: '  Contato@Escritorio.COM ', instagram: 'https://www.instagram.com/escritorio.a/?hl=pt' } });
+    assert.deepStrictEqual([r.status, r.json.contatos], [200, { whatsapp: '5511912345678', email: 'contato@escritorio.com', instagram: 'escritorio.a' }], 'WhatsApp com o 55, e-mail minúsculo, Instagram só o @');
+    r = await api('GET', `/api/cliente/${linkA1}/galeria`, { cliente: tokCli2 });
+    assert.deepStrictEqual(r.json.contatosEscritorio, { whatsapp: '5511912345678', email: 'contato@escritorio.com', instagram: 'escritorio.a' }, 'o cliente recebe os contatos');
+    // app antigo (só manda o nome) NÃO apaga os contatos
+    await api('PUT', '/api/app/perfil/nome', { sessao: 'tokA', corpo: { nome: 'Escritório A2' } });
+    r = await api('GET', `/api/cliente/${linkA1}/galeria`, { cliente: tokCli2 });
+    assert.strictEqual(r.json.nomeEscritorio, 'Escritório A2');
+    assert.strictEqual(r.json.contatosEscritorio.whatsapp, '5511912345678', 'chamada só com o nome mantém os contatos');
+    // "@perfil" e "+55 11..." também valem; lixo é recusado SEM gravar nada
+    r = await api('PUT', '/api/app/perfil/nome', { sessao: 'tokA', corpo: { instagram: '@meu_perfil', whatsapp: '+55 (21) 98888-7777' } });
+    assert.deepStrictEqual([r.json.contatos.instagram, r.json.contatos.whatsapp], ['meu_perfil', '5521988887777']);
+    for (const ruim of [{ whatsapp: '123' }, { whatsapp: 'abc' }, { email: 'sem-arroba' }, { instagram: 'tem espaço' }, { instagram: 'a'.repeat(31) }, { email: 5 }]) {
+      assert.strictEqual((await api('PUT', '/api/app/perfil/nome', { sessao: 'tokA', corpo: Object.assign({ nome: 'Nome que não pode gravar' }, ruim) })).status, 400, JSON.stringify(ruim));
+    }
+    r = await api('GET', `/api/cliente/${linkA1}/galeria`, { cliente: tokCli2 });
+    assert.strictEqual(r.json.nomeEscritorio, 'Escritório A2', 'recusa não gravou nem o nome');
+    assert.strictEqual(r.json.contatosEscritorio.instagram, 'meu_perfil');
+    assert.deepStrictEqual((await api('GET', `/api/cliente/${linkB1}/galeria`, { cliente: tokCliB })).json.contatosEscritorio, { whatsapp: '', email: '', instagram: '' }, 'a conta B não herda os contatos da A');
+    // vazio apaga
+    r = await api('PUT', '/api/app/perfil/nome', { sessao: 'tokA', corpo: { whatsapp: '', email: '', instagram: '' } });
+    assert.deepStrictEqual(r.json.contatos, { whatsapp: '', email: '', instagram: '' });
+    ok('contatos: normalizados, validados sem gravar pela metade, preservados pelo app antigo, por conta');
+
+    console.log('== 10. Listas da conta: arquitetos ficam registrados; tipos e situações novos; remover só o que ninguém usa ==');
+    const tokD = (await api('POST', `/api/dashboard/${linkDashA}/login`, { corpo: { senha: 'novasenha9' } })).json.token;
+    r = await api('GET', `/api/dashboard/${linkDashA}/projetos`, { dash: tokD });
+    const nomesDe = (lista) => lista.map((x) => x.nome);
+    assert.deepStrictEqual(nomesDe(r.json.catalogo.tipos), ['Interiores', 'Arquitetura'], 'tipos padrão');
+    assert.deepStrictEqual(r.json.catalogo.situacoes.map((s) => s.id), ['andamento', 'concluido'], 'situações padrão');
+    assert.ok(r.json.catalogo.arquitetos.some((a) => a.nome === 'Adrielle S.' && a.usos === 1), 'quem já está num projeto já aparece, com a contagem de uso');
+    // arquiteto novo cadastrado direto (sem projeto) fica registrado
+    r = await api('POST', `/api/dashboard/${linkDashA}/catalogo`, { dash: tokD, corpo: { lista: 'arquitetos', nome: '  Beatriz   L. ' } });
+    assert.deepStrictEqual([r.status, r.json.adicionado, r.json.nome], [200, true, 'Beatriz L.']);
+    r = await api('POST', `/api/dashboard/${linkDashA}/catalogo`, { dash: tokD, corpo: { lista: 'arquitetos', nome: 'beatriz l.' } });
+    assert.strictEqual(r.json.adicionado, false, 'mesma pessoa com outra caixa de letras não duplica');
+    assert.strictEqual(r.json.catalogo.arquitetos.filter((a) => a.nome.toLowerCase() === 'beatriz l.').length, 1);
+    // ao salvar um projeto com nome novo, ele passa a ficar registrado MESMO depois de sair do projeto
+    await api('PUT', `/api/dashboard/${linkDashA}/projetos/pA2/meta`, { dash: tokD, corpo: { arquitetos: ['Carla Z.'] } });
+    await api('PUT', `/api/dashboard/${linkDashA}/projetos/pA2/meta`, { dash: tokD, corpo: { arquitetos: [] } });
+    r = await api('GET', `/api/app/dashboard/projetos`, { sessao: 'tokA' });
+    assert.ok(r.json.catalogo.arquitetos.some((a) => a.nome === 'Carla Z.' && a.usos === 0), 'o nome continua na lista (usos 0) depois de tirado do projeto');
+    // o nome escrito com outra caixa de letras usa a escrita já cadastrada
+    r = await api('PUT', `/api/dashboard/${linkDashA}/projetos/pA2/meta`, { dash: tokD, corpo: { arquitetos: ['carla z.'] } });
+    assert.deepStrictEqual(r.json.meta.arquitetos, ['Carla Z.']);
+    // tipo e situação novos
+    assert.strictEqual((await api('PUT', `/api/dashboard/${linkDashA}/projetos/pA2/meta`, { dash: tokD, corpo: { tipo: 'Paisagismo' } })).status, 400, 'tipo que não existe na lista ainda é recusado');
+    r = await api('POST', `/api/dashboard/${linkDashA}/catalogo`, { dash: tokD, corpo: { lista: 'tipos', nome: 'Paisagismo' } });
+    assert.strictEqual(r.json.adicionado, true);
+    r = await api('POST', `/api/app/dashboard/catalogo`, { sessao: 'tokA', corpo: { lista: 'situacoes', nome: 'Aguardando cliente' } });
+    const idSit = r.json.id;
+    assert.ok(/^sit_[0-9a-f]{6}$/.test(idSit), 'id novo para a situação');
+    r = await api('PUT', `/api/dashboard/${linkDashA}/projetos/pA2/meta`, { dash: tokD, corpo: { tipo: 'paisagismo', situacao: idSit } });
+    assert.deepStrictEqual([r.status, r.json.meta.tipo, r.json.meta.situacao], [200, 'Paisagismo', idSit]);
+    r = await api('GET', `/api/dashboard/${linkDashA}/projetos`, { dash: tokD });
+    assert.strictEqual(r.json.projetos.find((p) => p.projetoId === 'pA2').meta.situacao, idSit);
+    assert.deepStrictEqual(r.json.catalogo.situacoes.find((s) => s.id === idSit), { id: idSit, nome: 'Aguardando cliente', padrao: false, usos: 1 });
+    assert.strictEqual((await api('PUT', `/api/dashboard/${linkDashA}/projetos/pA2/meta`, { dash: tokD, corpo: { situacao: 'sit_ffffff' } })).status, 400, 'situação inventada');
+    // remover: item em uso e itens padrão não saem; item sem uso sai
+    assert.strictEqual((await api('POST', `/api/dashboard/${linkDashA}/catalogo/remover`, { dash: tokD, corpo: { lista: 'situacoes', chave: idSit } })).status, 400, 'em uso');
+    assert.strictEqual((await api('POST', `/api/dashboard/${linkDashA}/catalogo/remover`, { dash: tokD, corpo: { lista: 'tipos', chave: 'Paisagismo' } })).status, 400, 'em uso');
+    assert.strictEqual((await api('POST', `/api/dashboard/${linkDashA}/catalogo/remover`, { dash: tokD, corpo: { lista: 'tipos', chave: 'Interiores' } })).status, 400, 'padrão');
+    assert.strictEqual((await api('POST', `/api/dashboard/${linkDashA}/catalogo/remover`, { dash: tokD, corpo: { lista: 'situacoes', chave: 'andamento' } })).status, 400, 'padrão');
+    r = await api('POST', `/api/dashboard/${linkDashA}/catalogo/remover`, { dash: tokD, corpo: { lista: 'arquitetos', chave: 'Beatriz L.' } });
+    assert.strictEqual(r.status, 200);
+    assert.ok(!r.json.catalogo.arquitetos.some((a) => a.nome === 'Beatriz L.'), 'sem uso: sai da lista');
+    // voltar o projeto para a situação padrão libera a remoção da situação nova
+    await api('PUT', `/api/dashboard/${linkDashA}/projetos/pA2/meta`, { dash: tokD, corpo: { tipo: '', situacao: 'andamento' } });
+    assert.strictEqual((await api('POST', `/api/dashboard/${linkDashA}/catalogo/remover`, { dash: tokD, corpo: { lista: 'situacoes', chave: idSit } })).status, 200);
+    assert.strictEqual((await api('POST', `/api/dashboard/${linkDashA}/catalogo/remover`, { dash: tokD, corpo: { lista: 'tipos', chave: 'Paisagismo' } })).status, 200);
+    // validações e isolamento
+    assert.strictEqual((await api('POST', `/api/dashboard/${linkDashA}/catalogo`, { dash: tokD, corpo: { lista: 'outra', nome: 'x' } })).status, 400, 'lista inválida');
+    assert.strictEqual((await api('POST', `/api/dashboard/${linkDashA}/catalogo`, { dash: tokD, corpo: { lista: 'tipos', nome: '   ' } })).status, 400, 'nome vazio');
+    assert.strictEqual((await api('POST', `/api/dashboard/${linkDashA}/catalogo`, { dash: tokD, corpo: { lista: 'tipos', nome: 'x'.repeat(41) } })).status, 400, 'nome longo');
+    assert.strictEqual((await api('POST', `/api/dashboard/${linkDashA}/catalogo`, { corpo: { lista: 'tipos', nome: 'Sem sessão' } })).status, 401, 'sem login do dashboard');
+    assert.strictEqual((await api('POST', '/api/app/dashboard/catalogo', { sessao: 'tokBasico', corpo: { lista: 'tipos', nome: 'Sem recurso' } })).status, 403, 'licença sem o recurso');
+    r = await api('GET', `/api/dashboard/${linkDashB}/projetos`, { dash: tokB });
+    assert.ok(!r.json.catalogo.arquitetos.some((a) => a.nome === 'Carla Z.' || a.nome === 'Adrielle S.'), 'a conta B não vê os nomes da A');
+    assert.deepStrictEqual(nomesDe(r.json.catalogo.tipos), ['Interiores', 'Arquitetura']);
+    ok('listas: arquitetos registrados, tipos/situações novos, remoção só do que não está em uso, isolamento entre contas');
+
     console.log('\nTODOS OS TESTES DO DASHBOARD PASSARAM');
     encerrar();
   } catch (e) {

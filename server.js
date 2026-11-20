@@ -245,8 +245,10 @@ async function galeriaComUrls(galeriaObj) {
     memorialCliente = { ...m, itens: await Promise.all(m.itens.map(async ({ fotoR2Key, ...i }) => ({ ...i, fotoUrl: fotoR2Key ? await storage.urlTemporaria(fotoR2Key) : null }))) };
   }
   const { clienteSenhaHash, sessoesClienteAtivas, orcamentos, recursosAtivos, memorial, ...resto } = galeriaObj;
-  const nomeEscritorio = galeria.nomeEscritorioDaLicenca(galeria.lerEstado(CAMINHO_DADOS), galeriaObj.licencaUsuario);
-  return { ...resto, categorias, plantas, fotos, marcaDagua, iconePersonalizado, hub, novoVisual, nomeEscritorio, memorial: memorialCliente };
+  const estadoPerfil = galeria.lerEstado(CAMINHO_DADOS);
+  const nomeEscritorio = galeria.nomeEscritorioDaLicenca(estadoPerfil, galeriaObj.licencaUsuario);
+  const contatosEscritorio = galeria.contatosEscritorioDaLicenca(estadoPerfil, galeriaObj.licencaUsuario);
+  return { ...resto, categorias, plantas, fotos, marcaDagua, iconePersonalizado, hub, novoVisual, nomeEscritorio, contatosEscritorio, memorial: memorialCliente };
 }
 
 app.get('/saude', (req, res) => res.json({ ok: true, servico: 'renderia-pasta-cliente' }));
@@ -442,10 +444,15 @@ function rotaRemoverPerfil(tipo) {
     }
   };
 }
-// Nome do escritório (aparece no "Projeto por:" do PDF das imagens). Chamado pelo app ao salvar as Configurações.
+// Nome e contatos do escritório (nome no "Projeto por:" do PDF das imagens; WhatsApp/e-mail/Instagram no rodapé e no balão de
+// ajuda da Pasta do Cliente). Chamado pelo app ao salvar as Configurações. O que não vier na chamada fica como está (app antigo
+// só manda o nome).
 app.put('/api/app/perfil/nome', exigirSessaoArquiteto, (req, res) => {
-  try { res.json({ ok: true, nomeEscritorio: galeria.definirNomeEscritorio(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).nome) }); }
-  catch (e) { res.status(400).json({ erro: e.message }); }
+  try {
+    const { nome, whatsapp, email, instagram } = req.body || {};
+    const r = galeria.definirDadosEscritorio(CAMINHO_DADOS, req.licencaUsuario, { nome, whatsapp, email, instagram });
+    res.json({ ok: true, nomeEscritorio: r.nomeEscritorio, contatos: r.contatos });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
 });
 app.post('/api/app/perfil/icone', exigirSessaoArquiteto, upload.single('arquivo'), rotaEnviarPerfil('icone'));
 app.post('/api/app/perfil/marca', exigirSessaoArquiteto, upload.single('arquivo'), rotaEnviarPerfil('marca'));
@@ -810,7 +817,13 @@ function exigirSessaoOrcamento(req, res, next) {
 const rotaOrcCliente = (fn) => (req, res) => {
   try { res.json(Object.assign({ ok: true }, fn(req))); } catch (e) { res.status(400).json({ erro: e.message }); }
 };
-app.get('/api/orcamentos/:linkToken/itens', exigirSessaoOrcamento, rotaOrcCliente((req) => orcLib.listarParaCliente(CAMINHO_DADOS, req.params.linkToken)));
+app.get('/api/orcamentos/:linkToken/itens', exigirSessaoOrcamento, rotaOrcCliente((req) => {
+  const lista = orcLib.listarParaCliente(CAMINHO_DADOS, req.params.linkToken);
+  const g = orcamentosDisponiveis(req.params.linkToken);
+  const estadoPerfil = galeria.lerEstado(CAMINHO_DADOS);
+  // nome e contatos do escritório: alimentam o balão de ajuda (atalho do WhatsApp) da página de orçamentos
+  return Object.assign(lista, g ? { nomeEscritorio: galeria.nomeEscritorioDaLicenca(estadoPerfil, g.licencaUsuario), contatosEscritorio: galeria.contatosEscritorioDaLicenca(estadoPerfil, g.licencaUsuario) } : {});
+}));
 app.put('/api/orcamentos/:linkToken/itens/:itemId/status', exigirSessaoOrcamento, rotaOrcCliente((req) => orcLib.mudarStatusCliente(CAMINHO_DADOS, req.params.linkToken, req.params.itemId, (req.body || {}).status)));
 app.post('/api/orcamentos/:linkToken/itens/:itemId/comentarios', exigirSessaoOrcamento, rotaOrcCliente((req) => ({ comentario: orcLib.comentarCliente(CAMINHO_DADOS, req.params.linkToken, req.params.itemId, (req.body || {}).texto) })));
 
@@ -919,8 +932,11 @@ app.get('/api/dashboard/:linkDash/projetos', exigirSessaoDashboard, rotaDash(asy
   const projetos = await Promise.all(dashLib.listarProjetos(CAMINHO_DADOS, req.licencaConta).map(async ({ capaR2Key, ...p }) => ({ ...p, capaUrl: capaR2Key ? await storage.urlTemporaria(capaR2Key) : null })));
   const perfil = galeria.resolverPersonalizacao(galeria.lerEstado(CAMINHO_DADOS), { licencaUsuario: req.licencaConta });
   const iconeUrl = (perfil.iconeR2Key) ? await storage.urlTemporaria(perfil.iconeR2Key) : null;
-  return { projetos, iconeUrl };
+  return { projetos, iconeUrl, catalogo: dashLib.catalogoDaConta(CAMINHO_DADOS, req.licencaConta) };
 }));
+// Listas da conta (arquitetos, tipos, situações): cadastrar um nome novo / remover um que ninguém usa. Valem pra todos os projetos.
+app.post('/api/dashboard/:linkDash/catalogo', exigirSessaoDashboard, rotaDash((req) => dashLib.adicionarAoCatalogo(CAMINHO_DADOS, req.licencaConta, (req.body || {}).lista, (req.body || {}).nome)));
+app.post('/api/dashboard/:linkDash/catalogo/remover', exigirSessaoDashboard, rotaDash((req) => dashLib.removerDoCatalogo(CAMINHO_DADOS, req.licencaConta, (req.body || {}).lista, (req.body || {}).chave)));
 app.put('/api/dashboard/:linkDash/projetos/:projetoId/meta', exigirSessaoDashboard, rotaDash((req) => ({ meta: dashLib.definirMeta(CAMINHO_DADOS, req.licencaConta, req.params.projetoId, req.body || {}) })));
 app.post('/api/dashboard/:linkDash/projetos/:projetoId/abrir', exigirSessaoDashboard, rotaDash((req) => dashLib.abrirComoEscritorio(CAMINHO_DADOS, req.licencaConta, req.params.projetoId)));
 
@@ -928,8 +944,11 @@ app.post('/api/dashboard/:linkDash/projetos/:projetoId/abrir', exigirSessaoDashb
 app.get('/api/app/dashboard', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => dashLib.infoDaConta(CAMINHO_DADOS, req.licencaUsuario)));
 app.put('/api/app/dashboard/senha', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => dashLib.definirSenha(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).senha)));
 app.get('/api/app/dashboard/projetos', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => ({
-  projetos: dashLib.listarProjetos(CAMINHO_DADOS, req.licencaUsuario).map(({ projetoId, nome, meta }) => ({ projetoId, nome, meta }))
+  projetos: dashLib.listarProjetos(CAMINHO_DADOS, req.licencaUsuario).map(({ projetoId, nome, meta }) => ({ projetoId, nome, meta })),
+  catalogo: dashLib.catalogoDaConta(CAMINHO_DADOS, req.licencaUsuario)
 })));
+app.post('/api/app/dashboard/catalogo', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => dashLib.adicionarAoCatalogo(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).lista, (req.body || {}).nome)));
+app.post('/api/app/dashboard/catalogo/remover', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => dashLib.removerDoCatalogo(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).lista, (req.body || {}).chave)));
 app.put('/api/app/galeria/:projetoId/meta', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => ({ meta: dashLib.definirMeta(CAMINHO_DADOS, req.licencaUsuario, req.params.projetoId, req.body || {}) })));
 
 app.listen(PORTA, () => console.log(`Servidor da Pasta do Cliente rodando na porta ${PORTA}`));

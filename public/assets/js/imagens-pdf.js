@@ -1,8 +1,10 @@
 // lib/imagens-pdf.js
 // Monta o HTML do PDF das IMAGENS do projeto (nov/2026), pensado pra ficar bonito: capa do projeto, uma capa elegante pra
 // cada ambiente (a foto de capa do ambiente em tela cheia, ou só o nome em tipografia quando não há capa) e uma página por
-// imagem, com a paleta das 5 cores mais predominantes numa FAIXA VERTICAL ao lado da foto (a foto fica com mais espaço),
-// o nome do escritório ("Projeto por: ..."), o aviso de direitos autorais e a DATA E HORA em que o PDF foi gerado.
+// imagem, com a paleta das 5 cores mais predominantes numa FAIXA VERTICAL ao lado da foto. Rodapé enxuto pra foto e a paleta
+// ocuparem o máximo da folha: embaixo à ESQUERDA só o ambiente e o nome da imagem; embaixo à DIREITA a data e o horário em que o PDF
+// foi gerado e o aviso de direitos autorais. O nome do escritório ("Projeto por: ...") fica na capa do projeto. Opcionalmente uma
+// marca (logo ou ícone) pequena e discreta no canto superior direito de cada imagem.
 // Lógica PURA (sem Electron, sem rede, sem require obrigatório): roda no app (main.js, printToPDF) e na página do cliente
 // (navegador, "Baixar PDF"). Quem chama baixa as imagens, tira a paleta (paleta-cores.js) e passa tudo como data URI.
 // Imagens 360° nunca entram (quem chama filtra). Sem I.A., sem token, sem custo.
@@ -70,22 +72,25 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
 .capa-ambiente.sem-foto .fio { width: 26mm; height: 1px; background: #b79d62; margin: 0 auto 6mm; }
 .capa-ambiente.sem-foto .contagem { color: #7b7567; }
 
-/* página da imagem: a foto + a FAIXA VERTICAL de cores ao lado (as cores ocupam a altura da foto, na proporção de cada uma) */
+/* página da imagem: a foto + a FAIXA VERTICAL de cores ao lado (as cores ocupam a altura da foto, na proporção de cada uma).
+   A foto e a paleta usam quase a folha toda: só uma linha de rodapé embaixo. */
 .pagina-imagem { background: #fff; }
-.pagina-imagem .area { position: absolute; left: 11mm; top: 9mm; width: 275mm; height: 177mm; display: flex; align-items: center; justify-content: center; }
-.pagina-imagem .grupo { display: flex; align-items: stretch; gap: 4.5mm; max-width: 100%; max-height: 100%; }
-.pagina-imagem .grupo img { display: block; width: auto; height: auto; max-width: 244mm; max-height: 177mm; }
-.pagina-imagem .grupo.sem-paleta img { max-width: 275mm; }
-.paleta-v { width: 24mm; display: flex; flex-direction: column; gap: .7mm; border-radius: 2.4mm; overflow: hidden; flex-shrink: 0; }
+.pagina-imagem .area { position: absolute; left: 8mm; top: 7mm; width: 281mm; height: 188mm; display: flex; align-items: center; justify-content: center; }
+.pagina-imagem .grupo { display: flex; align-items: flex-start; gap: 4mm; max-width: 100%; max-height: 100%; }
+.pagina-imagem .foto { position: relative; display: block; flex: 0 0 auto; line-height: 0; }
+.pagina-imagem .foto img.principal { display: block; width: auto; height: auto; max-width: 253mm; max-height: 188mm; }
+.pagina-imagem .grupo.sem-paleta .foto img.principal { max-width: 281mm; }
+.pagina-imagem .foto img.marca { position: absolute; top: 2.4%; right: 2%; width: auto; height: auto; max-width: 14%; max-height: 11%; object-fit: contain; opacity: .94; }
+.paleta-v { align-self: stretch; width: 24mm; display: flex; flex-direction: column; gap: .7mm; border-radius: 2.4mm; overflow: hidden; flex-shrink: 0; }
 .paleta-v .cor { flex-basis: 0; min-height: 13mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .paleta-v .hex { font-size: 6.4pt; font-weight: 700; letter-spacing: .05em; }
 .paleta-v .pct { margin-top: .6mm; font-size: 5.8pt; letter-spacing: .04em; opacity: .78; }
-.pagina-imagem .rodape { position: absolute; left: 11mm; top: 190mm; width: 215mm; }
+.pagina-imagem .rodape-esq { position: absolute; left: 8mm; bottom: 5mm; width: 170mm; }
 .pagina-imagem .ambiente { font-size: 7.6pt; letter-spacing: .26em; text-transform: uppercase; color: #9a8650; }
-.pagina-imagem .linha-nome { margin-top: 1.4mm; font-size: 10.5pt; color: #333; overflow-wrap: anywhere; }
-.pagina-imagem .linha-nome .autoria { color: #6a6a6a; }
-.pagina-imagem .linha-nome .nome + .autoria { margin-left: 4mm; padding-left: 4mm; border-left: 1px solid #d6cfbd; }
-.pagina-imagem .aviso { margin-top: 1.2mm; font-size: 6.6pt; color: #9a9a9a; letter-spacing: .02em; }
+.pagina-imagem .linha-nome { margin-top: 1.2mm; font-size: 10.5pt; color: #333; overflow-wrap: anywhere; }
+.pagina-imagem .rodape-dir { position: absolute; right: 8mm; bottom: 5mm; width: 100mm; text-align: right; }
+.pagina-imagem .data-geracao { font-size: 6.8pt; letter-spacing: .05em; color: #8a8a8a; }
+.pagina-imagem .aviso { margin-top: 1mm; font-size: 6.6pt; color: #9a9a9a; letter-spacing: .02em; }
 `;
 
   // Faixa vertical: cada cor ocupa uma fatia da altura proporcional ao quanto aparece na foto (com um mínimo pra caber o texto).
@@ -100,7 +105,8 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
     }).join('')}</div>`;
   }
 
-  // opcoes: { nomeProjeto, dadosProjeto, escritorio (nome do escritório; vazio = sem "Projeto por"), logo (data URI), logoClaro, mostrarNomes,
+  // opcoes: { nomeProjeto, dadosProjeto, escritorio (nome do escritório na capa; vazio = sem "Projeto por"), logo (data URI da capa), logoClaro,
+  //   marca (data URI do logo OU do ícone que vai pequeno no canto superior direito de cada imagem; vazio = sem marca), mostrarNomes,
   //   mostrarPaleta (padrão true), agora (Date; padrão = o momento da geração), ambientes: [{ nome, capa (data URI|null),
   //   imagens: [{ id, nome, uri (data URI), paleta: [{hex, rgb, pct}] }] }] }
   // -> { html, totalImagens, ambientesIncluidos, geradoEm }  (lança erro se não houver nenhuma imagem)
@@ -114,6 +120,7 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
     if (!total) throw new Error('Não há imagens (fora as 360°) para gerar o PDF com essa seleção.');
     const agora = o.agora instanceof Date ? o.agora : new Date();
     const logo = imagemSegura(o.logo);
+    const marca = imagemSegura(o.marca);
     const escritorio = String(o.escritorio || '').trim();
     const carimbo = `<div class="carimbo">PDF gerado em ${esc(dataHoraCurta(agora))}</div>`;
 
@@ -135,10 +142,10 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
         : `<section class="pagina capa-ambiente sem-foto"><div class="texto"><div class="rotulo">${esc(rotulo)}</div><div class="nome">${esc(a.nome)}</div><div class="fio"></div><div class="contagem">${contagem}</div></div>${carimbo}</section>`);
       a.imagens.forEach((im) => {
         const paleta = mostrarPaleta ? paletaHtml(im.paleta) : '';
-        const nome = o.mostrarNomes && im.nome ? `<span class="nome">${esc(im.nome)}</span>` : '';
-        const autoria = escritorio ? `<span class="autoria">Projeto por: ${esc(escritorio)}</span>` : '';
-        paginas.push(`<section class="pagina pagina-imagem"><div class="area"><div class="grupo${paleta ? '' : ' sem-paleta'}"><img src="${imagemSegura(im.uri)}" alt="">${paleta}</div></div>
-        <div class="rodape"><div class="ambiente">${esc(a.nome)}</div>${nome || autoria ? `<div class="linha-nome">${nome}${autoria}</div>` : ''}<div class="aviso">${esc(AVISO_AUTORAL)}</div></div>${carimbo}</section>`);
+        const nome = o.mostrarNomes && im.nome ? `<div class="linha-nome"><span class="nome">${esc(im.nome)}</span></div>` : '';
+        paginas.push(`<section class="pagina pagina-imagem"><div class="area"><div class="grupo${paleta ? '' : ' sem-paleta'}"><span class="foto"><img class="principal" src="${imagemSegura(im.uri)}" alt="">${marca ? `<img class="marca" src="${marca}" alt="">` : ''}</span>${paleta}</div></div>
+        <div class="rodape-esq"><div class="ambiente">${esc(a.nome)}</div>${nome}</div>
+        <div class="rodape-dir"><div class="data-geracao">PDF gerado em ${esc(dataHoraCurta(agora))}</div><div class="aviso">${esc(AVISO_AUTORAL)}</div></div></section>`);
       });
     });
 

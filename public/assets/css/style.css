@@ -553,37 +553,7 @@ body.visual-novo .btn-tema{ display:flex; }
 .mem-acoes{ display:flex; align-items:center; gap:10px; }
 .mem-acoes select{ background:var(--bg-elev); color:var(--text); border:1px solid var(--line); border-radius:999px; padding:9px 14px; font:inherit; font-size:13px; max-width:46vw; }
 .mem-acoes .hub-doc-abrir{ border:0; cursor:pointer; font:inherit; font-size:13px; font-weight:700; }
-.mem-impressao-cabecalho{ display:none; }
 @media (max-width:480px){ .mem-acoes{ width:100%; } .mem-acoes select{ flex:1; max-width:none; } }
-@media print{
-  @page{ size:A4 landscape; margin:10mm; }
-  body.imprimindo-memorial > *:not(#telaHub){ display:none !important; }
-  body.imprimindo-memorial #telaHub .topo-galeria, body.imprimindo-memorial .mem-barra, body.imprimindo-memorial .hub-aviso{ display:none !important; }
-  body.imprimindo-memorial, body.imprimindo-memorial #telaHub{ background:#fff !important; color:#1c1c1c !important; }
-  body.imprimindo-memorial #telaHub .hub-wrap{ max-width:none !important; padding:0 !important; }
-  body.imprimindo-memorial .mem-impressao-cabecalho{ display:flex !important; align-items:center; gap:16px; margin-bottom:6mm; border-bottom:2px solid #1c1c1c; padding-bottom:4mm; }
-  body.imprimindo-memorial .mem-impressao-cabecalho img{ max-height:16mm; max-width:50mm; object-fit:contain; }
-  body.imprimindo-memorial .mem-imp-titulo{ font-size:15pt; letter-spacing:.14em; font-weight:300; }
-  body.imprimindo-memorial .mem-imp-projeto{ font-size:12pt; font-weight:700; }
-  body.imprimindo-memorial .mem-imp-data{ font-size:8.5pt; color:#777; }
-  body.imprimindo-memorial .mem-oculto{ display:none !important; }
-  /* garante a tabela de verdade no papel (nada de cartões) */
-  body.imprimindo-memorial .mem-tabela{ display:table !important; width:100% !important; table-layout:auto; }
-  body.imprimindo-memorial .mem-tabela thead{ display:table-header-group !important; }
-  body.imprimindo-memorial .mem-tabela tbody{ display:table-row-group !important; }
-  body.imprimindo-memorial .mem-tabela tr{ display:table-row !important; padding:0 !important; margin:0 !important; border:0 !important; background:none !important; }
-  body.imprimindo-memorial .mem-tabela th, body.imprimindo-memorial .mem-tabela td{ display:table-cell !important; width:auto !important; padding:5px 6px !important; vertical-align:top; }
-  body.imprimindo-memorial .mem-tabela td::before{ content:none !important; display:none !important; }
-  body.imprimindo-memorial .mem-setor{ break-inside:auto; margin-bottom:6mm; }
-  body.imprimindo-memorial .mem-tabela{ background:#fff !important; border:1px solid #bbb !important; color:#1c1c1c !important; font-size:8.5pt; }
-  body.imprimindo-memorial .mem-tabela th{ background:#ececec !important; color:#444 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  body.imprimindo-memorial .mem-tabela td{ border-color:#d4d4d4 !important; color:#1c1c1c !important; }
-  body.imprimindo-memorial .mem-tabela tr{ break-inside:avoid; }
-  body.imprimindo-memorial .mem-tabela thead{ display:table-header-group; }
-  body.imprimindo-memorial .hub-grupo h2{ color:#1c1c1c !important; }
-  body.imprimindo-memorial .mem-foto{ border-color:#ccc !important; width:20mm; height:20mm; }
-  body.imprimindo-memorial .mem-col-item a{ color:#1c1c1c !important; text-decoration:none; }
-}
 
 /* Orçamentos: decisão do cliente com botões claros */
 .orc-decisao{ display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin-top:14px; padding-top:12px; border-top:1px dashed var(--line); }
@@ -680,7 +650,6 @@ body.visual-novo .btn-tema{ display:flex; }
 .orc-c-acoes{ flex-direction:row; flex-wrap:wrap; align-items:center; gap:8px; }
 .orc-botao, .orc-botao.aprovar, .orc-botao.recusar{ font-size:13.5px; padding:6px 13px; line-height:1.3; }
 .orc-selo{ font-size:12.5px; padding:5px 11px; }
-@media print{ body.imprimindo-memorial .mem-imp-projeto{ font-size:30pt !important; line-height:1.1; margin:2mm 0 4mm; } }
 .orc-cab, .orc-row{ grid-template-columns:56px minmax(210px, 1.15fr) 150px minmax(160px, 1fr) minmax(430px, 1.7fr); gap:8px 18px; }
 @media (max-width:980px){ .orc-cab{ display:none; } .orc-row{ grid-template-columns:44px 1fr; } }
 .orc-cab, .orc-row{ grid-template-columns:56px minmax(210px, 1.1fr) 150px minmax(140px, .9fr) minmax(560px, 1.9fr); }
@@ -942,3 +911,91 @@ body.modo-escritorio #btnAprovarFoto, body.modo-escritorio #btnAlternarDesenho, 
   background:rgba(20,22,24,.86); color:var(--steel-100); font-size:11px; font-weight:800; letter-spacing:.02em; text-transform:uppercase;
   line-height:1.25; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none;
 }
+
+/* ===================== Novidades (bolinha), rodapé do escritório, balão de ajuda, PDF, dashboard (nov/2026) ===================== */
+
+/* Bolinha com número no canto do cartão do hub: o que mudou desde a última visita */
+.hub-card{ position:relative; }
+.hub-bolinha{
+  position:absolute; top:10px; right:10px; min-width:24px; height:24px; padding:0 7px; border-radius:999px;
+  background:#e5372e; color:#fff; font-size:13px; font-weight:800; line-height:24px; text-align:center; letter-spacing:0;
+  box-shadow:0 0 0 3px var(--bg-elev), 0 2px 8px rgba(229,55,46,.5); animation:hub-bolinha-pulso 2s ease-out 3;
+}
+.hub-bolinha-leitor{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+@keyframes hub-bolinha-pulso{ 0%{ box-shadow:0 0 0 3px var(--bg-elev), 0 0 0 3px rgba(229,55,46,.7); } 70%{ box-shadow:0 0 0 3px var(--bg-elev), 0 0 0 11px rgba(229,55,46,0); } 100%{ box-shadow:0 0 0 3px var(--bg-elev), 0 0 0 11px rgba(229,55,46,0); } }
+/* "NOVO" / "ATUALIZADO" dentro da aba, ao lado do item */
+.hub-novo{ display:inline-block; margin-left:8px; padding:2px 8px; border-radius:999px; background:#e5372e; color:#fff; font-size:10.5px; font-weight:800; letter-spacing:.05em; vertical-align:middle; font-family:'Inter',sans-serif; }
+
+/* No celular (cartões em UMA coluna) o Memorial de itens fica logo abaixo do Projeto executivo, antes das Fotos */
+@media (max-width:519px){
+  .hub-card[data-card="memorial"]{ order:4; }
+  .hub-card[data-card="visitas"]{ order:5; }
+}
+
+/* Rodapé da tela inicial: nome e contatos do escritório */
+.hub-rodape{ margin-top:34px; padding:22px 4px 8px; border-top:1px solid var(--line); display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center; }
+.hub-rodape-nome{ font-family:'Archivo',sans-serif; font-weight:800; font-size:15px; letter-spacing:.02em; color:var(--steel-100); }
+.hub-rodape-links{ display:flex; flex-wrap:wrap; justify-content:center; gap:8px 10px; }
+.rodape-contato{ display:inline-flex; align-items:center; gap:8px; padding:9px 15px; border-radius:999px; border:1px solid var(--line); color:var(--text); font-size:14px; font-weight:600; text-decoration:none; background:var(--bg-elev); overflow-wrap:anywhere; }
+.rodape-contato:hover{ border-color:var(--steel-500); }
+.rodape-contato svg{ flex-shrink:0; color:var(--steel-300); }
+
+/* Balão de ajuda "?" */
+.ajuda-botao{
+  position:fixed; right:16px; bottom:16px; z-index:45; width:52px; height:52px; border-radius:50%; border:0; cursor:pointer;
+  background:var(--steel-100); color:var(--bg); font:800 26px/1 'Archivo',sans-serif; box-shadow:0 6px 22px rgba(0,0,0,.45);
+  display:flex; align-items:center; justify-content:center; padding:0;
+}
+.ajuda-botao:hover{ background:var(--steel-300); }
+.ajuda-botao[hidden], .ajuda-painel[hidden]{ display:none !important; }
+.ajuda-painel{
+  position:fixed; right:16px; bottom:80px; z-index:46; width:min(380px, calc(100vw - 32px)); max-height:min(72vh, 620px);
+  display:flex; flex-direction:column; background:var(--bg-elev); color:var(--text); border:1px solid var(--line); border-radius:16px; box-shadow:0 14px 44px rgba(0,0,0,.55);
+}
+.ajuda-topo{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px 10px; border-bottom:1px solid var(--line); font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); }
+.ajuda-fechar{ background:none; border:0; color:var(--text-dim); font-size:17px; padding:4px 6px; }
+.ajuda-corpo{ overflow-y:auto; padding:14px 18px 16px; font-size:14.5px; line-height:1.55; }
+.ajuda-corpo h3{ font-size:18px; margin:0 0 6px; }
+.ajuda-corpo p{ margin:0 0 10px; color:var(--text-dim); }
+.ajuda-corpo ul{ margin:0 0 12px; padding-left:18px; color:var(--text-dim); }
+.ajuda-corpo li{ margin-bottom:6px; } .ajuda-corpo li b{ color:var(--text); }
+.ajuda-como span{ display:block; font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--text-faint); margin-bottom:6px; }
+.ajuda-aviso{ padding:10px 12px; border-radius:10px; background:rgba(242,194,48,.12); border:1px solid rgba(201,160,40,.4); color:var(--text) !important; font-size:13.5px; }
+.ajuda-rodape{ padding:12px 16px 16px; border-top:1px solid var(--line); }
+.ajuda-whats{ display:flex; align-items:center; justify-content:center; gap:10px; padding:13px 16px; border-radius:999px; background:#25d366; color:#06210f; font-weight:800; font-size:14.5px; text-decoration:none; text-align:center; }
+.ajuda-whats:hover{ filter:brightness(1.06); }
+@media (max-width:520px){ .ajuda-botao{ right:12px; bottom:12px; width:48px; height:48px; } .ajuda-painel{ right:12px; bottom:70px; width:calc(100vw - 24px); } }
+@media print{ .ajuda-botao, .ajuda-painel{ display:none !important; } }
+
+/* Baixar PDF: marca no canto da imagem */
+.pdf-marca{ border:1px solid var(--line); border-radius:var(--radius-s); padding:8px 12px 10px; margin:0; display:flex; flex-wrap:wrap; gap:6px 18px; }
+.pdf-marca[hidden]{ display:none; }
+.pdf-marca legend{ font-size:12px; font-weight:700; color:var(--text-dim); padding:0 6px; }
+.pdf-marca label{ display:flex; align-items:center; gap:8px; font-size:14px; cursor:pointer; }
+.pdf-marca input{ width:18px; height:18px; margin:0; accent-color:var(--steel-100); }
+.pdf-marca input:disabled + * , .pdf-marca label:has(input:disabled){ opacity:.45; cursor:not-allowed; }
+.pdf-mensagem .dash-btn-pri{ margin-left:6px; }
+.mem-msg-pdf{ min-height:0; font-size:13.5px; color:var(--hub-vermelho); margin:0 0 12px; }
+.mem-msg-pdf:empty{ display:none; }
+.mem-msg-pdf .hub-doc-abrir{ border:0; cursor:pointer; font:inherit; font-size:13.5px; font-weight:700; margin-left:6px; }
+
+/* Dashboard: listas cadastradas (arquitetos, tipos, situações) */
+.dash-modal-caixa{ max-height:92vh; overflow-y:auto; }
+.dash-chip.situacao.outra{ background:#6a4f9a; }
+.dash-sublegenda{ font-size:12.5px; color:var(--text-faint); margin:0; }
+.dash-chips-lista{ display:flex; flex-wrap:wrap; gap:6px; }
+.dash-chip-opcao{ display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; font:inherit; font-size:13px; font-weight:600; border:1px solid var(--line); background:var(--bg); color:var(--text); cursor:pointer; }
+button.dash-chip-opcao:hover{ border-color:var(--steel-500); }
+.dash-chip-opcao.fixo{ cursor:default; }
+.dash-chip-opcao small{ color:var(--text-faint); font-size:11px; font-weight:700; }
+.dash-chip-opcao button{ background:none; border:0; color:var(--hub-vermelho); padding:0 0 0 2px; font-size:11px; cursor:pointer; }
+.dash-listas{ border-top:1px solid var(--line); padding-top:12px; }
+.dash-listas summary{ cursor:pointer; font-size:13.5px; font-weight:700; color:var(--text-dim); }
+.dash-lista-grupo{ display:flex; flex-direction:column; gap:6px; margin-top:12px; }
+.dash-add-arq button[aria-label]{ min-width:44px; }
+
+/* Orçamentos: aviso de novidades no topo da lista */
+.orc-novidades{ display:flex; align-items:center; gap:10px; margin:0 0 12px; font-size:14.5px; font-weight:700; color:var(--text); }
+.hub-bolinha-fixa{ display:inline-block; min-width:24px; height:24px; padding:0 7px; border-radius:999px; background:#e5372e; color:#fff; font-size:13px; font-weight:800; line-height:24px; text-align:center; }
+
+.ajuda-whats svg{ flex-shrink:0; }

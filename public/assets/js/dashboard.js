@@ -11,13 +11,16 @@
   const CHAVE_TOKEN = `renderia_dash_token_${LINK}`;
   const CHAVE_FILTROS = `renderia_dash_filtros_${LINK}`;
   const CHAVE_TEMA = 'renderia_tema_hub'; // a mesma escolha de tema da Pasta do Cliente (mesmo site, mesmo aparelho)
-  const ROTULO_SITUACAO = { andamento: 'Em andamento', concluido: 'Concluído' };
+  const PADRAO_SITUACOES = [{ id: 'andamento', nome: 'Em andamento' }, { id: 'concluido', nome: 'Concluído' }];
 
   let token = null;
   let projetos = [];
   let iconeConta = null; // logo da conta: aparece no cartão que ainda não tem foto
   let editando = null; // projeto cujas etiquetas estão abertas no modal
   let arqEdicao = [];
+  // Listas da conta (vêm do servidor): arquitetos cadastrados, tipos e situações. Os nomes cadastrados ficam registrados pra todos os projetos.
+  let catalogo = { arquitetos: [], tipos: [{ nome: 'Interiores', padrao: true, usos: 0 }, { nome: 'Arquitetura', padrao: true, usos: 0 }], situacoes: PADRAO_SITUACOES.map((s) => ({ ...s, padrao: true, usos: 0 })) };
+  const nomeSituacao = (id) => { const s = catalogo.situacoes.find((x) => x.id === id); return s ? s.nome : 'Em andamento'; };
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const semAcento = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
@@ -86,21 +89,22 @@
   async function carregar() {
     const r = await chamar(`/api/dashboard/${LINK}/projetos`);
     projetos = r.projetos;
+    if (r.catalogo) catalogo = r.catalogo;
     iconeConta = r.iconeUrl || null;
     if (r.iconeUrl) { $('imgLogoLogin').src = r.iconeUrl; $('imgLogoDash').src = r.iconeUrl; }
     $('telaLogin').style.display = 'none'; $('telaDash').style.display = 'block';
-    montarFiltroArquitetos();
+    montarFiltros();
     restaurarFiltros();
     desenhar();
   }
 
-  const todosArquitetos = () => [...new Set(projetos.flatMap((p) => p.meta.arquitetos))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  function montarFiltroArquitetos() {
-    const atual = $('fArquiteto').value;
-    const nomes = todosArquitetos();
-    $('fArquiteto').innerHTML = '<option value="">Todos</option>' + nomes.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('') + '<option value="__sem__">Sem arquiteto</option>';
-    $('fArquiteto').value = [...$('fArquiteto').options].some((o) => o.value === atual) ? atual : '';
-    $('dashArqLista').innerHTML = nomes.map((n) => `<option value="${esc(n)}">`).join('');
+  const todosArquitetos = () => catalogo.arquitetos.map((a) => a.nome); // os cadastrados na conta (inclui quem ainda não está em nenhum projeto)
+  // Os três filtros saem das listas da conta; o que estava escolhido continua escolhido se ainda existir.
+  function montarFiltros() {
+    const manter = (id, html, vazio) => { const sel = $(id); const atual = sel.value; sel.innerHTML = html; sel.value = [...sel.options].some((o) => o.value === atual) ? atual : vazio; };
+    manter('fArquiteto', '<option value="">Todos</option>' + todosArquitetos().map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('') + '<option value="__sem__">Sem arquiteto</option>', '');
+    manter('fTipo', '<option value="">Todos</option>' + catalogo.tipos.map((t) => `<option value="${esc(t.nome)}">${esc(t.nome)}</option>`).join(''), '');
+    manter('fSituacao', '<option value="">Todas</option>' + catalogo.situacoes.map((s) => `<option value="${esc(s.id)}">${esc(s.nome)}</option>`).join(''), '');
   }
   function lerFiltros() { return { busca: $('fBusca').value, arquiteto: $('fArquiteto').value, tipo: $('fTipo').value, situacao: $('fSituacao').value }; }
   function restaurarFiltros() {
@@ -130,7 +134,7 @@
   function cartao(p) {
     const chips = [
       ...p.meta.arquitetos.map((a) => `<span class="dash-chip" style="background:${corDoNome(a)}">${esc(a)}</span>`),
-      `<span class="dash-chip situacao ${p.meta.situacao}">${esc(ROTULO_SITUACAO[p.meta.situacao])}</span>`,
+      `<span class="dash-chip situacao ${p.meta.situacao === 'andamento' || p.meta.situacao === 'concluido' ? p.meta.situacao : 'outra'}">${esc(nomeSituacao(p.meta.situacao))}</span>`,
       p.meta.tipo ? `<span class="dash-chip tipo">${esc(p.meta.tipo)}</span>` : ''
     ].join('');
     return `<article class="dash-card" data-id="${esc(p.projetoId)}" tabindex="0" role="button" aria-label="Abrir a pasta do cliente de ${esc(p.nome)}">
@@ -148,10 +152,15 @@
     $('dashResumo').textContent = projetos.length ? `${lista.length} de ${projetos.length} ${projetos.length === 1 ? 'projeto' : 'projetos'}` : '';
     if (!projetos.length) { $('dashLista').innerHTML = '<div class="vazio-galeria">Ainda não há projetos com Pasta do Cliente. Crie a Pasta do Cliente de um projeto no RENDERIA e ele aparece aqui.</div>'; return; }
     if (!lista.length) { $('dashLista').innerHTML = '<div class="vazio-galeria">Nenhum projeto com esses filtros.</div>'; return; }
-    $('dashLista').innerHTML = ['andamento', 'concluido'].map((sit) => {
-      const doGrupo = lista.filter((p) => p.meta.situacao === sit);
-      return doGrupo.length ? `<section class="dash-grupo"><h2>${esc(ROTULO_SITUACAO[sit].toUpperCase())} <span>${doGrupo.length}</span></h2><div class="dash-grid">${doGrupo.map(cartao).join('')}</div></section>` : '';
+    $('dashLista').innerHTML = catalogo.situacoes.map((sit) => {
+      const doGrupo = lista.filter((p) => p.meta.situacao === sit.id);
+      return doGrupo.length ? `<section class="dash-grupo"><h2>${esc(sit.nome.toUpperCase())} <span>${doGrupo.length}</span></h2><div class="dash-grid">${doGrupo.map(cartao).join('')}</div></section>` : '';
     }).join('');
+  }
+
+  // Depois de salvar: a contagem de uso de cada item mudou, então relê as listas e as etiquetas.
+  async function carregarCatalogo() {
+    try { const r = await chamar(`/api/dashboard/${LINK}/projetos`); if (r.catalogo) catalogo = r.catalogo; projetos.forEach((p) => { const n = r.projetos.find((x) => x.projetoId === p.projetoId); if (n) p.meta = n.meta; }); } catch (e) { /* mantém o que já tem */ }
   }
 
   // ---------- abrir a pasta do cliente (modo escritório) ----------
@@ -184,43 +193,100 @@
     $('dashArqChips').innerHTML = arqEdicao.length
       ? arqEdicao.map((a, i) => `<span class="dash-chip" style="background:${corDoNome(a)}">${esc(a)}<button type="button" data-tirar="${i}" aria-label="Tirar ${esc(a)}">✕</button></span>`).join('')
       : '<span class="dash-sem">Nenhum arquiteto marcado</span>';
+    // os cadastrados na conta que ainda não estão neste projeto: um toque escolhe
+    const livres = todosArquitetos().filter((n) => !arqEdicao.some((a) => a.toLowerCase() === n.toLowerCase()));
+    $('dashArqLista').innerHTML = livres.length ? livres.map((n) => `<button type="button" class="dash-chip-opcao" data-escolher="${esc(n)}">${esc(n)}</button>`).join('') : '<span class="dash-sem">Nenhum outro arquiteto cadastrado</span>';
   }
+  const opcoesTipo = () => '<option value="">—</option>' + catalogo.tipos.map((t) => `<option value="${esc(t.nome)}">${esc(t.nome)}</option>`).join('');
+  const opcoesSituacao = () => catalogo.situacoes.map((s) => `<option value="${esc(s.id)}">${esc(s.nome)}</option>`).join('');
+  function desenharSelectsEdicao(tipo, situacao) {
+    $('dashTipo').innerHTML = opcoesTipo(); $('dashTipo').value = tipo || '';
+    $('dashSituacao').innerHTML = opcoesSituacao(); $('dashSituacao').value = situacao || 'andamento';
+  }
+  // Gerenciar as listas: quem não está em uso (e não é padrão) tem ✕ pra remover
+  function desenharListasGerenciar() {
+    const grupo = (titulo, lista, chaveDe) => `<div class="dash-lista-grupo"><span class="dash-rotulo">${titulo}</span><div class="dash-chips-lista">${lista.length ? lista.map((x) => {
+      const removivel = !x.padrao && !x.usos;
+      const dica = x.padrao ? 'Item padrão' : (x.usos ? 'Em uso em ' + x.usos + (x.usos === 1 ? ' projeto' : ' projetos') : 'Sem uso');
+      return `<span class="dash-chip-opcao fixo" title="${dica}">${esc(x.nome)}${x.usos ? ` <small>${x.usos}</small>` : ''}${removivel ? `<button type="button" data-remover-lista="${esc(titulo)}" data-chave="${esc(chaveDe(x))}" aria-label="Remover ${esc(x.nome)}">✕</button>` : ''}</span>`;
+    }).join('') : '<span class="dash-sem">Nenhum</span>'}</div></div>`;
+    $('dashListasGerenciar').innerHTML = grupo('Arquitetos', catalogo.arquitetos, (x) => x.nome) + grupo('Tipos', catalogo.tipos, (x) => x.nome) + grupo('Situações', catalogo.situacoes, (x) => x.id);
+  }
+  const LISTA_DO_TITULO = { Arquitetos: 'arquitetos', Tipos: 'tipos', 'Situações': 'situacoes' };
   function abrirEdicao(id) {
     editando = projetos.find((p) => p.projetoId === id);
     if (!editando) return;
     $('dashModalTitulo').textContent = editando.nome;
     arqEdicao = [...editando.meta.arquitetos];
-    $('dashTipo').value = editando.meta.tipo || '';
-    $('dashSituacao').value = editando.meta.situacao;
-    $('dashArqNovo').value = '';
+    desenharSelectsEdicao(editando.meta.tipo, editando.meta.situacao);
+    $('dashArqNovo').value = ''; $('dashTipoNovo').value = ''; $('dashSituacaoNova').value = '';
     desenharChipsEdicao();
+    desenharListasGerenciar();
     $('dashModal').classList.remove('hidden');
     $('dashArqNovo').focus();
   }
   function fecharEdicao() { $('dashModal').classList.add('hidden'); editando = null; }
-  function adicionarArquiteto() {
+  // Cadastra o nome na conta (fica registrado pra todos os projetos) e já marca neste projeto.
+  async function adicionarArquiteto() {
     const nome = $('dashArqNovo').value.trim();
     if (!nome) return;
-    if (!arqEdicao.some((a) => a.toLowerCase() === nome.toLowerCase())) arqEdicao.push(nome);
-    $('dashArqNovo').value = '';
-    desenharChipsEdicao();
+    try {
+      const r = await chamar(`/api/dashboard/${LINK}/catalogo`, enviar('POST', { lista: 'arquitetos', nome }));
+      catalogo = r.catalogo;
+      if (!arqEdicao.some((a) => a.toLowerCase() === r.nome.toLowerCase())) arqEdicao.push(r.nome);
+      $('dashArqNovo').value = '';
+      desenharChipsEdicao(); desenharListasGerenciar(); montarFiltros();
+    } catch (e) { avisar(e.message, true); }
   }
+  async function cadastrarNaLista(lista, campo, aoCadastrar) {
+    const nome = $(campo).value.trim();
+    if (!nome) return;
+    try {
+      const r = await chamar(`/api/dashboard/${LINK}/catalogo`, enviar('POST', { lista, nome }));
+      catalogo = r.catalogo;
+      $(campo).value = '';
+      aoCadastrar(r);
+      desenharListasGerenciar(); montarFiltros();
+    } catch (e) { avisar(e.message, true); }
+  }
+  const tipoAtual = () => $('dashTipo').value;
+  const situacaoAtual = () => $('dashSituacao').value;
   $('dashArqAdd').addEventListener('click', adicionarArquiteto);
   $('dashArqNovo').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); adicionarArquiteto(); } });
+  $('dashTipoAdd').addEventListener('click', () => cadastrarNaLista('tipos', 'dashTipoNovo', (r) => desenharSelectsEdicao(r.nome, situacaoAtual())));
+  $('dashTipoNovo').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('dashTipoAdd').click(); } });
+  $('dashSituacaoAdd').addEventListener('click', () => cadastrarNaLista('situacoes', 'dashSituacaoNova', (r) => desenharSelectsEdicao(tipoAtual(), r.id)));
+  $('dashSituacaoNova').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('dashSituacaoAdd').click(); } });
   $('dashArqChips').addEventListener('click', (e) => { const b = e.target.closest('[data-tirar]'); if (b) { arqEdicao.splice(Number(b.dataset.tirar), 1); desenharChipsEdicao(); } });
+  $('dashArqLista').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-escolher]');
+    if (!b) return;
+    if (arqEdicao.length >= 6) { avisar('No máximo 6 arquitetos por projeto.', true); return; }
+    arqEdicao.push(b.dataset.escolher); desenharChipsEdicao();
+  });
+  $('dashListasGerenciar').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-remover-lista]');
+    if (!b) return;
+    try {
+      const r = await chamar(`/api/dashboard/${LINK}/catalogo/remover`, enviar('POST', { lista: LISTA_DO_TITULO[b.dataset.removerLista], chave: b.dataset.chave }));
+      catalogo = r.catalogo;
+      desenharSelectsEdicao(tipoAtual(), situacaoAtual()); desenharChipsEdicao(); desenharListasGerenciar(); montarFiltros();
+    } catch (err) { avisar(err.message, true); }
+  });
   $('dashModalFechar').addEventListener('click', fecharEdicao);
   $('dashModalCancelar').addEventListener('click', fecharEdicao);
   $('dashModal').addEventListener('click', (e) => { if (e.target === $('dashModal')) fecharEdicao(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('dashModal').classList.contains('hidden')) fecharEdicao(); });
   $('dashModalSalvar').addEventListener('click', async () => {
     if (!editando) return;
-    adicionarArquiteto(); // o que ficou digitado e não foi adicionado também entra
+    if ($('dashArqNovo').value.trim()) await adicionarArquiteto(); // o que ficou digitado e não foi cadastrado também entra
     $('dashModalSalvar').disabled = true;
     try {
       const r = await chamar(`/api/dashboard/${LINK}/projetos/${encodeURIComponent(editando.projetoId)}/meta`, enviar('PUT', { arquitetos: arqEdicao, tipo: $('dashTipo').value, situacao: $('dashSituacao').value }));
       editando.meta = r.meta;
       fecharEdicao();
-      montarFiltroArquitetos();
+      await carregarCatalogo();
+      montarFiltros();
       desenhar();
       avisar('Etiquetas salvas.');
     } catch (e) { avisar(e.message, true); } finally { $('dashModalSalvar').disabled = false; }

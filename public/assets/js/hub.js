@@ -40,6 +40,31 @@
     return !!(h.dadosProjeto || (h.documentos && h.documentos.length) || h.capaFotoId || memorialDe(galeria).itens.length);
   }
 
+  // ---------- Novidades por aba: a bolinha com número no cartão (o que mudou desde a última visita deste aparelho) ----------
+  // O que conta: documento novo ou alterado (fora as versões ANTIGAS), imagem ou planta nova (Projeto criativo) e item novo ou
+  // alterado do memorial. A foto do que já foi visto fica no aparelho (novidades.js); abrir a aba atualiza a foto dela.
+  let novidades = null; // null = sem novidades (modo escritório, sem armazenamento no aparelho ou script ausente)
+  const SECOES_DOCUMENTO = ['planta_original', 'conceitual', 'executivo', 'visitas'];
+  function itensParaNovidades(galeria) {
+    const g = {};
+    SECOES_DOCUMENTO.forEach((sec) => {
+      g[sec] = documentosDaSecao(galeria, sec).filter((d) => d.status !== 'ANTIGA').map((d) => ({ id: d.id, versao: [d.atualizadoEm || '', d.revisao, d.status].join('|') }));
+    });
+    g.criativo = fotosValidas(galeria).map((f) => ({ id: f.id, versao: '' })).concat((galeria.plantas || []).map((p) => ({ id: 'planta:' + p.id, versao: '' })));
+    g.memorial = memorialDe(galeria).itens.map((i) => ({ id: i.id, versao: i.atualizadoEm || '' }));
+    return g;
+  }
+  function prepararNovidades(galeria) {
+    novidades = null;
+    if (!window.Novidades || galeria.modoEscritorio) return; // o escritório olhando pelo dashboard não mexe nas marcas do cliente
+    try { novidades = window.Novidades.abrir('renderia_vistos_' + (typeof LINK_TOKEN !== 'undefined' ? LINK_TOKEN : ''), itensParaNovidades(galeria)); } catch (e) { novidades = null; }
+  }
+  const secoesVistas = new Set(); // abas abertas nesta visita: a bolinha some, mas o "NOVO" dos itens fica até recarregar
+  const contagemNovidades = (secao) => (novidades && !secoesVistas.has(secao)) ? novidades.total(secao) : 0;
+  function registrarVisto(secao) { if (!novidades) return; secoesVistas.add(secao); novidades.marcarVisto(secao); }
+  const tagNovidade = (secao, id) => (novidades ? novidades.tag(secao, id) : '');
+  const htmlTag = (secao, id) => { const tg = tagNovidade(secao, id); return tg ? `<span class="hub-novo">${tg}</span>` : ''; };
+
   // ---------- Tema claro/escuro: segue o aparelho; o botão do topo troca e fica lembrado neste dispositivo ----------
   function lerTemaSalvo() { try { const t = localStorage.getItem(CHAVE_TEMA); return (t === 'claro' || t === 'escuro') ? t : null; } catch (e) { return null; } }
   function salvarTema(t) { try { localStorage.setItem(CHAVE_TEMA, t); } catch (e) { /* sem armazenamento: vale só nesta visita */ } }
@@ -76,10 +101,11 @@
   }
 
   // Cartão sem nada dentro fica apagado e sem clique (aria-disabled), em vez de sumir.
-  function cartao({ icone, titulo, detalhe, acao, ativo }) {
-    const corpo = `<span class="hub-card-icone">${svg(icone)}</span><span class="hub-card-titulo">${esc(titulo)}</span><span class="hub-card-detalhe">${esc(detalhe)}</span>`;
-    if (!ativo) return `<div class="hub-card desabilitado" aria-disabled="true">${corpo}</div>`;
-    return `<button class="hub-card" data-hub-acao="${esc(acao)}">${corpo}</button>`;
+  function cartao({ id, icone, titulo, detalhe, acao, ativo, novidade }) {
+    const bolinha = novidade > 0 ? `<span class="hub-bolinha" title="${novidade} ${novidade === 1 ? 'novidade' : 'novidades'} desde a sua última visita">${novidade > 99 ? '99+' : novidade}<span class="hub-bolinha-leitor"> ${novidade === 1 ? 'novidade' : 'novidades'}</span></span>` : '';
+    const corpo = `${bolinha}<span class="hub-card-icone">${svg(icone)}</span><span class="hub-card-titulo">${esc(titulo)}</span><span class="hub-card-detalhe">${esc(detalhe)}</span>`;
+    if (!ativo) return `<div class="hub-card desabilitado" data-card="${esc(id)}" aria-disabled="true">${corpo}</div>`;
+    return `<button class="hub-card" data-card="${esc(id)}" data-hub-acao="${esc(acao)}">${corpo}</button>`;
   }
 
   function renderizarInicio() {
@@ -89,7 +115,7 @@
     const cartoes = [];
     ['planta_original', 'conceitual'].forEach((id) => {
       const n = documentosDaSecao(g, id).length;
-      cartoes.push(cartao({ icone: ICONES[id], titulo: TITULOS[id], ativo: n > 0, acao: 'secao:' + id, detalhe: n ? plural(n, 'documento', 'documentos') : 'Em breve' }));
+      cartoes.push(cartao({ id, icone: ICONES[id], titulo: TITULOS[id], ativo: n > 0, acao: 'secao:' + id, novidade: contagemNovidades(id), detalhe: n ? plural(n, 'documento', 'documentos') : 'Em breve' }));
     });
     // Projeto criativo = a pasta do cliente de sempre: planta com ícones, imagens e 360°, tudo dentro do RENDERIA.
     const validas = fotosValidas(g);
@@ -97,27 +123,29 @@
     const aprov = validas.filter((f) => f.aprovada).length;
     const partes = [plural(validas.length - n360, 'imagem', 'imagens')];
     if (n360) partes.push(`${n360} em 360°`);
-    cartoes.push(cartao({ icone: ICONES.criativo, titulo: 'Projeto criativo', ativo: validas.length > 0, acao: 'criativo',
+    cartoes.push(cartao({ id: 'criativo', icone: ICONES.criativo, titulo: 'Projeto criativo', ativo: validas.length > 0, acao: 'criativo', novidade: contagemNovidades('criativo'),
       detalhe: validas.length ? `${partes.join(' · ')} · ${aprov} aprovada${aprov === 1 ? '' : 's'}` : 'Em breve' }));
     ['executivo', 'visitas'].forEach((id) => {
       const n = documentosDaSecao(g, id).filter((d) => d.status !== 'ANTIGA').length;
       const total = documentosDaSecao(g, id).length;
-      cartoes.push(cartao({ icone: ICONES[id], titulo: TITULOS[id], ativo: total > 0, acao: 'secao:' + id, detalhe: total ? plural(n, 'documento', 'documentos') : 'Em breve' }));
+      cartoes.push(cartao({ id, icone: ICONES[id], titulo: TITULOS[id], ativo: total > 0, acao: 'secao:' + id, novidade: contagemNovidades(id), detalhe: total ? plural(n, 'documento', 'documentos') : 'Em breve' }));
     });
     // Memorial de itens: só entra quando o servidor mandou o recurso (memorial vem vazio pra quem não tem; aí o cartão nem aparece).
     const nMem = memorialDe(g).itens.length;
-    if (nMem > 0) cartoes.push(cartao({ icone: ICONES.memorial, titulo: 'Memorial de itens', ativo: true, acao: 'secao:memorial', detalhe: plural(nMem, 'item', 'itens') }));
+    if (nMem > 0) cartoes.push(cartao({ id: 'memorial', icone: ICONES.memorial, titulo: 'Memorial de itens', ativo: true, acao: 'secao:memorial', novidade: contagemNovidades('memorial'), detalhe: plural(nMem, 'item', 'itens') }));
 
     el('hubConteudo').innerHTML = `${capaHtml(g)}
       <div class="hub-corpo">
         ${h.dadosProjeto ? `<div class="hub-dados">${window.DadosProjeto ? window.DadosProjeto.htmlDosDados(h.dadosProjeto, esc) : esc(h.dadosProjeto)}</div>` : ''}
         <div class="hub-grid">${cartoes.join('')}</div>
+        ${window.AjudaCliente ? window.AjudaCliente.htmlRodape(g.nomeEscritorio, g.contatosEscritorio, g.nomeProjeto) : ''}
       </div>`;
     el('hubConteudo').querySelectorAll('[data-hub-acao]').forEach((b) => b.addEventListener('click', () => executarAcao(b.dataset.hubAcao)));
   }
 
   function executarAcao(acao) {
     if (acao === 'criativo') {
+      registrarVisto('criativo');
       fechar();
       if (window.PlantaCliente && window.PlantaCliente.temPlantaUtil(galeriaAtual)) window.PlantaCliente.abrir();
       else mostrarTelaGaleriaDaPlanta();
@@ -132,7 +160,7 @@
     const status = ROTULO_STATUS[d.status] || d.status;
     return `<div class="hub-doc status-${esc(String(d.status).toLowerCase())}">
       <div class="hub-doc-info">
-        <div class="hub-doc-titulo">${esc(d.titulo)}</div>
+        <div class="hub-doc-titulo">${esc(d.titulo)}${htmlTag(d.secao, d.id)}</div>
         <div class="hub-doc-meta">
           ${d.pavimento ? `<span>${esc(d.pavimento)}</span>` : ''}
           <span>REV.${esc(d.revisao)}</span>
@@ -167,7 +195,7 @@
     return `<tr>
       <td data-rotulo="Nº">${esc(i.numero)}</td>
       <td data-rotulo="Foto" class="mem-col-foto">${foto}</td>
-      <td data-rotulo="Item" class="mem-col-item"><b>${esc(i.item)}</b>${selo}${href ? `<br><a href="${esc(href)}" target="_blank" rel="noopener noreferrer">Ver produto ↗</a>` : ''}</td>
+      <td data-rotulo="Item" class="mem-col-item"><b>${esc(i.item)}</b>${htmlTag('memorial', i.id)}${selo}${href ? `<br><a href="${esc(href)}" target="_blank" rel="noopener noreferrer">Ver produto ↗</a>` : ''}</td>
       <td data-rotulo="Ambiente">${amb}</td>
       <td data-rotulo="Empresa">${esc(i.empresa) || '—'}</td>
       <td data-rotulo="Especificações" class="mem-texto">${esc(i.especificacoes) || '—'}</td>
@@ -199,35 +227,54 @@
         <tbody>${doSetor.map(linhaMemorial).join('')}</tbody></table></section>`;
     }).join('');
     const opcoesSetor = setores.filter((s) => m.itens.some((i) => i.setor === s)).map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
-    const logoMem = galeriaAtual.marcaDagua && galeriaAtual.marcaDagua.url && galeriaAtual.marcaDagua.ativa !== false ? galeriaAtual.marcaDagua.url : null;
     el('hubConteudo').innerHTML = `<div class="hub-corpo">
-      <div class="mem-impressao-cabecalho">${logoMem ? `<img src="${esc(logoMem)}" alt="">` : ''}<div><div class="mem-imp-titulo">MEMORIAL DE ITENS</div><div class="mem-imp-projeto">${esc(galeriaAtual.nomeProjeto)}</div><div class="mem-imp-data">${esc(new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }))}</div></div></div>
       <div class="mem-barra"><h2 class="hub-titulo-secao">Memorial de itens</h2>
         <div class="mem-acoes"><select id="selSetorMemorialCliente" aria-label="Setor"><option value="">Todos os setores</option>${opcoesSetor}</select><button class="hub-doc-abrir" id="btnPdfMemorialCliente" type="button">Gerar PDF</button></div></div>
+      <div class="mem-msg-pdf" id="memMsgPdf" role="status"></div>
       <div class="hub-aviso"><b>ATENÇÃO</b><br>Valide cada item com o fornecedor e com a arquitetura antes da compra: medidas, modelos e acabamentos podem variar conforme a marca/modelo adquirido ou a etapa de instalação.</div>${blocos}</div>`;
     el('hubConteudo').querySelectorAll('[data-mem-foto]').forEach((b) => b.addEventListener('click', () => ampliarFotoMemorial(b.dataset.memFoto)));
     el('btnPdfMemorialCliente').addEventListener('click', gerarPdfMemorialCliente);
     el('selSetorMemorialCliente').addEventListener('change', aplicarFiltroSetorMemorial);
   }
 
-  // PDF do memorial pelo próprio navegador (sem servidor, sem custo): mostra só o setor escolhido, abre a janela de imprimir
-  // ("Salvar como PDF") em A4 paisagem e depois devolve a tela como estava.
-  // O filtro vale na tela E no PDF: mostra só o setor escolhido (ou todos).
+  // O filtro de setor vale na tela E no PDF: mostra só o setor escolhido (ou todos).
   function aplicarFiltroSetorMemorial() {
     const setor = el('selSetorMemorialCliente').value;
-    document.querySelectorAll('.mem-setor').forEach((s) => s.classList.toggle('mem-oculto', !!setor && s.dataset.setor !== setor));
+    document.querySelectorAll('.mem-setor').forEach((sec) => sec.classList.toggle('mem-oculto', !!setor && sec.dataset.setor !== setor));
   }
 
+  // PDF do memorial (sem servidor, sem custo): monta um documento A4 deitado (memorial-doc.js), igual no computador e no celular.
+  // No computador abre a janela de imprimir ("Salvar como PDF"); no celular abre uma aba nova com o PDF pronto e um botão
+  // "Salvar como PDF" (impressao.js). O clique precisa abrir a aba NA HORA, por isso nada pesado vem antes do iniciar().
+  function avisoDoMemorial(texto, botao) {
+    const c = el('memMsgPdf');
+    if (!c) return;
+    c.textContent = texto || '';
+    if (botao) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'hub-doc-abrir'; b.textContent = botao.rotulo;
+      b.addEventListener('click', () => { try { botao.acao(); c.textContent = ''; } catch (e) { c.textContent = e.message; } });
+      c.appendChild(document.createTextNode(' ')); c.appendChild(b);
+    }
+  }
   function gerarPdfMemorialCliente() {
     const setor = el('selSetorMemorialCliente').value;
     aplicarFiltroSetorMemorial();
-    document.body.classList.add('imprimindo-memorial');
-    const nomeAntes = document.title;
-    const hoje = new Date().toLocaleDateString('pt-BR').split('/').join('-');
-    document.title = `${galeriaAtual.nomeProjeto} - Memorial de itens${setor ? ' - ' + setor : ''} - ${hoje}`; // vira o nome sugerido do arquivo
-    const limpar = () => { document.body.classList.remove('imprimindo-memorial'); document.title = nomeAntes; window.removeEventListener('afterprint', limpar); };
-    window.addEventListener('afterprint', limpar);
-    setTimeout(() => { window.print(); }, 150);
+    avisoDoMemorial('');
+    const sessao = window.Impressao.iniciar();
+    try {
+      const m = memorialDe(galeriaAtual);
+      const logo = galeriaAtual.marcaDagua && galeriaAtual.marcaDagua.url && galeriaAtual.marcaDagua.ativa !== false ? galeriaAtual.marcaDagua.url : null;
+      const doc = window.MemorialDoc.montarHtml({ nomeProjeto: galeriaAtual.nomeProjeto, logo, itens: m.itens, setores: m.setores, setor, agora: new Date() });
+      const hoje = new Date().toLocaleDateString('pt-BR').split('/').join('-');
+      const titulo = `${galeriaAtual.nomeProjeto} - Memorial de itens${setor ? ' - ' + setor : ''} - ${hoje}`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim(); // vira o nome sugerido do arquivo
+      sessao.entregar(doc.html, titulo).then((r) => {
+        if (r.via === 'toque') avisoDoMemorial('O PDF está pronto.', { rotulo: 'Abrir o PDF', acao: r.abrir });
+      }).catch((e) => { sessao.fechar(); avisoDoMemorial(e.message || 'Não consegui gerar o PDF.'); });
+    } catch (e) {
+      sessao.fechar();
+      avisoDoMemorial(e.message || 'Não consegui gerar o PDF.');
+    }
   }
 
   function renderizarSecao() {
@@ -262,7 +309,7 @@
   function renderizar() {
     el('telaHub').classList.toggle('largo', secaoAberta === 'memorial'); // Memorial usa a largura toda (computador/tablet deitado)
     el('btnHubVoltar').style.display = secaoAberta ? 'flex' : 'none'; // dentro de uma pasta, o voltar fica sempre no topo
-    if (secaoAberta) renderizarSecao(); else renderizarInicio();
+    if (secaoAberta) { renderizarSecao(); registrarVisto(secaoAberta); } else renderizarInicio();
     if (window.NavCliente) window.NavCliente.sincronizar(); // cada tela do hub vira uma entrada do botão voltar do navegador
   }
   // Documento em REVISÃO ou ANTIGA: antes de abrir, um aviso (o cliente pode abrir mesmo assim, mas sabendo).
@@ -299,6 +346,7 @@
   // Chamado pelo main.js ao entrar: mostra (ou esconde) os botões "Voltar ao projeto" da galeria e da planta.
   function preparar(galeria) {
     galeriaAtual = galeria;
+    prepararNovidades(galeria);
     const mostrar = temConteudo(galeria) ? 'flex' : 'none';
     ['btnGaleriaParaHub', 'btnPlantaParaHub'].forEach((id) => { if (el(id)) el(id).style.display = mostrar; });
   }
