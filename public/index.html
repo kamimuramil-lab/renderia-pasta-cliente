@@ -63,6 +63,9 @@
     <div style="flex:1;">
       <h1 id="nomeProjetoGaleria">Projeto</h1>
     </div>
+    <button class="btn-topo-nav" id="btnPdfGaleria" title="Baixar o PDF das imagens">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg><span>Baixar PDF</span>
+    </button>
     <button class="btn-topo-nav" id="btnIrParaPlanta" style="display:none;" title="Ver a planta baixa">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h18v18H3z"/><path d="M9 3v8h12M9 11v10"/></svg><span>Planta</span>
     </button>
@@ -89,6 +92,9 @@
       <h1 id="nomeProjetoPlanta">Projeto</h1>
       <div class="texto-progresso-planta" id="plantaTextoProgresso"></div>
     </div>
+    <button class="btn-topo-nav" id="btnPdfPlanta" title="Baixar o PDF das imagens">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg><span>Baixar PDF</span>
+    </button>
     <button class="btn-topo-nav" id="btnPlantaParaGaleria" title="Ver a galeria de imagens">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span>Galeria</span>
     </button>
@@ -117,6 +123,31 @@
 <!-- Modo escritório: pasta aberta pelo dashboard (só leitura) -->
 <div class="faixa-escritorio" id="faixaEscritorio" hidden><span>👁 <span class="rot-longo">Modo escritório · só visualização</span></span><a href="#" id="linkVoltarDashboard">← Dashboard</a></div>
 
+<!-- ===================== AVISO: DOCUMENTO EM REVISÃO / VERSÃO ANTIGA ===================== -->
+<div class="dash-modal hidden" id="modalAvisoDoc" role="alertdialog" aria-modal="true" aria-labelledby="tituloAvisoDoc" aria-describedby="textoAvisoDoc">
+  <div class="dash-modal-caixa aviso-doc">
+    <div class="aviso-doc-icone" aria-hidden="true">!</div>
+    <strong id="tituloAvisoDoc">ESTE PROJETO ESTÁ SOB REVISÃO</strong>
+    <p id="textoAvisoDoc">Não deve ser usado para fins de execução ou orçamento.</p>
+    <div class="aviso-doc-acoes"><button type="button" class="dash-btn-sec" id="btnAvisoVoltar">Voltar</button><button type="button" class="dash-btn-pri" id="btnAvisoAbrir">OK, ABRIR MESMO ASSIM</button></div>
+  </div>
+</div>
+
+<!-- ===================== BAIXAR PDF DAS IMAGENS ===================== -->
+<div class="dash-modal hidden" id="modalPdfCliente" role="dialog" aria-modal="true" aria-labelledby="tituloPdfCliente">
+  <div class="dash-modal-caixa pdf-caixa">
+    <div class="dash-modal-topo"><strong id="tituloPdfCliente">Baixar PDF das imagens</strong><button type="button" id="btnFecharPdfCliente" aria-label="Fechar">✕</button></div>
+    <p class="pdf-dica">Escolha os ambientes que entram no PDF. Cada PDF mostra a <b>data e o horário</b> em que foi gerado. Ao gerar, abre a janela de impressão do navegador: escolha <b>Salvar como PDF</b>.</p>
+    <div class="pdf-atalhos"><button type="button" id="pdfTodos">Marcar todos</button><button type="button" id="pdfNenhum">Desmarcar todos</button></div>
+    <div class="pdf-ambientes" id="pdfAmbientes"></div>
+    <label class="pdf-opcao"><input type="checkbox" id="chkPdfNomes" checked> Mostrar o nome de cada imagem</label>
+    <label class="pdf-opcao"><input type="checkbox" id="chkPdfPaleta" checked> Incluir a paleta de cores de cada imagem</label>
+    <div class="pdf-progresso" id="pdfProgresso" hidden><div class="pdf-progresso-texto" id="pdfProgressoTexto"></div><div class="pdf-progresso-trilho"><div class="pdf-progresso-barra" id="pdfProgressoBarra"></div></div></div>
+    <div class="pdf-mensagem" id="pdfMensagem" role="status"></div>
+    <div class="dash-modal-acoes"><button type="button" class="dash-btn-sec" id="btnCancelarPdfCliente">Cancelar</button><button type="button" class="dash-btn-pri" id="btnGerarPdfCliente">Gerar PDF</button></div>
+  </div>
+</div>
+
 <!-- ===================== VISUALIZADOR ===================== -->
 <div class="visualizador" id="visualizador" style="display:none;">
   <div class="visualizador-topo">
@@ -131,8 +162,10 @@
   <div class="area-imagem-visualizador" id="areaImagemVisualizador">
     <div class="zona-clique-nav esquerda" id="zonaCliqueAnterior"></div>
     <div class="zona-clique-nav direita" id="zonaCliqueProxima"></div>
-    <button class="seta-nav esquerda" id="btnAnteriorFoto">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>
+    <button class="seta-nav esquerda" id="btnAnteriorFoto" aria-label="Imagem anterior">
+      <svg class="ico-prox" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>
+      <svg class="ico-cat" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M19 18l-6-6 6-6M11 18l-6-6 6-6"/></svg>
+      <span class="seta-rotulo" id="rotuloCategoriaAnterior"></span>
     </button>
     <img id="imgFotoVisualizador" style="display:none;">
     <div id="painelPanoramaCliente" class="painel-panorama" style="display:none;"></div>
@@ -207,6 +240,9 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+<script src="assets/js/paleta-cores.js"></script>
+<script src="assets/js/imagens-pdf.js"></script>
+<script src="assets/js/pdf-cliente.js"></script>
 <script src="assets/js/planta.js"></script>
 <script src="assets/js/planta-mini.js"></script>
 <script src="assets/js/navegacao.js"></script>

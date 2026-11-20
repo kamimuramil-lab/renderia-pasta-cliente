@@ -162,6 +162,21 @@ const portaLivre = () => new Promise((resolve, reject) => {
     assert.ok(pagina.status === 200 && /noindex/.test(html) && /assets\/js\/dashboard\.js\?v=\d+/.test(html), 'página com JS versionado e noindex');
     ok('página /dashboard servida (sem dados: eles só vêm depois da senha)');
 
+    console.log('== 8. Nome do escritório (perfil da conta): vai para a galeria do cliente, validado, por conta ==');
+    assert.strictEqual((await api('PUT', '/api/app/perfil/nome', { corpo: { nome: 'X' } })).status, 401, 'sem sessão');
+    r = await api('PUT', '/api/app/perfil/nome', { sessao: 'tokA', corpo: { nome: '  Rodrigo   Kamimura  Arquitetura ' } });
+    assert.deepStrictEqual([r.status, r.json.nomeEscritorio], [200, 'Rodrigo Kamimura Arquitetura'], 'espaços arrumados');
+    assert.strictEqual((await api('PUT', '/api/app/perfil/nome', { sessao: 'tokA', corpo: { nome: 'x'.repeat(81) } })).status, 400, 'limite de 80');
+    assert.strictEqual((await api('PUT', '/api/app/perfil/nome', { sessao: 'tokA', corpo: { nome: 123 } })).status, 400);
+    const tokCli2 = (await api('POST', `/api/cliente/${linkA1}/login`, { corpo: { usuario: 'cli', senha: 'senha1234' } })).json.token;
+    assert.strictEqual((await api('GET', `/api/cliente/${linkA1}/galeria`, { cliente: tokCli2 })).json.nomeEscritorio, 'Rodrigo Kamimura Arquitetura', 'o cliente recebe o nome para o PDF');
+    const linkB1 = (await api('GET', '/api/app/galeria/pB1', { sessao: 'tokB' })).json.linkToken;
+    const tokCliB = (await api('POST', `/api/cliente/${linkB1}/login`, { corpo: { usuario: 'cli', senha: 'senha1234' } })).json.token;
+    assert.strictEqual((await api('GET', `/api/cliente/${linkB1}/galeria`, { cliente: tokCliB })).json.nomeEscritorio, '', 'a conta B não herda o nome da A');
+    await api('PUT', '/api/app/perfil/nome', { sessao: 'tokA', corpo: { nome: '' } });
+    assert.strictEqual((await api('GET', `/api/cliente/${linkA1}/galeria`, { cliente: tokCli2 })).json.nomeEscritorio, '', 'vazio = sem "Projeto por"');
+    ok('nome do escritório: validado, por conta, chega ao cliente');
+
     console.log('\nTODOS OS TESTES DO DASHBOARD PASSARAM');
     encerrar();
   } catch (e) {

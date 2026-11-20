@@ -140,7 +140,7 @@
         </div>
         ${d.observacao ? `<div class="hub-doc-obs">${esc(d.observacao)}</div>` : ''}
       </div>
-      ${href ? `<a class="hub-doc-abrir" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Abrir ↗</a>` : ''}
+      ${href ? `<a class="hub-doc-abrir" data-status="${esc(d.status)}" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Abrir ↗</a>` : ''}
     </div>`;
   }
 
@@ -265,6 +265,31 @@
     if (secaoAberta) renderizarSecao(); else renderizarInicio();
     if (window.NavCliente) window.NavCliente.sincronizar(); // cada tela do hub vira uma entrada do botão voltar do navegador
   }
+  // Documento em REVISÃO ou ANTIGA: antes de abrir, um aviso (o cliente pode abrir mesmo assim, mas sabendo).
+  const AVISOS_DOCUMENTO = {
+    REVISAO: 'ESTE PROJETO ESTÁ SOB REVISÃO',
+    ANTIGA: 'ESTE PROJETO É UMA VERSÃO ANTIGA'
+  };
+  let enderecoDoAviso = null;
+  function fecharAviso() { el('modalAvisoDoc').classList.add('hidden'); enderecoDoAviso = null; }
+  el('hubConteudo').addEventListener('click', (e) => {
+    const link = e.target.closest('a.hub-doc-abrir[data-status]');
+    if (!link || !AVISOS_DOCUMENTO[link.dataset.status]) return; // ATUAL abre direto
+    e.preventDefault();
+    enderecoDoAviso = link.href;
+    el('tituloAvisoDoc').textContent = AVISOS_DOCUMENTO[link.dataset.status];
+    el('modalAvisoDoc').classList.remove('hidden');
+    el('btnAvisoAbrir').focus();
+  });
+  el('btnAvisoAbrir').addEventListener('click', () => {
+    const url = enderecoDoAviso;
+    fecharAviso();
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+  });
+  el('btnAvisoVoltar').addEventListener('click', fecharAviso);
+  el('modalAvisoDoc').addEventListener('click', (e) => { if (e.target === el('modalAvisoDoc')) fecharAviso(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !el('modalAvisoDoc').classList.contains('hidden')) fecharAviso(); });
+
   el('btnHubVoltar').addEventListener('click', () => {
     if (window.NavCliente && window.NavCliente.voltarSePossivel({ t: 'hub', s: null })) return; // volta de verdade, sem empilhar
     secaoAberta = null; renderizar(); window.scrollTo(0, 0);

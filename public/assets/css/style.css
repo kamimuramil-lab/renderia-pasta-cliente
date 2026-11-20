@@ -903,3 +903,42 @@ body.modo-escritorio #btnAprovarFoto, body.modo-escritorio #btnAlternarDesenho, 
   .linha-acoes-visualizador .btn-aprovar, .linha-acoes-visualizador .btn-desenhar{ padding:11px 6px; font-size:12.5px; gap:5px; }
   .linha-acoes-visualizador .btn-aprovar svg, .linha-acoes-visualizador .btn-desenhar svg{ flex-shrink:0; }
 }
+
+/* ===== Baixar PDF das imagens (galeria e planta) ===== */
+.pdf-caixa{ max-width:520px; max-height:90vh; overflow-y:auto; }
+.pdf-dica{ font-size:13.5px; line-height:1.5; color:var(--text-dim); margin:0; }
+.pdf-atalhos{ display:flex; gap:8px; }
+.pdf-atalhos button{ background:transparent; border:1px solid var(--line); color:var(--text-dim); border-radius:999px; padding:6px 13px; font-size:12.5px; font-weight:700; }
+.pdf-atalhos button:hover{ color:var(--text); border-color:var(--steel-500); }
+.pdf-ambientes{ display:flex; flex-direction:column; gap:4px; max-height:38vh; overflow-y:auto; border:1px solid var(--line); border-radius:var(--radius-s); padding:6px; background:var(--bg); }
+.pdf-linha{ display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:8px; cursor:pointer; }
+.pdf-linha:hover{ background:var(--bg-elev-2); }
+.pdf-linha input, .pdf-opcao input{ width:18px; height:18px; margin:0; accent-color:var(--steel-100); flex-shrink:0; }
+.pdf-nome{ flex:1; font-size:14.5px; font-weight:600; overflow-wrap:anywhere; }
+.pdf-qtd{ font-size:12.5px; color:var(--text-dim); white-space:nowrap; }
+.pdf-vazio{ padding:14px; font-size:14px; color:var(--text-dim); }
+.pdf-opcao{ display:flex; align-items:center; gap:10px; font-size:14px; cursor:pointer; }
+.pdf-progresso[hidden]{ display:none; }
+.pdf-progresso-texto{ font-size:13px; color:var(--text-dim); margin-bottom:6px; }
+.pdf-progresso-trilho{ height:6px; border-radius:999px; background:var(--bg-elev-2); overflow:hidden; }
+.pdf-progresso-barra{ height:100%; width:0; background:var(--steel-100); transition:width .2s; }
+.pdf-mensagem{ min-height:18px; font-size:13px; color:var(--hub-vermelho); }
+.btn-topo-nav#btnPdfGaleria, .btn-topo-nav#btnPdfPlanta{ white-space:nowrap; }
+
+/* ===== Aviso ao abrir documento em revisão / versão antiga ===== */
+.aviso-doc{ max-width:440px; text-align:center; align-items:center; gap:12px; padding:26px 26px 22px; }
+.aviso-doc-icone{ width:52px; height:52px; border-radius:50%; background:var(--hub-vermelho); color:#fff; font-size:30px; font-weight:900; display:flex; align-items:center; justify-content:center; font-family:'Archivo',sans-serif; }
+.aviso-doc strong{ font-family:'Archivo',sans-serif; font-weight:800; font-size:19px; line-height:1.25; letter-spacing:.01em; color:var(--text); }
+.aviso-doc p{ margin:0; font-size:15px; line-height:1.5; color:var(--text-dim); }
+.aviso-doc-acoes{ display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:6px; width:100%; }
+.aviso-doc-acoes .dash-btn-pri{ flex:1 1 auto; }
+
+/* ===== Categoria ANTERIOR: a seta da esquerda no início da categoria (espelho da próxima categoria) ===== */
+.seta-nav.categoria-anterior{ background:var(--steel-grad); color:#101214; border-color:transparent; width:52px; height:52px; box-shadow:0 0 0 4px rgba(255,255,255,.12), 0 6px 18px rgba(0,0,0,.5); animation:seta-categoria 2.2s ease-in-out infinite; }
+.seta-nav.categoria-anterior .ico-prox{ display:none; }
+.seta-nav.categoria-anterior .ico-cat{ display:block; }
+.seta-nav.categoria-anterior .seta-rotulo{
+  display:block; position:absolute; top:calc(100% + 8px); left:0; max-width:132px; padding:4px 9px; border-radius:8px;
+  background:rgba(20,22,24,.86); color:var(--steel-100); font-size:11px; font-weight:800; letter-spacing:.02em; text-transform:uppercase;
+  line-height:1.25; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none;
+}

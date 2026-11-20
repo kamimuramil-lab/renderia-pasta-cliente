@@ -341,7 +341,18 @@ function renderizarFotoAtualNoVisualizador() {
   const categoriaAtual = estado.categoriasOrdenadas[estado.indiceCategoriaAtual];
   $('categoriaAtualVisualizador').textContent = categoriaAtual ? categoriaAtual.nome : '';
   $('nomeFotoVisualizador').textContent = foto.__ehMood ? '' : (window.nomeParaCliente ? window.nomeParaCliente(foto) : foto.nomeExibicao);
-  $('btnAnteriorFoto').disabled = estado.indiceAtual === 0 && estado.indiceCategoriaAtual === 0;
+  // No INÍCIO de uma categoria (e se houver uma antes) a seta da esquerda vira "categoria anterior": mesmo visual da próxima
+  // categoria, espelhado, com o nome da categoria de trás logo abaixo. Na primeira imagem da primeira categoria fica desligada.
+  const noInicioDaCategoria = estado.indiceAtual === 0;
+  const temCategoriaAnterior = estado.indiceCategoriaAtual > 0;
+  const vaiParaCategoriaAnterior = noInicioDaCategoria && temCategoriaAnterior;
+  const setaVolta = $('btnAnteriorFoto');
+  setaVolta.disabled = noInicioDaCategoria && !temCategoriaAnterior;
+  setaVolta.classList.toggle('categoria-anterior', vaiParaCategoriaAnterior);
+  const nomeAnterior = vaiParaCategoriaAnterior ? estado.categoriasOrdenadas[estado.indiceCategoriaAtual - 1].nome : '';
+  $('rotuloCategoriaAnterior').textContent = nomeAnterior;
+  setaVolta.title = vaiParaCategoriaAnterior ? `Categoria anterior: ${nomeAnterior}` : 'Imagem anterior';
+  setaVolta.setAttribute('aria-label', setaVolta.title);
 
   const noUltimoItemDaCategoria = estado.indiceAtual === estado.fotosCategoriaAtual.length - 1;
   const temProximaCategoria = estado.indiceCategoriaAtual < estado.categoriasOrdenadas.length - 1;

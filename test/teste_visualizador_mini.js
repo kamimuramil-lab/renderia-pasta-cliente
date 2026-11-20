@@ -58,4 +58,18 @@ assert.ok(/@media \(min-width:700px\)\{\s*\.hub-capa\{ margin:18px 0 22px;/.test
 assert.ok(/\.linha-acoes-visualizador \.btn-aprovar, \.linha-acoes-visualizador \.btn-desenhar\{\s*flex:1 1 0;/.test(css) && /\.linha-acoes-visualizador \.area-comentario\{ flex:1 1 100%; \}/.test(css));
 console.log('OK');
 
+console.log('== 9. Baixar PDF (galeria e planta), aviso de revisão e categoria anterior ==');
+const hubjs2 = fs.readFileSync(path.join(pub, 'assets/js/hub.js'), 'utf8');
+const pdfjs = fs.readFileSync(path.join(pub, 'assets/js/pdf-cliente.js'), 'utf8');
+['btnPdfGaleria', 'btnPdfPlanta', 'modalPdfCliente', 'pdfAmbientes', 'btnGerarPdfCliente', 'chkPdfNomes', 'chkPdfPaleta', 'modalAvisoDoc', 'btnAvisoAbrir', 'btnAvisoVoltar', 'rotuloCategoriaAnterior'].forEach((id) => assert.ok(html.includes(`id="${id}"`), 'no HTML: ' + id));
+const idsPdf = [...new Set([...pdfjs.matchAll(/\$\('([A-Za-z0-9_]+)'\)/g)].map((m) => m[1]))];
+idsPdf.forEach((id) => assert.ok(html.includes(`id="${id}"`), 'pdf-cliente.js usa #' + id));
+assert.ok(pos('paleta-cores.js') < pos('imagens-pdf.js') && pos('imagens-pdf.js') < pos('pdf-cliente.js') && pos('pdf-cliente.js') < pos('main.js'));
+assert.ok(/ImagensPdf\.montarHtml/.test(pdfjs) && /escritorio: g\.nomeEscritorio/.test(pdfjs) && /agora/.test(pdfjs), 'usa o mesmo gerador do app, com o escritório e o horário da geração');
+assert.ok(/'no-store'/.test(pdfjs), 'busca a imagem sem o cache (evita imagem sem CORS "contaminando" o canvas)');
+assert.ok(/AVISOS_DOCUMENTO/.test(hubjs2) && /ESTE PROJETO ESTÁ SOB REVISÃO/.test(hubjs2) && /ESTE PROJETO É UMA VERSÃO ANTIGA/.test(hubjs2) && /data-status="\$\{esc\(d\.status\)\}"/.test(hubjs2), 'aviso para REVISAO e ANTIGA');
+assert.ok(/OK, ABRIR MESMO ASSIM/.test(html) && /execução ou orçamento/.test(html));
+assert.ok(/categoria-anterior/.test(main) && /Categoria anterior:/.test(main));
+console.log('OK');
+
 console.log('\nTODOS OS TESTES DO VISUALIZADOR (ESTRUTURA) PASSARAM');

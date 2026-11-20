@@ -245,7 +245,8 @@ async function galeriaComUrls(galeriaObj) {
     memorialCliente = { ...m, itens: await Promise.all(m.itens.map(async ({ fotoR2Key, ...i }) => ({ ...i, fotoUrl: fotoR2Key ? await storage.urlTemporaria(fotoR2Key) : null }))) };
   }
   const { clienteSenhaHash, sessoesClienteAtivas, orcamentos, recursosAtivos, memorial, ...resto } = galeriaObj;
-  return { ...resto, categorias, plantas, fotos, marcaDagua, iconePersonalizado, hub, novoVisual, memorial: memorialCliente };
+  const nomeEscritorio = galeria.nomeEscritorioDaLicenca(galeria.lerEstado(CAMINHO_DADOS), galeriaObj.licencaUsuario);
+  return { ...resto, categorias, plantas, fotos, marcaDagua, iconePersonalizado, hub, novoVisual, nomeEscritorio, memorial: memorialCliente };
 }
 
 app.get('/saude', (req, res) => res.json({ ok: true, servico: 'renderia-pasta-cliente' }));
@@ -441,6 +442,11 @@ function rotaRemoverPerfil(tipo) {
     }
   };
 }
+// Nome do escritório (aparece no "Projeto por:" do PDF das imagens). Chamado pelo app ao salvar as Configurações.
+app.put('/api/app/perfil/nome', exigirSessaoArquiteto, (req, res) => {
+  try { res.json({ ok: true, nomeEscritorio: galeria.definirNomeEscritorio(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).nome) }); }
+  catch (e) { res.status(400).json({ erro: e.message }); }
+});
 app.post('/api/app/perfil/icone', exigirSessaoArquiteto, upload.single('arquivo'), rotaEnviarPerfil('icone'));
 app.post('/api/app/perfil/marca', exigirSessaoArquiteto, upload.single('arquivo'), rotaEnviarPerfil('marca'));
 app.delete('/api/app/perfil/icone', exigirSessaoArquiteto, rotaRemoverPerfil('icone'));
