@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>__OG_TITULO__</title>
+<meta property="og:title" content="__OG_TITULO__">
+<meta property="og:description" content="__OG_DESCRICAO__">
+<meta property="og:image" content="__OG_IMAGEM__">
+<meta property="og:type" content="website">
+<meta name="robots" content="noindex, nofollow">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="visual-novo">
+
+<!-- ===================== LOGIN (senha mestra) ===================== -->
+<div class="tela-login" id="telaLogin">
+  <div class="card-login">
+    <div class="selo"><img src="assets/img/logo.jpg" alt="RENDERIA" id="imgLogoLogin"></div>
+    <h1>Dashboard de projetos</h1>
+    <p class="sub">Entre com a senha mestra do escritório.</p>
+    <div class="campo-login">
+      <label for="inputSenha">Senha mestra</label>
+      <input type="password" id="inputSenha" autocomplete="current-password">
+    </div>
+    <button class="btn-entrar" id="btnEntrar">Entrar</button>
+    <div class="msg-erro-login" id="msgErroLogin" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- ===================== DASHBOARD ===================== -->
+<div id="telaDash" style="display:none;">
+  <div class="topo-galeria">
+    <div class="selo"><img src="assets/img/logo.jpg" alt="" id="imgLogoDash"></div>
+    <div style="flex:1; min-width:0;"><h1>Projetos</h1></div>
+    <button class="btn-topo-nav btn-tema" id="btnTema" aria-label="Alternar entre tema claro e escuro" title="Alternar tema"></button>
+    <button class="btn-topo-nav" id="btnSair" title="Sair do dashboard"><span>Sair</span></button>
+  </div>
+
+  <div class="dash-wrap">
+    <div class="dash-filtros" id="dashFiltros">
+      <input type="search" id="fBusca" placeholder="Buscar pelo nome do projeto..." aria-label="Buscar pelo nome do projeto" autocomplete="off">
+      <label class="dash-filtro"><span>Arquiteto</span><select id="fArquiteto"></select></label>
+      <label class="dash-filtro"><span>Tipo</span><select id="fTipo"><option value="">Todos</option><option value="Arquitetura">Arquitetura</option><option value="Interiores">Interiores</option></select></label>
+      <label class="dash-filtro"><span>Situação</span><select id="fSituacao"><option value="">Todas</option><option value="andamento">Em andamento</option><option value="concluido">Concluídos</option></select></label>
+      <button class="dash-limpar" id="btnLimparFiltros" type="button" style="display:none;">Limpar filtros</button>
+    </div>
+    <div class="dash-resumo" id="dashResumo"></div>
+    <div id="dashLista"></div>
+  </div>
+</div>
+
+<!-- Editar as etiquetas de um projeto -->
+<div class="dash-modal hidden" id="dashModal" role="dialog" aria-modal="true" aria-labelledby="dashModalTitulo">
+  <div class="dash-modal-caixa">
+    <div class="dash-modal-topo"><strong id="dashModalTitulo">Etiquetas do projeto</strong><button type="button" id="dashModalFechar" aria-label="Fechar">✕</button></div>
+    <div class="dash-campo">
+      <span class="dash-rotulo">Arquiteto(s)</span>
+      <div class="dash-chips-edicao" id="dashArqChips"></div>
+      <div class="dash-add-arq"><input type="text" id="dashArqNovo" list="dashArqLista" maxlength="40" placeholder="Adicionar arquiteto (nome)"><button type="button" id="dashArqAdd">Adicionar</button></div>
+      <datalist id="dashArqLista"></datalist>
+    </div>
+    <div class="dash-modal-linha">
+      <label class="dash-campo"><span class="dash-rotulo">Tipo</span><select id="dashTipo"><option value="">—</option><option value="Interiores">Interiores</option><option value="Arquitetura">Arquitetura</option></select></label>
+      <label class="dash-campo"><span class="dash-rotulo">Situação</span><select id="dashSituacao"><option value="andamento">Em andamento</option><option value="concluido">Concluído</option></select></label>
+    </div>
+    <div class="dash-modal-acoes"><button type="button" class="dash-btn-sec" id="dashModalCancelar">Cancelar</button><button type="button" class="dash-btn-pri" id="dashModalSalvar">Salvar</button></div>
+  </div>
+</div>
+<div class="orc-toast" id="dashToast" role="status" aria-live="polite"></div>
+
+<script src="assets/js/dashboard.js"></script>
+</body>
+</html>

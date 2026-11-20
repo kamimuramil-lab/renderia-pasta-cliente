@@ -1,0 +1,238 @@
+// Dashboard online (página /dashboard?c=<link>). Senha mestra -> todos os projetos da conta com filtros (arquiteto, nome,
+// tipo, situação). Clicar num projeto abre a Pasta do Cliente dele SEM a senha do cliente, em modo escritório (só leitura).
+// As etiquetas (arquitetos, tipo, situação) também podem ser editadas aqui.
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const LINK = new URLSearchParams(window.location.search).get('c');
+  if (!LINK) {
+    document.body.innerHTML = '<div style="padding:60px 24px; text-align:center; color:#9a9ea5; font-family:sans-serif;">Link inválido -- confira se você copiou o endereço completo.</div>';
+    return;
+  }
+  const CHAVE_TOKEN = `renderia_dash_token_${LINK}`;
+  const CHAVE_FILTROS = `renderia_dash_filtros_${LINK}`;
+  const CHAVE_TEMA = 'renderia_tema_hub'; // a mesma escolha de tema da Pasta do Cliente (mesmo site, mesmo aparelho)
+  const ROTULO_SITUACAO = { andamento: 'Em andamento', concluido: 'Concluído' };
+
+  let token = null;
+  let projetos = [];
+  let iconeConta = null; // logo da conta: aparece no cartão que ainda não tem foto
+  let editando = null; // projeto cujas etiquetas estão abertas no modal
+  let arqEdicao = [];
+
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const semAcento = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+  // ---------- Tema claro/escuro (segue o aparelho; o botão troca e fica lembrado) ----------
+  const lerTema = () => { try { const t = localStorage.getItem(CHAVE_TEMA); return (t === 'claro' || t === 'escuro') ? t : null; } catch (e) { return null; } };
+  const aparelhoClaro = () => !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+  const temaEfetivo = () => lerTema() || (aparelhoClaro() ? 'claro' : 'escuro');
+  function aplicarTema() {
+    const salvo = lerTema();
+    if (salvo) document.body.dataset.tema = salvo; else delete document.body.dataset.tema;
+    const claro = temaEfetivo() === 'claro';
+    const d = claro ? 'M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z' : 'M12 17a5 5 0 100-10 5 5 0 000 10zM12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1';
+    $('btnTema').innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+    $('btnTema').title = claro ? 'Mudar para o tema escuro' : 'Mudar para o tema claro';
+  }
+  $('btnTema').addEventListener('click', () => { try { localStorage.setItem(CHAVE_TEMA, temaEfetivo() === 'claro' ? 'escuro' : 'claro'); } catch (e) { /* vale só nesta visita */ } aplicarTema(); });
+  aplicarTema();
+
+  let temporizadorAviso = null;
+  function avisar(msg, erro) {
+    const t = $('dashToast');
+    t.textContent = msg; t.classList.toggle('erro', !!erro); t.classList.add('show');
+    clearTimeout(temporizadorAviso); temporizadorAviso = setTimeout(() => t.classList.remove('show'), erro ? 5000 : 2600);
+  }
+
+  async function chamar(caminho, opcoes = {}) {
+    const resp = await fetch(caminho, Object.assign({}, opcoes, { headers: Object.assign({ 'Content-Type': 'application/json' }, opcoes.headers || {}, token ? { 'x-dashboard-token': token } : {}) }));
+    const json = await resp.json().catch(() => ({}));
+    if (resp.status === 401 && token) { sairParaLogin('Sua sessão expirou. Entre de novo.'); throw new Error(json.erro || 'Entre de novo.'); }
+    if (!resp.ok) throw new Error(json.erro || 'Erro ao falar com o servidor.');
+    return json;
+  }
+  const enviar = (metodo, corpo) => ({ method: metodo, body: JSON.stringify(corpo || {}) });
+
+  // ---------- login ----------
+  function sairParaLogin(mensagem) {
+    token = null; try { localStorage.removeItem(CHAVE_TOKEN); } catch (e) { /* tudo bem */ }
+    $('telaDash').style.display = 'none'; $('telaLogin').style.display = 'flex';
+    if (mensagem) { $('msgErroLogin').textContent = mensagem; $('msgErroLogin').style.display = 'block'; }
+  }
+  async function entrar() {
+    const senha = $('inputSenha').value;
+    $('msgErroLogin').style.display = 'none';
+    if (!senha) { $('msgErroLogin').textContent = 'Digite a senha mestra.'; $('msgErroLogin').style.display = 'block'; return; }
+    $('btnEntrar').disabled = true; $('btnEntrar').textContent = 'Entrando...';
+    try {
+      const resp = await fetch(`/api/dashboard/${LINK}/login`, Object.assign({ headers: { 'Content-Type': 'application/json' } }, enviar('POST', { senha })));
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(json.erro || 'Senha incorreta.');
+      token = json.token;
+      try { localStorage.setItem(CHAVE_TOKEN, token); } catch (e) { /* vale só agora */ }
+      $('inputSenha').value = '';
+      await carregar();
+    } catch (e) {
+      $('msgErroLogin').textContent = e.message; $('msgErroLogin').style.display = 'block';
+    } finally {
+      $('btnEntrar').disabled = false; $('btnEntrar').textContent = 'Entrar';
+    }
+  }
+  $('btnEntrar').addEventListener('click', entrar);
+  $('inputSenha').addEventListener('keydown', (e) => { if (e.key === 'Enter') entrar(); });
+  $('btnSair').addEventListener('click', async () => { try { await chamar(`/api/dashboard/${LINK}/sair`, enviar('POST')); } catch (e) { /* sai mesmo assim */ } sairParaLogin(); });
+
+  // ---------- dados e filtros ----------
+  async function carregar() {
+    const r = await chamar(`/api/dashboard/${LINK}/projetos`);
+    projetos = r.projetos;
+    iconeConta = r.iconeUrl || null;
+    if (r.iconeUrl) { $('imgLogoLogin').src = r.iconeUrl; $('imgLogoDash').src = r.iconeUrl; }
+    $('telaLogin').style.display = 'none'; $('telaDash').style.display = 'block';
+    montarFiltroArquitetos();
+    restaurarFiltros();
+    desenhar();
+  }
+
+  const todosArquitetos = () => [...new Set(projetos.flatMap((p) => p.meta.arquitetos))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  function montarFiltroArquitetos() {
+    const atual = $('fArquiteto').value;
+    const nomes = todosArquitetos();
+    $('fArquiteto').innerHTML = '<option value="">Todos</option>' + nomes.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('') + '<option value="__sem__">Sem arquiteto</option>';
+    $('fArquiteto').value = [...$('fArquiteto').options].some((o) => o.value === atual) ? atual : '';
+    $('dashArqLista').innerHTML = nomes.map((n) => `<option value="${esc(n)}">`).join('');
+  }
+  function lerFiltros() { return { busca: $('fBusca').value, arquiteto: $('fArquiteto').value, tipo: $('fTipo').value, situacao: $('fSituacao').value }; }
+  function restaurarFiltros() {
+    let f = {}; try { f = JSON.parse(localStorage.getItem(CHAVE_FILTROS) || '{}'); } catch (e) { f = {}; }
+    $('fBusca').value = f.busca || '';
+    $('fTipo').value = f.tipo || '';
+    $('fSituacao').value = f.situacao || '';
+    if (f.arquiteto && [...$('fArquiteto').options].some((o) => o.value === f.arquiteto)) $('fArquiteto').value = f.arquiteto;
+  }
+  function gravarFiltros() { try { localStorage.setItem(CHAVE_FILTROS, JSON.stringify(lerFiltros())); } catch (e) { /* tudo bem */ } }
+  ['fBusca', 'fArquiteto', 'fTipo', 'fSituacao'].forEach((id) => $(id).addEventListener(id === 'fBusca' ? 'input' : 'change', () => { gravarFiltros(); desenhar(); }));
+  $('btnLimparFiltros').addEventListener('click', () => { $('fBusca').value = ''; $('fArquiteto').value = ''; $('fTipo').value = ''; $('fSituacao').value = ''; gravarFiltros(); desenhar(); });
+
+  function passaNoFiltro(p, f) {
+    if (f.busca && !semAcento(p.nome).includes(semAcento(f.busca))) return false;
+    if (f.arquiteto === '__sem__') { if (p.meta.arquitetos.length) return false; }
+    else if (f.arquiteto && !p.meta.arquitetos.includes(f.arquiteto)) return false;
+    if (f.tipo && p.meta.tipo !== f.tipo) return false;
+    if (f.situacao && p.meta.situacao !== f.situacao) return false;
+    return true;
+  }
+
+  // ---------- desenho ----------
+  const PALETA = ['#7a4fa3', '#a65d3a', '#3c7a8c', '#6b7a3a', '#a33f6a', '#4a5fa8', '#8a6a2a', '#3a8a62'];
+  function corDoNome(nome) { let h = 0; for (const c of String(nome)) h = (h * 31 + c.codePointAt(0)) >>> 0; return PALETA[h % PALETA.length]; }
+
+  function cartao(p) {
+    const chips = [
+      ...p.meta.arquitetos.map((a) => `<span class="dash-chip" style="background:${corDoNome(a)}">${esc(a)}</span>`),
+      `<span class="dash-chip situacao ${p.meta.situacao}">${esc(ROTULO_SITUACAO[p.meta.situacao])}</span>`,
+      p.meta.tipo ? `<span class="dash-chip tipo">${esc(p.meta.tipo)}</span>` : ''
+    ].join('');
+    return `<article class="dash-card" data-id="${esc(p.projetoId)}" tabindex="0" role="button" aria-label="Abrir a pasta do cliente de ${esc(p.nome)}">
+      <div class="dash-capa ${p.capaUrl ? 'com-foto' : ''}" ${p.capaUrl ? `style="background-image:url('${esc(p.capaUrl)}')"` : ''}>${p.capaUrl ? '' : (iconeConta ? `<img class="dash-capa-logo" src="${esc(iconeConta)}" alt="">` : '<span>Sem capa</span>')}</div>
+      <button type="button" class="dash-editar" data-editar title="Editar etiquetas (arquiteto, tipo, situação)" aria-label="Editar etiquetas de ${esc(p.nome)}">✎</button>
+      <div class="dash-corpo"><h3>${esc(p.nome)}</h3><div class="dash-chips">${chips}</div></div>
+    </article>`;
+  }
+
+  function desenhar() {
+    const f = lerFiltros();
+    const filtrando = !!(f.busca || f.arquiteto || f.tipo || f.situacao);
+    $('btnLimparFiltros').style.display = filtrando ? 'inline-flex' : 'none';
+    const lista = projetos.filter((p) => passaNoFiltro(p, f));
+    $('dashResumo').textContent = projetos.length ? `${lista.length} de ${projetos.length} ${projetos.length === 1 ? 'projeto' : 'projetos'}` : '';
+    if (!projetos.length) { $('dashLista').innerHTML = '<div class="vazio-galeria">Ainda não há projetos com Pasta do Cliente. Crie a Pasta do Cliente de um projeto no RENDERIA e ele aparece aqui.</div>'; return; }
+    if (!lista.length) { $('dashLista').innerHTML = '<div class="vazio-galeria">Nenhum projeto com esses filtros.</div>'; return; }
+    $('dashLista').innerHTML = ['andamento', 'concluido'].map((sit) => {
+      const doGrupo = lista.filter((p) => p.meta.situacao === sit);
+      return doGrupo.length ? `<section class="dash-grupo"><h2>${esc(ROTULO_SITUACAO[sit].toUpperCase())} <span>${doGrupo.length}</span></h2><div class="dash-grid">${doGrupo.map(cartao).join('')}</div></section>` : '';
+    }).join('');
+  }
+
+  // ---------- abrir a pasta do cliente (modo escritório) ----------
+  async function abrirProjeto(id) {
+    const card = $('dashLista').querySelector(`.dash-card[data-id="${CSS.escape(id)}"]`);
+    if (card) card.classList.add('abrindo');
+    try {
+      const r = await chamar(`/api/dashboard/${LINK}/projetos/${encodeURIComponent(id)}/abrir`, enviar('POST'));
+      // a página do cliente (mesmo site) lê esta chave e já entra, sem pedir a senha do cliente
+      localStorage.setItem(`renderia_cliente_token_${r.linkToken}`, r.token);
+      localStorage.setItem('renderia_dash_conta', LINK);
+      window.location.href = `/?g=${encodeURIComponent(r.linkToken)}`;
+    } catch (e) {
+      if (card) card.classList.remove('abrindo');
+      avisar(e.message, true);
+    }
+  }
+  $('dashLista').addEventListener('click', (e) => {
+    const card = e.target.closest('.dash-card');
+    if (!card) return;
+    if (e.target.closest('[data-editar]')) { abrirEdicao(card.dataset.id); return; }
+    abrirProjeto(card.dataset.id);
+  });
+  $('dashLista').addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('dash-card')) { e.preventDefault(); abrirProjeto(e.target.dataset.id); }
+  });
+
+  // ---------- editar etiquetas ----------
+  function desenharChipsEdicao() {
+    $('dashArqChips').innerHTML = arqEdicao.length
+      ? arqEdicao.map((a, i) => `<span class="dash-chip" style="background:${corDoNome(a)}">${esc(a)}<button type="button" data-tirar="${i}" aria-label="Tirar ${esc(a)}">✕</button></span>`).join('')
+      : '<span class="dash-sem">Nenhum arquiteto marcado</span>';
+  }
+  function abrirEdicao(id) {
+    editando = projetos.find((p) => p.projetoId === id);
+    if (!editando) return;
+    $('dashModalTitulo').textContent = editando.nome;
+    arqEdicao = [...editando.meta.arquitetos];
+    $('dashTipo').value = editando.meta.tipo || '';
+    $('dashSituacao').value = editando.meta.situacao;
+    $('dashArqNovo').value = '';
+    desenharChipsEdicao();
+    $('dashModal').classList.remove('hidden');
+    $('dashArqNovo').focus();
+  }
+  function fecharEdicao() { $('dashModal').classList.add('hidden'); editando = null; }
+  function adicionarArquiteto() {
+    const nome = $('dashArqNovo').value.trim();
+    if (!nome) return;
+    if (!arqEdicao.some((a) => a.toLowerCase() === nome.toLowerCase())) arqEdicao.push(nome);
+    $('dashArqNovo').value = '';
+    desenharChipsEdicao();
+  }
+  $('dashArqAdd').addEventListener('click', adicionarArquiteto);
+  $('dashArqNovo').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); adicionarArquiteto(); } });
+  $('dashArqChips').addEventListener('click', (e) => { const b = e.target.closest('[data-tirar]'); if (b) { arqEdicao.splice(Number(b.dataset.tirar), 1); desenharChipsEdicao(); } });
+  $('dashModalFechar').addEventListener('click', fecharEdicao);
+  $('dashModalCancelar').addEventListener('click', fecharEdicao);
+  $('dashModal').addEventListener('click', (e) => { if (e.target === $('dashModal')) fecharEdicao(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('dashModal').classList.contains('hidden')) fecharEdicao(); });
+  $('dashModalSalvar').addEventListener('click', async () => {
+    if (!editando) return;
+    adicionarArquiteto(); // o que ficou digitado e não foi adicionado também entra
+    $('dashModalSalvar').disabled = true;
+    try {
+      const r = await chamar(`/api/dashboard/${LINK}/projetos/${encodeURIComponent(editando.projetoId)}/meta`, enviar('PUT', { arquitetos: arqEdicao, tipo: $('dashTipo').value, situacao: $('dashSituacao').value }));
+      editando.meta = r.meta;
+      fecharEdicao();
+      montarFiltroArquitetos();
+      desenhar();
+      avisar('Etiquetas salvas.');
+    } catch (e) { avisar(e.message, true); } finally { $('dashModalSalvar').disabled = false; }
+  });
+
+  // ---------- entrada: sessão lembrada ----------
+  (async function iniciar() {
+    try {
+      const r = await fetch(`/api/dashboard/${LINK}/info-publica`);
+      if (!r.ok) { document.body.innerHTML = '<div style="padding:60px 24px; text-align:center; color:#9a9ea5; font-family:sans-serif;">Link não encontrado -- confira se você copiou o endereço completo.</div>'; return; }
+    } catch (e) { /* a tela de login continua */ }
+    try { token = localStorage.getItem(CHAVE_TOKEN); } catch (e) { token = null; }
+    if (token) { try { await carregar(); } catch (e) { sairParaLogin(); } }
+  })();
+})();

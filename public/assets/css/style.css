@@ -789,3 +789,117 @@ body.visual-novo .btn-tema{ display:flex; }
 .hub-dados .dado-contato{ display:flex; flex-wrap:wrap; gap:4px 28px; }
 .hub-dados a.dado-chip{ display:inline-block; margin-left:6px; padding:1px 9px; border:1px solid var(--line); border-radius:999px; font-size:11.5px; font-weight:700; text-decoration:none; color:var(--text-dim); }
 .hub-dados a.dado-chip:hover{ border-color:var(--steel-500); color:var(--text); }
+
+/* barra numa linha só mesmo com foto vertical: o campo de comentário pode ser mais estreito (flex-basis menor) */
+.linha-acoes-visualizador .area-comentario{ flex:1 1 220px; }
+.linha-acoes-visualizador .btn-ver-historico{ flex-shrink:0; }
+
+/* ===================== DASHBOARD ONLINE (/dashboard) ===================== */
+.dash-wrap{ max-width:min(1700px, 97vw); margin:0 auto; padding:18px 24px 60px; }
+.dash-filtros{ display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px 16px; margin-bottom:10px; }
+.dash-filtros input[type="search"]{
+  flex:1 1 260px; min-width:200px; padding:12px 16px; font-size:15px; font-family:inherit; color:var(--text);
+  background:var(--bg-elev); border:1px solid var(--line); border-radius:999px;
+}
+.dash-filtro{ display:flex; flex-direction:column; gap:4px; }
+.dash-filtro span{ font-size:11.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--text-faint); padding-left:4px; }
+.dash-filtro select, .dash-campo select{
+  font:inherit; font-size:14.5px; color:var(--text); background:var(--bg-elev); border:1px solid var(--line); border-radius:999px; padding:10px 16px; min-width:150px;
+}
+.dash-limpar{ background:transparent; border:1px solid var(--line); color:var(--text-dim); border-radius:999px; padding:10px 16px; font-size:13.5px; font-weight:700; align-items:center; }
+.dash-limpar:hover{ color:var(--text); border-color:var(--steel-500); }
+.dash-resumo{ font-size:13.5px; color:var(--text-dim); margin:0 4px 6px; min-height:20px; }
+.dash-grupo{ margin-top:22px; }
+.dash-grupo h2{ font-size:13.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); margin-bottom:12px; }
+.dash-grupo h2 span{ margin-left:8px; font-weight:600; color:var(--text-faint); }
+.dash-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(250px, 1fr)); gap:16px; }
+.dash-card{
+  position:relative; background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-m); overflow:hidden;
+  cursor:pointer; transition:transform .12s, border-color .12s; outline:none;
+}
+.dash-card:hover, .dash-card:focus-visible{ transform:translateY(-2px); border-color:var(--steel-500); }
+.dash-card.abrindo{ opacity:.6; pointer-events:none; }
+.dash-capa{ aspect-ratio:16/10; background:linear-gradient(135deg,#1b1c1f,#0b0c0e); background-size:cover; background-position:center; display:flex; align-items:center; justify-content:center; color:#6b6f76; font-size:13px; }
+.dash-editar{
+  position:absolute; top:8px; right:8px; width:32px; height:32px; border-radius:50%; border:1px solid rgba(255,255,255,.25);
+  background:rgba(15,16,18,.65); color:#fff; font-size:15px; opacity:0; transition:opacity .12s; display:flex; align-items:center; justify-content:center; padding:0;
+}
+.dash-card:hover .dash-editar, .dash-card:focus-within .dash-editar{ opacity:1; }
+@media (hover:none){ .dash-editar{ opacity:.9; } }
+.dash-corpo{ padding:14px 16px 16px; }
+.dash-corpo h3{ font-size:17px; margin-bottom:10px; overflow-wrap:anywhere; }
+.dash-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.dash-chip{ display:inline-flex; align-items:center; gap:6px; padding:3px 11px; border-radius:6px; font-size:12px; font-weight:800; letter-spacing:.02em; color:#fff; text-transform:uppercase; }
+.dash-chip.situacao.andamento{ background:#2f5f8f; }
+.dash-chip.situacao.concluido{ background:#2b7a4d; }
+.dash-chip.tipo{ background:#8a6d2a; }
+.dash-chip button{ background:none; border:0; color:#fff; padding:0; font-size:11px; cursor:pointer; opacity:.8; }
+.dash-modal{ position:fixed; inset:0; z-index:80; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:20px; }
+.dash-modal.hidden{ display:none; }
+.dash-modal-caixa{ width:100%; max-width:460px; background:var(--bg-elev); border:1px solid var(--line); border-radius:var(--radius-m); padding:20px 22px; display:flex; flex-direction:column; gap:16px; }
+.dash-modal-topo{ display:flex; justify-content:space-between; align-items:center; gap:12px; font-size:16px; }
+.dash-modal-topo button{ background:none; border:0; color:var(--text-dim); font-size:16px; }
+.dash-campo{ display:flex; flex-direction:column; gap:6px; flex:1; }
+.dash-rotulo{ font-size:11.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--text-faint); }
+.dash-chips-edicao{ display:flex; flex-wrap:wrap; gap:6px; min-height:30px; align-items:center; }
+.dash-sem{ font-size:13px; color:var(--text-faint); }
+.dash-add-arq{ display:flex; gap:8px; }
+.dash-add-arq input{ flex:1; min-width:0; padding:10px 14px; font:inherit; font-size:14px; color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:999px; }
+.dash-add-arq button, .dash-btn-sec, .dash-btn-pri{ padding:10px 18px; border-radius:999px; font-size:14px; font-weight:700; border:1px solid var(--line); background:var(--bg); color:var(--text); }
+.dash-btn-pri{ background:var(--steel-100); border-color:var(--steel-100); color:var(--bg); }
+.dash-modal-linha{ display:flex; gap:12px; }
+.dash-modal-linha .dash-campo select{ min-width:0; width:100%; }
+.dash-modal-acoes{ display:flex; justify-content:flex-end; gap:10px; }
+@media (max-width:620px){ .dash-wrap{ padding:14px 14px 50px; } .dash-filtro select{ min-width:0; } .dash-filtros .dash-filtro{ flex:1 1 140px; } .dash-modal-linha{ flex-direction:column; } }
+
+/* ===== Pasta do Cliente aberta pelo dashboard (modo escritório): só leitura ===== */
+.faixa-escritorio{
+  position:fixed; top:8px; left:50%; transform:translateX(-50%); z-index:120; display:flex; align-items:center; gap:12px;
+  padding:7px 8px 7px 16px; border-radius:999px; background:#8a6d2a; color:#fff; font-size:13px; font-weight:700;
+  box-shadow:0 6px 20px rgba(0,0,0,.4); white-space:nowrap; max-width:calc(100vw - 24px);
+}
+.faixa-escritorio a{ color:#fff; background:rgba(0,0,0,.28); border-radius:999px; padding:5px 13px; text-decoration:none; font-size:12.5px; }
+.faixa-escritorio[hidden]{ display:none; }
+body.modo-escritorio #btnAprovarFoto, body.modo-escritorio #btnAlternarDesenho, body.modo-escritorio .area-comentario, body.modo-escritorio #linhaCoresDesenho{ display:none !important; }
+@media (max-width:620px){ .faixa-escritorio .rot-longo{ display:none; } }
+
+.dash-capa-logo{ width:38%; max-width:130px; height:auto; opacity:.55; border-radius:12px; }
+
+/* ===== Miniatura da câmera na planta: nunca espreme a foto (o rótulo encolhia até a largura do nome e a foto ficava estreita) ===== */
+.pin-rotulo{ min-width:160px; }
+.pin-rotulo-img{ max-width:none; flex-shrink:0; width:150px; height:100px; object-fit:cover; }
+
+/* ===== Página inicial na web: a capa tem a MESMA largura dos cartões (no celular continua de ponta a ponta) ===== */
+@media (min-width:700px){
+  .hub-capa{ margin:18px 0 22px; border:1px solid var(--line); border-radius:var(--radius-m); }
+}
+
+/* ===== "Próxima categoria" = a própria seta da direita, com outro visual ===== */
+.seta-nav .ico-cat, .seta-nav .seta-rotulo{ display:none; }
+.seta-nav.proxima-categoria{ background:var(--steel-grad); color:#101214; border-color:transparent; width:52px; height:52px; box-shadow:0 0 0 4px rgba(255,255,255,.12), 0 6px 18px rgba(0,0,0,.5); }
+.seta-nav.proxima-categoria .ico-prox{ display:none; }
+.seta-nav.proxima-categoria .ico-cat{ display:block; }
+.seta-nav.proxima-categoria .seta-rotulo{
+  display:block; position:absolute; top:calc(100% + 8px); right:0; max-width:132px; padding:4px 9px; border-radius:8px;
+  background:rgba(20,22,24,.86); color:var(--steel-100); font-size:11px; font-weight:800; letter-spacing:.02em; text-transform:uppercase;
+  line-height:1.25; text-align:right; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; pointer-events:none;
+}
+.seta-nav{ position:absolute; }
+.seta-nav.proxima-categoria{ animation:seta-categoria 2.2s ease-in-out infinite; }
+@keyframes seta-categoria{ 0%,100%{ box-shadow:0 0 0 4px rgba(255,255,255,.12), 0 6px 18px rgba(0,0,0,.5); } 50%{ box-shadow:0 0 0 9px rgba(255,255,255,.04), 0 6px 18px rgba(0,0,0,.5); } }
+
+/* ===== Celular: aprovar e solicitar alteração LADO A LADO (metade da largura cada) ===== */
+@media (max-width:620px){
+  .linha-acoes-visualizador{ gap:8px; }
+  .linha-acoes-visualizador .btn-aprovar, .linha-acoes-visualizador .btn-desenhar{
+    flex:1 1 0; min-width:0; justify-content:center; padding:11px 8px; font-size:13px; gap:6px; white-space:nowrap;
+  }
+}
+@media (max-width:620px){
+  /* o campo de comentário vai para a linha de baixo (largura toda); aprovar e alterar dividem a de cima */
+  .linha-acoes-visualizador .area-comentario{ flex:1 1 100%; }
+}
+@media (max-width:620px){
+  .linha-acoes-visualizador .btn-aprovar, .linha-acoes-visualizador .btn-desenhar{ padding:11px 6px; font-size:12.5px; gap:5px; }
+  .linha-acoes-visualizador .btn-aprovar svg, .linha-acoes-visualizador .btn-desenhar svg{ flex-shrink:0; }
+}

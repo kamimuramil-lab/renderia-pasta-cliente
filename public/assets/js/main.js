@@ -104,9 +104,21 @@ function entrarNoProjeto(galeria) {
 function mostrarTelaGaleriaDaPlanta() { $('telaGaleria').style.display = 'block'; if (window.NavCliente) window.NavCliente.sincronizar(); }
 $('btnIrParaPlanta').addEventListener('click', () => window.PlantaCliente.abrir());
 
+// ---------- Modo escritório: a pasta foi aberta pelo dashboard (só leitura; o servidor também recusa aprovar/comentar) ----------
+function aplicarModoEscritorio(galeria) {
+  const ativo = !!(galeria && galeria.modoEscritorio);
+  document.body.classList.toggle('modo-escritorio', ativo);
+  $('faixaEscritorio').hidden = !ativo;
+  if (!ativo) return;
+  let conta = null; try { conta = localStorage.getItem('renderia_dash_conta'); } catch (e) { conta = null; }
+  $('linkVoltarDashboard').style.display = conta ? '' : 'none';
+  if (conta) $('linkVoltarDashboard').href = '/dashboard?c=' + encodeURIComponent(conta);
+}
+
 // ---------- Home: grade de categorias ----------
 function mostrarGaleria(galeria) {
   estado.galeria = galeria;
+  aplicarModoEscritorio(galeria);
   document.body.classList.toggle('visual-novo', !!galeria.novoVisual); // servidor antigo não manda = visual de sempre
   $('btnIrParaPlanta').style.display = (window.PlantaCliente && window.PlantaCliente.temPlantaUtil(galeria)) ? 'flex' : 'none';
   $('telaLogin').style.display = 'none';
@@ -261,7 +273,10 @@ function navegarVisualizador(delta) {
     if (anteriorIndice >= 0) abrirCategoria(anteriorIndice, { noFim: true });
     return;
   }
-  if (novoIndice >= estado.fotosCategoriaAtual.length) return; // chegou no fim -- só o botão "próxima categoria" avança daqui
+  if (novoIndice >= estado.fotosCategoriaAtual.length) { // chegou no fim: a seta da direita avança para a próxima categoria (se houver)
+    if (delta > 0 && estado.indiceCategoriaAtual < estado.categoriasOrdenadas.length - 1) abrirCategoria(estado.indiceCategoriaAtual + 1);
+    return;
+  }
   estado.indiceAtual = novoIndice;
   renderizarFotoAtualNoVisualizador();
 }
@@ -330,11 +345,17 @@ function renderizarFotoAtualNoVisualizador() {
 
   const noUltimoItemDaCategoria = estado.indiceAtual === estado.fotosCategoriaAtual.length - 1;
   const temProximaCategoria = estado.indiceCategoriaAtual < estado.categoriasOrdenadas.length - 1;
-  $('btnProximaFoto').style.display = noUltimoItemDaCategoria ? 'none' : 'flex';
-  $('btnProximaCategoria').style.display = (noUltimoItemDaCategoria && temProximaCategoria) ? 'block' : 'none';
-  if (noUltimoItemDaCategoria && temProximaCategoria) {
-    $('nomeProximaCategoria').textContent = estado.categoriasOrdenadas[estado.indiceCategoriaAtual + 1].nome;
-  }
+  // No fim de uma categoria a seta da direita NÃO some: ela vira "próxima categoria" (cor de destaque, setas duplas e o nome
+  // da categoria logo abaixo), no mesmo lugar onde a pessoa já clica para passar de imagem. Na última categoria ela some.
+  const vaiParaOutraCategoria = noUltimoItemDaCategoria && temProximaCategoria;
+  const seta = $('btnProximaFoto');
+  seta.style.display = (!noUltimoItemDaCategoria || temProximaCategoria) ? 'flex' : 'none';
+  seta.classList.toggle('proxima-categoria', vaiParaOutraCategoria);
+  const nomeProxima = vaiParaOutraCategoria ? estado.categoriasOrdenadas[estado.indiceCategoriaAtual + 1].nome : '';
+  $('rotuloProximaCategoria').textContent = nomeProxima;
+  seta.title = vaiParaOutraCategoria ? `Próxima categoria: ${nomeProxima}` : 'Próxima imagem';
+  seta.setAttribute('aria-label', seta.title);
+  $('btnProximaCategoria').style.display = 'none'; // o botão antigo (embaixo, sobre a imagem) não é mais usado
 
   // O "mood" é só uma capa -- não tem comentário/aprovação, é a mesma
   // ideia de uma capa de revista, não uma entrega de verdade.
@@ -391,7 +412,7 @@ function ajustarLarguraPainelInferior(foto) {
   if (!foto || foto.tipo === '360' || foto.__ehMood) { painel.style.removeProperty('--larg-img'); return; }
   const area = $('areaImagemVisualizador');
   const r = retanguloImagemRenderizada($('imgFotoVisualizador'), area);
-  const minimo = Math.min(560, area.clientWidth); // foto vertical estreita: não deixa a barra apertada demais
+  const minimo = Math.min(800, area.clientWidth); // foto vertical estreita: a barra não encolhe junto, pra aprovar + alterar + comentário caberem numa linha só
   painel.style.setProperty('--larg-img', Math.round(Math.max(r.width, minimo)) + 'px');
 }
 

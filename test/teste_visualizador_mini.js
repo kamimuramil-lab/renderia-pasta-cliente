@@ -45,4 +45,17 @@ assert.ok(pos('dados-projeto.js') > 0 && pos('dados-projeto.js') < pos('hub.js')
 assert.ok(/DadosProjeto\.htmlDosDados/.test(hubjs));
 console.log('OK');
 
+console.log('== 7. "Próxima categoria" é a própria seta da direita (não um botão por cima da imagem) ==');
+assert.ok(/id="rotuloProximaCategoria"/.test(html) && /class="ico-cat"/.test(html));
+assert.ok(/seta\.classList\.toggle\('proxima-categoria', vaiParaOutraCategoria\)/.test(main), 'a seta troca de visual no fim da categoria');
+assert.ok(/\$\('btnProximaCategoria'\)\.style\.display = 'none'/.test(main), 'o botão antigo fica sempre escondido');
+assert.ok(/delta > 0 && estado\.indiceCategoriaAtual < estado\.categoriasOrdenadas\.length - 1\) abrirCategoria\(estado\.indiceCategoriaAtual \+ 1\)/.test(main), 'seta, zona de clique e teclado avançam de categoria');
+console.log('OK');
+
+console.log('== 8. CSS: miniatura da câmera sem espremer, capa do hub na largura dos cartões, celular com aprovar/alterar lado a lado ==');
+assert.ok(/\.pin-rotulo-img\{ max-width:none; flex-shrink:0;/.test(css) && /\.pin-rotulo\{ min-width:160px; \}/.test(css));
+assert.ok(/@media \(min-width:700px\)\{\s*\.hub-capa\{ margin:18px 0 22px;/.test(css));
+assert.ok(/\.linha-acoes-visualizador \.btn-aprovar, \.linha-acoes-visualizador \.btn-desenhar\{\s*flex:1 1 0;/.test(css) && /\.linha-acoes-visualizador \.area-comentario\{ flex:1 1 100%; \}/.test(css));
+console.log('OK');
+
 console.log('\nTODOS OS TESTES DO VISUALIZADOR (ESTRUTURA) PASSARAM');

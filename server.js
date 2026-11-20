@@ -7,6 +7,7 @@ const galeria = require('./lib/galeria');
 const hubLib = require('./lib/hub');
 const orcLib = require('./lib/orcamentos');
 const memLib = require('./lib/memorial');
+const dashLib = require('./lib/dashboard');
 const storage = require('./lib/storage');
 
 const app = express();
@@ -113,6 +114,18 @@ app.get('/orcamentos', (req, res) => {
   const html = comVersaoNosAssets(lerOrcHtml())
     .split('__OG_TITULO__').join(nome ? `${nome} — Orçamentos` : 'Orçamentos do seu projeto')
     .split('__OG_DESCRICAO__').join('Veja os orçamentos do seu projeto, acompanhe o andamento e comente.')
+    .split('__OG_IMAGEM__').join(`${req.protocol}://${req.get('host')}/assets/img/logo.jpg`);
+  res.send(html);
+});
+
+// Dashboard online (/dashboard?c=<link da conta>): a página só mostra o login; os dados vêm por API depois da senha mestra.
+const CAMINHO_DASH_HTML = path.join(__dirname, 'public', 'dashboard.html');
+const DASH_HTML_BRUTO = fs.existsSync(CAMINHO_DASH_HTML) ? fs.readFileSync(CAMINHO_DASH_HTML, 'utf8') : '';
+const lerDashHtml = () => (storage.MODO_LOCAL ? fs.readFileSync(CAMINHO_DASH_HTML, 'utf8') : DASH_HTML_BRUTO);
+app.get('/dashboard', (req, res) => {
+  const html = comVersaoNosAssets(lerDashHtml())
+    .split('__OG_TITULO__').join('Dashboard de projetos')
+    .split('__OG_DESCRICAO__').join('Acesso restrito.')
     .split('__OG_IMAGEM__').join(`${req.protocol}://${req.get('host')}/assets/img/logo.jpg`);
   res.send(html);
 });
@@ -823,9 +836,14 @@ app.post('/api/cliente/:linkToken/login', limitarPorIP, (req, res) => {
 
 function exigirSessaoCliente(req, res, next) {
   const token = req.headers['x-cliente-token'];
-  if (!token || !galeria.validarTokenCliente(CAMINHO_DADOS, req.params.linkToken, token)) {
-    return res.status(401).json({ erro: 'Faça login de novo.' });
-  }
+  const sessao = token ? galeria.sessaoCliente(CAMINHO_DADOS, req.params.linkToken, token) : null;
+  if (!sessao) return res.status(401).json({ erro: 'Faça login de novo.' });
+  req.somenteLeitura = sessao.escritorio === true; // aberta pelo dashboard (modo escritório): só olha
+  next();
+}
+// Aprovar/comentar não valem em modo escritório: o arquiteto nunca registra uma decisão no lugar do cliente.
+function exigirQueNaoSejaLeitura(req, res, next) {
+  if (req.somenteLeitura) return res.status(403).json({ erro: 'Modo escritório: só visualização (aprovar e comentar são do cliente).' });
   next();
 }
 
@@ -835,13 +853,15 @@ app.get('/api/cliente/:linkToken/galeria', exigirSessaoCliente, async (req, res)
     if (!g) return res.status(404).json({ erro: 'Link não encontrado.' });
     const resultado = await galeriaComUrls(g);
     resultado.fotos = resultado.fotos.filter((f) => !f.arquivada); // cliente nunca vê arquivadas
+    delete resultado.meta; // etiquetas do dashboard (arquitetos etc.) são do escritório
+    if (req.somenteLeitura) resultado.modoEscritorio = true;
     res.json(resultado);
   } catch (e) {
     res.status(500).json({ erro: e.message });
   }
 });
 
-app.post('/api/cliente/:linkToken/fotos/:fotoId/comentar', exigirSessaoCliente, async (req, res) => {
+app.post('/api/cliente/:linkToken/fotos/:fotoId/comentar', exigirSessaoCliente, exigirQueNaoSejaLeitura, async (req, res) => {
   try {
     const { texto, desenhoDataUrl } = req.body || {};
     let desenhoR2Key = null;
@@ -857,7 +877,7 @@ app.post('/api/cliente/:linkToken/fotos/:fotoId/comentar', exigirSessaoCliente, 
   }
 });
 
-app.post('/api/cliente/:linkToken/fotos/:fotoId/aprovar', exigirSessaoCliente, (req, res) => {
+app.post('/api/cliente/:linkToken/fotos/:fotoId/aprovar', exigirSessaoCliente, exigirQueNaoSejaLeitura, (req, res) => {
   try {
     const { aprovada } = req.body || {};
     galeria.aprovarFoto(CAMINHO_DADOS, req.params.linkToken, req.params.fotoId, aprovada !== false);
@@ -866,5 +886,44 @@ app.post('/api/cliente/:linkToken/fotos/:fotoId/aprovar', exigirSessaoCliente, (
     res.status(400).json({ erro: e.message });
   }
 });
+
+// ====================================================================
+// DASHBOARD ONLINE (nov/2026) -- senha mestra por conta, lista de projetos com etiquetas e abertura "modo escritório".
+// ====================================================================
+function exigirSessaoDashboard(req, res, next) {
+  const licenca = dashLib.validarSessao(CAMINHO_DADOS, req.params.linkDash, req.headers['x-dashboard-token']);
+  if (!licenca) return res.status(401).json({ erro: 'Entre de novo com a senha mestra.' });
+  req.licencaConta = licenca;
+  next();
+}
+const rotaDash = (fn) => async (req, res) => {
+  try { res.json(Object.assign({ ok: true }, await fn(req))); } catch (e) { res.status(400).json({ erro: e.message }); }
+};
+
+app.get('/api/dashboard/:linkDash/info-publica', (req, res) => {
+  if (!dashLib.linkExiste(CAMINHO_DADOS, req.params.linkDash)) return res.status(404).json({ erro: 'Link não encontrado.' });
+  res.json({ ok: true });
+});
+app.post('/api/dashboard/:linkDash/login', limitarPorIP, (req, res) => {
+  try { res.json({ ok: true, token: dashLib.login(CAMINHO_DADOS, req.params.linkDash, (req.body || {}).senha) }); }
+  catch (e) { res.status(401).json({ erro: e.message }); }
+});
+app.post('/api/dashboard/:linkDash/sair', exigirSessaoDashboard, rotaDash((req) => { dashLib.sair(CAMINHO_DADOS, req.params.linkDash, req.headers['x-dashboard-token']); return {}; }));
+app.get('/api/dashboard/:linkDash/projetos', exigirSessaoDashboard, rotaDash(async (req) => {
+  const projetos = await Promise.all(dashLib.listarProjetos(CAMINHO_DADOS, req.licencaConta).map(async ({ capaR2Key, ...p }) => ({ ...p, capaUrl: capaR2Key ? await storage.urlTemporaria(capaR2Key) : null })));
+  const perfil = galeria.resolverPersonalizacao(galeria.lerEstado(CAMINHO_DADOS), { licencaUsuario: req.licencaConta });
+  const iconeUrl = (perfil.iconeR2Key) ? await storage.urlTemporaria(perfil.iconeR2Key) : null;
+  return { projetos, iconeUrl };
+}));
+app.put('/api/dashboard/:linkDash/projetos/:projetoId/meta', exigirSessaoDashboard, rotaDash((req) => ({ meta: dashLib.definirMeta(CAMINHO_DADOS, req.licencaConta, req.params.projetoId, req.body || {}) })));
+app.post('/api/dashboard/:linkDash/projetos/:projetoId/abrir', exigirSessaoDashboard, rotaDash((req) => dashLib.abrirComoEscritorio(CAMINHO_DADOS, req.licencaConta, req.params.projetoId)));
+
+// Lado do ARQUITETO (app): senha mestra, link e etiquetas. Recurso da licença: o mesmo da Página do projeto (nível Completo).
+app.get('/api/app/dashboard', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => dashLib.infoDaConta(CAMINHO_DADOS, req.licencaUsuario)));
+app.put('/api/app/dashboard/senha', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => dashLib.definirSenha(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).senha)));
+app.get('/api/app/dashboard/projetos', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => ({
+  projetos: dashLib.listarProjetos(CAMINHO_DADOS, req.licencaUsuario).map(({ projetoId, nome, meta }) => ({ projetoId, nome, meta }))
+})));
+app.put('/api/app/galeria/:projetoId/meta', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => ({ meta: dashLib.definirMeta(CAMINHO_DADOS, req.licencaUsuario, req.params.projetoId, req.body || {}) })));
 
 app.listen(PORTA, () => console.log(`Servidor da Pasta do Cliente rodando na porta ${PORTA}`));
