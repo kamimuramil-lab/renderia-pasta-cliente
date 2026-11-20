@@ -46,13 +46,18 @@ assert.strictEqual(o.itens.length, 14, 'ler de novo não repete os 13 (14 = 13 +
 // excluir todos NÃO recria
 o.itens.forEach((i) => orc.excluirItem(CAM, 'p1', i.id, DONO));
 assert.strictEqual(orc.lerParaArquiteto(CAM, 'p1', DONO).itens.length, 0, 'quem apagou não ganha os itens de volta');
-// projeto que já tinha orçamentos (ex.: importado) não é mexido
+// projeto que já tinha orçamentos (ex.: importado) ganha só as categorias que FALTAM, sem repetir (compara sem acento nem maiúscula)
 novaGaleria('p2');
 orc.adicionarItem(CAM, 'p2', { item: 'Mármore antigo', valor: 100 }, DONO);
-assert.deepStrictEqual(orc.lerParaArquiteto(CAM, 'p2', DONO).itens.map((i) => i.item), ['Mármore antigo']);
+orc.adicionarItem(CAM, 'p2', { item: 'MARMORARIA ', valor: 5000, status: 'evf' }, DONO);
+const p2 = orc.lerParaArquiteto(CAM, 'p2', DONO).itens;
+assert.strictEqual(p2.length, 2 + 12, 'os 2 que já tinha + as 12 categorias que faltavam (Marmoraria já existia)');
+assert.strictEqual(p2.filter((i) => /marmoraria/i.test(i.item)).length, 1, 'Marmoraria não foi duplicada');
+assert.strictEqual(p2.find((i) => /marmoraria/i.test(i.item)).valor, 5000, 'o item que já existia não foi mexido');
+assert.strictEqual(orc.lerParaArquiteto(CAM, 'p2', DONO).itens.length, 14, 'só completa uma vez');
 // só o dono
 assert.throws(() => orc.lerParaArquiteto(CAM, 'p2', 'outro'), /não pertence/);
-ok('13 itens na primeira abertura, só uma vez, não recria depois de apagar, não mexe em projeto que já tem orçamento');
+ok('13 itens na primeira abertura, só uma vez, não recria depois de apagar; projeto que já tinha orçamentos ganha só as categorias que faltam');
 
 console.log('== 4. O cliente só vê o que foi começado; pode aprovar também no EVF ==');
 novaGaleria('p3');
@@ -116,6 +121,26 @@ assert.ok(paraCli.setores.includes('Paisagismo'));
 assert.deepStrictEqual(paraCli.itens.map((i) => i.setor), ['Metais', 'Metais', 'Paisagismo']);
 assert.ok(!JSON.stringify(paraCli).includes('"valor"'), 'sem valor pro cliente');
 ok('setor novo chega ao cliente e a ordem segue a lista do projeto');
+
+console.log('== 7. Comentários: o arquiteto edita os SEUS e apaga qualquer um ==');
+novaGaleria('p6');
+const link6 = orc.definirAcesso(CAM, 'p6', { usuario: 'orc', senha: 'abcd1234' }, DONO).linkToken;
+const alvo = orc.lerParaArquiteto(CAM, 'p6', DONO).itens[0];
+const cCli = orc.comentarCliente(CAM, link6, alvo.id, 'Pode melhorar o prazo?');
+const cArq = orc.comentarComoArquiteto(CAM, 'p6', alvo.id, 'Vou ver com o fornecedor.', DONO);
+const ed = orc.editarComentarioDoArquiteto(CAM, 'p6', alvo.id, cArq.id, '  Consegui reduzir o prazo.  ', DONO);
+assert.deepStrictEqual([ed.texto, !!ed.editadoEm], ['Consegui reduzir o prazo.', true]);
+assert.throws(() => orc.editarComentarioDoArquiteto(CAM, 'p6', alvo.id, cCli.id, 'x', DONO), /Só dá para editar as mensagens que você enviou/);
+assert.throws(() => orc.editarComentarioDoArquiteto(CAM, 'p6', alvo.id, cArq.id, '   ', DONO), /./, 'texto vazio é recusado');
+assert.throws(() => orc.editarComentarioDoArquiteto(CAM, 'p6', alvo.id, 'com_x', 'x', DONO), /não encontrado/);
+assert.throws(() => orc.editarComentarioDoArquiteto(CAM, 'p6', alvo.id, cArq.id, 'x', 'outro'), /não pertence/);
+assert.strictEqual(orc.listarParaCliente(CAM, link6).itens[0].comentarios.find((c) => c.id === cArq.id).texto, 'Consegui reduzir o prazo.', 'o cliente vê a mensagem editada');
+orc.excluirComentarioDoArquiteto(CAM, 'p6', alvo.id, cCli.id, DONO); // apaga a do CLIENTE
+orc.excluirComentarioDoArquiteto(CAM, 'p6', alvo.id, cArq.id, DONO); // e a própria
+assert.strictEqual(orc.lerParaArquiteto(CAM, 'p6', DONO).itens[0].comentarios.length, 0);
+assert.throws(() => orc.excluirComentarioDoArquiteto(CAM, 'p6', alvo.id, cArq.id, DONO), /não encontrado/);
+assert.throws(() => orc.excluirComentarioDoArquiteto(CAM, 'p6', alvo.id, 'x', 'outro'), /não pertence/);
+ok('edita só os próprios; apaga os do cliente e os próprios; o cliente vê a edição; outra conta barrada');
 
 fs.rmSync(TMP, { recursive: true, force: true });
 console.log('\nTODOS OS TESTES DOS AJUSTES (VALOR, PADRÕES, SETORES) PASSARAM');

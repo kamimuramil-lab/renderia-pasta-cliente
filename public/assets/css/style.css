@@ -479,7 +479,7 @@ body.visual-novo[data-tema="claro"]{
 .mem-sem-foto{ color:var(--text-dim); }
 .mem-ampliada{ position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,.82); display:flex; align-items:center; justify-content:center; padding:20px; cursor:zoom-out; }
 .mem-ampliada img{ max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:8px; }
-@media (max-width:760px){
+@media screen and (max-width:760px){
   /* no celular cada item vira um cartão (a tabela larga não cabe) */
   .mem-tabela, .mem-tabela tbody, .mem-tabela tr, .mem-tabela td{ display:block; }
   .mem-tabela{ background:none; border:0; }
@@ -566,7 +566,14 @@ body.visual-novo .btn-tema{ display:flex; }
   body.imprimindo-memorial .mem-imp-titulo{ font-size:15pt; letter-spacing:.14em; font-weight:300; }
   body.imprimindo-memorial .mem-imp-projeto{ font-size:12pt; font-weight:700; }
   body.imprimindo-memorial .mem-imp-data{ font-size:8.5pt; color:#777; }
-  body.imprimindo-memorial .mem-fora-do-pdf{ display:none !important; }
+  body.imprimindo-memorial .mem-oculto{ display:none !important; }
+  /* garante a tabela de verdade no papel (nada de cartões) */
+  body.imprimindo-memorial .mem-tabela{ display:table !important; width:100% !important; table-layout:auto; }
+  body.imprimindo-memorial .mem-tabela thead{ display:table-header-group !important; }
+  body.imprimindo-memorial .mem-tabela tbody{ display:table-row-group !important; }
+  body.imprimindo-memorial .mem-tabela tr{ display:table-row !important; padding:0 !important; margin:0 !important; border:0 !important; background:none !important; }
+  body.imprimindo-memorial .mem-tabela th, body.imprimindo-memorial .mem-tabela td{ display:table-cell !important; width:auto !important; padding:5px 6px !important; vertical-align:top; }
+  body.imprimindo-memorial .mem-tabela td::before{ content:none !important; display:none !important; }
   body.imprimindo-memorial .mem-setor{ break-inside:auto; margin-bottom:6mm; }
   body.imprimindo-memorial .mem-tabela{ background:#fff !important; border:1px solid #bbb !important; color:#1c1c1c !important; font-size:8.5pt; }
   body.imprimindo-memorial .mem-tabela th{ background:#ececec !important; color:#444 !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
@@ -584,3 +591,12 @@ body.visual-novo .btn-tema{ display:flex; }
 .orc-botao.aprovar{ background:var(--green); border-color:var(--green); color:#06210f; font-weight:800; padding:11px 20px; font-size:14px; }
 .orc-botao.recusar{ color:var(--hub-vermelho); border-color:var(--hub-vermelho); font-weight:700; padding:11px 18px; font-size:14px; }
 .orc-botao.aprovar:hover{ filter:brightness(1.08); border-color:var(--green); }
+
+/* Filtro de setor do Memorial na tela */
+.mem-setor.mem-oculto{ display:none; }
+/* Orçamentos do cliente: aproveita a largura em tela horizontal */
+.orc-wrap{ max-width:min(1500px, 96vw); }
+.orc-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(min(100%, 420px), 1fr)); gap:12px; align-items:start; }
+.orc-grid .orc-card{ margin-bottom:0; }
+.orc-botao.tem-novo{ background:var(--hub-vermelho); border-color:var(--hub-vermelho); color:#fff; font-weight:800; animation:orc-pulso 1.6s ease-out infinite; }
+@keyframes orc-pulso{ 0%{ box-shadow:0 0 0 0 rgba(229,120,111,.7); } 70%{ box-shadow:0 0 0 9px rgba(229,120,111,0); } 100%{ box-shadow:0 0 0 0 rgba(229,120,111,0); } }

@@ -115,7 +115,7 @@ const TUDO = { paginaProjeto: true, orcamentos: true, memorial: true };
     r = await api('GET', `/api/cliente/${link}/galeria`, { cliente: tokCli });
     assert.deepStrictEqual([r.json.novoVisual, r.json.hub.dadosProjeto, r.json.hub.documentos.length], [true, 'Cliente: Fulano', 1]);
     r = await api('GET', P + '/orcamentos', { sessao: 'tokAFull' });
-    assert.deepStrictEqual([r.json.itens.length, r.json.acesso.usuario], [1, 'orc']);
+    assert.deepStrictEqual([r.json.itens.length, r.json.acesso.usuario], [1 + 13, 'orc']); // 13 = itens padrão do Notion
     assert.strictEqual((await api('POST', `/api/orcamentos/${linkOrc}/login`, { corpo: { usuario: 'orc', senha: 'senha-orc' } })).status, 200);
     ok('religar devolve hub, documentos, orçamentos e o login dos orçamentos intactos');
 

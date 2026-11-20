@@ -10,12 +10,18 @@
   }
   const CHAVE_TOKEN = `renderia_orc_token_${LINK}`;
   const CHAVE_TEMA = 'renderia_tema_hub'; // a mesma escolha de tema da Pasta Cliente (mesmo site, mesmo aparelho)
-  const ROTULO = { a_fazer: 'À fazer', evf: 'EVF', em_andamento: 'Em andamento', analise_cliente: 'Para sua análise', fechado: 'Fechado', recusado: 'Recusado' };
-  const TITULO_GRUPO = { analise_cliente: 'Para sua análise', em_andamento: 'Em andamento', evf: 'EVF', a_fazer: 'À fazer', fechado: 'Fechados', recusado: 'Recusados' };
+  const ROTULO = { a_fazer: 'À fazer', evf: 'EVF', em_andamento: 'Em andamento', analise_cliente: 'Para sua análise', fechado: 'Aprovado', recusado: 'Recusado' };
+  const TITULO_GRUPO = { analise_cliente: 'Para sua análise', em_andamento: 'Em andamento', evf: 'EVF', a_fazer: 'À fazer', fechado: 'Aprovados', recusado: 'Recusados' };
   const ORDEM_GRUPOS = ['analise_cliente', 'em_andamento', 'evf', 'a_fazer', 'fechado', 'recusado'];
 
   let token = null;
   let dados = null;
+  // Mensagens do escritório que este aparelho já viu (por orçamento): o botão de comentários avisa quando chega resposta nova.
+  const CHAVE_VISTOS = `renderia_orc_vistos_${LINK}`;
+  const lerVistos = () => { try { return JSON.parse(localStorage.getItem(CHAVE_VISTOS) || '{}'); } catch (e) { return {}; } };
+  const gravarVistos = (v) => { try { localStorage.setItem(CHAVE_VISTOS, JSON.stringify(v)); } catch (e) { /* vale só nesta visita */ } };
+  const novasDoEscritorio = (item) => { const vistos = lerVistos()[item.id] || []; return item.comentarios.filter((c) => c.autor !== 'cliente' && !vistos.includes(c.id)).length; };
+  const marcarVistos = (item) => { const v = lerVistos(); v[item.id] = item.comentarios.map((c) => c.id); gravarVistos(v); };
   const abertos = new Set(); // orçamentos com a conversa aberta (sobrevive a recarregar a lista)
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const hrefSeguro = (url) => { try { const u = new URL(url); return (u.protocol === 'https:' || u.protocol === 'http:') ? u.href : null; } catch (e) { return null; } };
@@ -93,13 +99,18 @@
 
   // Decisão do cliente: botões grandes e claros em vez de um menu escondido.
   const ROTULO_SITUACAO = { analise_cliente: 'Aguardando sua decisão', fechado: 'Aprovado por você', recusado: 'Recusado por você' };
+  // Botão de comentários (fica AO LADO da decisão); acende quando o escritório respondeu e este aparelho ainda não viu.
+  function botaoComentarios(item) {
+    const novas = novasDoEscritorio(item);
+    return `<button class="orc-botao ${novas ? 'tem-novo' : ''}" data-acao="conversa">💬 Comentários (${item.comentarios.length})${novas ? ` · ${novas === 1 ? 'NOVA MENSAGEM' : novas + ' NOVAS MENSAGENS'}` : ''}</button>`;
+  }
   function decisao(item) {
     if (!item.podeMudarStatus) return '';
     if (item.status === 'fechado' || item.status === 'recusado') {
       return `<div class="orc-decisao"><span class="orc-decisao-texto">${item.status === 'fechado' ? '✓ Você aprovou este orçamento.' : '✕ Você recusou este orçamento.'}</span>
-        <button class="orc-botao" data-acao="reabrir" title="Voltar para análise e decidir de novo">Alterar decisão</button></div>`;
+        <button class="orc-botao" data-acao="reabrir" title="Voltar para análise e decidir de novo">Alterar decisão</button>${botaoComentarios(item)}</div>`;
     }
-    return `<div class="orc-decisao"><button class="orc-botao aprovar" data-acao="aprovar">✓ Aprovar orçamento</button><button class="orc-botao recusar" data-acao="recusar">✕ Recusar</button></div>`;
+    return `<div class="orc-decisao"><button class="orc-botao aprovar" data-acao="aprovar">✓ Aprovar orçamento</button><button class="orc-botao recusar" data-acao="recusar">✕ Recusar</button>${botaoComentarios(item)}</div>`;
   }
 
   function cartao(item) {
@@ -120,7 +131,7 @@
       ${decisao(item)}
       <div class="orc-acoes">
         ${href ? `<a class="orc-botao principal" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Abrir orçamento ↗</a>` : ''}
-        <button class="orc-botao" data-acao="conversa">Comentários (${item.comentarios.length})</button>
+        ${item.podeMudarStatus ? '' : botaoComentarios(item)}
       </div>
       <div class="orc-conversa" ${aberto ? '' : 'hidden'}>
         ${comentarios || '<div class="orc-obs">Nenhum comentário ainda.</div>'}
@@ -137,7 +148,7 @@
     if (!itens.length) { $('orcLista').innerHTML = '<div class="vazio-galeria">Ainda não há orçamentos por aqui. Volte em breve!</div>'; return; }
     $('orcLista').innerHTML = ORDEM_GRUPOS.map((st) => {
       const doGrupo = itens.filter((i) => i.status === st);
-      return doGrupo.length ? `<section class="orc-grupo"><h2>${esc(TITULO_GRUPO[st])} <span>${doGrupo.length}</span></h2>${doGrupo.map(cartao).join('')}</section>` : '';
+      return doGrupo.length ? `<section class="orc-grupo"><h2>${esc(TITULO_GRUPO[st])} <span>${doGrupo.length}</span></h2><div class="orc-grid">${doGrupo.map(cartao).join('')}</div></section>` : '';
     }).join('');
   }
 
@@ -174,7 +185,7 @@
     if (botao.dataset.acao === 'conversa') {
       const caixa = cartaoEl.querySelector('.orc-conversa');
       caixa.hidden = !caixa.hidden;
-      if (caixa.hidden) abertos.delete(id); else abertos.add(id);
+      if (caixa.hidden) abertos.delete(id); else { abertos.add(id); const it = dados.itens.find((x) => x.id === id); if (it) { marcarVistos(it); botao.classList.remove('tem-novo'); botao.textContent = `💬 Comentários (${it.comentarios.length})`; } }
     } else if (botao.dataset.acao === 'enviar') {
       const area = cartaoEl.querySelector('textarea');
       const texto = area.value.trim();

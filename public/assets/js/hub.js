@@ -205,19 +205,25 @@
       <div class="hub-aviso"><b>ATENÇÃO</b><br>Valide cada item com o fornecedor e com a arquitetura antes da compra: medidas, modelos e acabamentos podem variar conforme a marca/modelo adquirido ou a etapa de instalação.</div>${blocos}</div>`;
     el('hubConteudo').querySelectorAll('[data-mem-foto]').forEach((b) => b.addEventListener('click', () => ampliarFotoMemorial(b.dataset.memFoto)));
     el('btnPdfMemorialCliente').addEventListener('click', gerarPdfMemorialCliente);
+    el('selSetorMemorialCliente').addEventListener('change', aplicarFiltroSetorMemorial);
   }
 
   // PDF do memorial pelo próprio navegador (sem servidor, sem custo): mostra só o setor escolhido, abre a janela de imprimir
   // ("Salvar como PDF") em A4 paisagem e depois devolve a tela como estava.
+  // O filtro vale na tela E no PDF: mostra só o setor escolhido (ou todos).
+  function aplicarFiltroSetorMemorial() {
+    const setor = el('selSetorMemorialCliente').value;
+    document.querySelectorAll('.mem-setor').forEach((s) => s.classList.toggle('mem-oculto', !!setor && s.dataset.setor !== setor));
+  }
+
   function gerarPdfMemorialCliente() {
     const setor = el('selSetorMemorialCliente').value;
-    const secoes = [...document.querySelectorAll('.mem-setor')];
-    if (setor) secoes.forEach((s) => { if (s.dataset.setor !== setor) s.classList.add('mem-fora-do-pdf'); });
+    aplicarFiltroSetorMemorial();
     document.body.classList.add('imprimindo-memorial');
     const nomeAntes = document.title;
     const hoje = new Date().toLocaleDateString('pt-BR').split('/').join('-');
     document.title = `${galeriaAtual.nomeProjeto} - Memorial de itens${setor ? ' - ' + setor : ''} - ${hoje}`; // vira o nome sugerido do arquivo
-    const limpar = () => { document.body.classList.remove('imprimindo-memorial'); secoes.forEach((s) => s.classList.remove('mem-fora-do-pdf')); document.title = nomeAntes; window.removeEventListener('afterprint', limpar); };
+    const limpar = () => { document.body.classList.remove('imprimindo-memorial'); document.title = nomeAntes; window.removeEventListener('afterprint', limpar); };
     window.addEventListener('afterprint', limpar);
     setTimeout(() => { window.print(); }, 150);
   }
@@ -228,8 +234,12 @@
     let corpo;
     if (secaoAberta === 'executivo') {
       const h = hubDe(galeriaAtual);
-      const nomes = [...(h.gruposExecutivo || [])];
-      docs.forEach((d) => { if (d.grupo && !nomes.some((n) => n.toLowerCase() === d.grupo.toLowerCase())) nomes.push(d.grupo); }); // grupo renomeado/removido não some do cliente
+      const base = [...(h.gruposExecutivo || [])];
+      const nomes = [];
+      const extras = [];
+      docs.forEach((d) => { if (d.grupo && !base.some((n) => n.toLowerCase() === d.grupo.toLowerCase()) && !extras.some((n) => n.toLowerCase() === d.grupo.toLowerCase())) extras.push(d.grupo); }); // combinada ("A + B") ou grupo renomeado/removido: não some do cliente
+      base.forEach((n) => { nomes.push(n); extras.filter((e) => e.split(' + ')[0].trim().toLowerCase() === n.toLowerCase()).forEach((e) => nomes.push(e)); });
+      extras.forEach((e) => { if (!nomes.includes(e)) nomes.push(e); });
       corpo = `<div class="hub-aviso"><b>ATENÇÃO</b><br>Use somente o arquivo com status <b class="hub-ok">ATUAL</b>. Arquivos em <b class="hub-alerta">REVISÃO</b> ou <b class="hub-alerta">ANTIGA</b> não devem ser usados para a execução. Se o projeto já estiver com algum fornecedor, confirme que todos estão com a última versão.</div>` +
         nomes.map((nome) => {
           const doGrupo = docs.filter((d) => (d.grupo || '').toLowerCase() === nome.toLowerCase());

@@ -87,7 +87,7 @@ const portaLivre = () => new Promise((resolve, reject) => {
     const idPintura = r.json.item.id;
     assert.strictEqual((await api('POST', P + '/orcamentos/itens', { sessao: 'tokA', corpo: { item: 'x', url: 'javascript:alert(1)' } })).status, 400);
     r = await api('GET', P + '/orcamentos', { sessao: 'tokA' });
-    assert.deepStrictEqual([r.json.itens.length, r.json.acesso.usuario, r.json.temNovidadeNaoLida], [2, 'orc', false]);
+    assert.deepStrictEqual([r.json.itens.length, r.json.acesso.usuario, r.json.temNovidadeNaoLida], [2 + 13, 'orc', false]); // 13 = itens padrão do Notion
     assert.ok(!JSON.stringify(r.json).includes('senhaHash') && !JSON.stringify(r.json).includes('sessoesAtivas'));
     ok('acesso criado (link próprio), itens criados, link perigoso recusado, app nunca recebe hash');
 

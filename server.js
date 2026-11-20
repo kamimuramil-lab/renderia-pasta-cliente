@@ -672,6 +672,8 @@ app.post('/api/app/galeria/:projetoId/orcamentos/itens', exigirSessaoArquiteto, 
 app.put('/api/app/galeria/:projetoId/orcamentos/itens/:itemId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ item: orcLib.editarItem(...baseOrc(req), req.params.itemId, req.body || {}, req.licencaUsuario) })));
 app.delete('/api/app/galeria/:projetoId/orcamentos/itens/:itemId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => { orcLib.excluirItem(...baseOrc(req), req.params.itemId, req.licencaUsuario); return {}; }));
 app.post('/api/app/galeria/:projetoId/orcamentos/itens/:itemId/comentarios', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ comentario: orcLib.comentarComoArquiteto(...baseOrc(req), req.params.itemId, (req.body || {}).texto, req.licencaUsuario) })));
+app.put('/api/app/galeria/:projetoId/orcamentos/itens/:itemId/comentarios/:comId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ comentario: orcLib.editarComentarioDoArquiteto(...baseOrc(req), req.params.itemId, req.params.comId, (req.body || {}).texto, req.licencaUsuario) })));
+app.delete('/api/app/galeria/:projetoId/orcamentos/itens/:itemId/comentarios/:comId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => { orcLib.excluirComentarioDoArquiteto(...baseOrc(req), req.params.itemId, req.params.comId, req.licencaUsuario); return {}; }));
 app.post('/api/app/galeria/:projetoId/orcamentos/marcar-lido', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => { orcLib.marcarNovidadesLidas(...baseOrc(req), req.licencaUsuario); return {}; }));
 
 // --------------------------------------------------------------------
