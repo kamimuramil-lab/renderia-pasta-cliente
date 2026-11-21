@@ -159,11 +159,8 @@ function aplicarModoEscritorio(galeria) {
 }
 
 // ---------- Home: grade de categorias ----------
-// A capa do ambiente (moodboard) não conta como uma foto a mais: é a abertura do ambiente (o PDF também não a repete).
-function contarSemCapa(cat) {
-  const capas = new Set(((estado.galeria && estado.galeria.categorias) || []).map((c) => c.moodFotoId).filter(Boolean));
-  return cat.fotos.filter((f) => !capas.has(f.id)).length;
-}
+// A contagem do ambiente é de TODAS as imagens dele, inclusive a que serve de capa (ela aparece de novo, aprovável, logo depois da capa).
+function contarImagens(cat) { return cat.fotos.length; } // a foto usada como capa também é uma imagem do ambiente (aparece e se aprova logo depois da capa): entra na conta
 
 function mostrarGaleria(galeria) {
   estado.galeria = galeria;
@@ -221,7 +218,7 @@ function mostrarGaleria(galeria) {
         ${cat.moodUrl ? `<img src="${cat.moodUrl}" loading="lazy">` : ''}
         <div class="nome-categoria-capa">
           ${escapeHtml(cat.nome)}
-          <div class="contagem-categoria">${contarSemCapa(cat)} foto${contarSemCapa(cat) === 1 ? '' : 's'}</div>
+          <div class="contagem-categoria">${contarImagens(cat)} foto${contarImagens(cat) === 1 ? '' : 's'}</div>
         </div>
       </div>
     `).join('')}
@@ -463,7 +460,7 @@ function renderizarFotoAtualNoVisualizador() {
   capa.style.display = foto.__ehMood ? 'flex' : 'none';
   if (foto.__ehMood && categoriaAtual) {
     $('capaAmbienteNome').textContent = categoriaAtual.nome;
-    const n = contarSemCapa(categoriaAtual);
+    const n = contarImagens(categoriaAtual);
     $('capaAmbienteContagem').textContent = n ? `${n} ${n === 1 ? 'imagem' : 'imagens'}` : '';
   }
 

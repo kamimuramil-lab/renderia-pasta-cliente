@@ -110,9 +110,8 @@
     });
     // Projeto criativo = a pasta do cliente de sempre: planta com ícones, imagens e 360°, tudo dentro do RENDERIA.
     const validas = fotosValidas(g);
-    const capasDeAmbiente = new Set((g.categorias || []).map((c) => c.moodFotoId).filter(Boolean)); // a capa do ambiente abre o ambiente: não é uma "imagem" a mais (o PDF também não a repete)
     const n360 = validas.filter((f) => f.tipo === '360').length;
-    const imagens = validas.filter((f) => f.tipo !== '360' && !capasDeAmbiente.has(f.id));
+    const imagens = validas.filter((f) => f.tipo !== '360'); // a foto usada como capa de ambiente também é uma imagem (aparece e se aprova depois da capa)
     const aprov = imagens.filter((f) => f.aprovada).length;
     const partes = [plural(imagens.length, 'imagem', 'imagens')];
     if (n360) partes.push(`${n360} em 360°`);
