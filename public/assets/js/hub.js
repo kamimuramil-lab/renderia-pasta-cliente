@@ -329,15 +329,14 @@
     } else {
       corpo = `<section class="hub-grupo">${blocoDocumentos(docs)}</section>`;
     }
-    const comLousa = (secaoAberta === 'planta_original' || secaoAberta === 'conceitual') && docs.some((d) => d.status !== 'ANTIGA' && hrefSeguro(d.url));
-    el('hubConteudo').innerHTML = `<div class="hub-corpo"><div class="hub-titulo-linha"><h2 class="hub-titulo-secao">${esc(TITULOS[secaoAberta] || '')}</h2>${comLousa ? '<button type="button" class="hub-doc-abrir so-escritorio" data-apresentar="todos" title="Apresentar os documentos vigentes numa lousa">Apresentar</button>' : ''}</div>${corpo}</div>`;
+    el('hubConteudo').innerHTML = `<div class="hub-corpo"><h2 class="hub-titulo-secao">${esc(TITULOS[secaoAberta] || '')}</h2>${corpo}</div>`;
   }
   // Apresentar (modo escritório): abre a lousa com o(s) arquivo(s) do Drive. Um documento ou todos os vigentes da seção.
   el('hubConteudo').addEventListener('click', (e) => {
     const b = e.target.closest('[data-apresentar]');
     if (!b || !window.Apresentar) return;
     const docs = documentosDaSecao(galeriaAtual, secaoAberta).filter((d) => hrefSeguro(d.url));
-    const alvo = b.dataset.apresentar === 'todos' ? docs.filter((d) => d.status !== 'ANTIGA') : docs.filter((d) => d.id === b.dataset.apresentar);
+    const alvo = docs.filter((d) => d.id === b.dataset.apresentar); // um documento por vez (o botão fica em cada documento)
     if (!alvo.length) return;
     const itens = alvo.map((d) => ({ chave: 'doc_' + d.id, rotulo: [d.titulo, d.pavimento, 'REV.' + d.revisao].filter(Boolean).join(' - '), tipo: 'doc', url: `/api/cliente/${LINK_TOKEN}/apresentar/documento/${d.id}` }));
     const g = galeriaAtual;

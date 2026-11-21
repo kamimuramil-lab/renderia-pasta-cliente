@@ -38,7 +38,6 @@
     ponteiro: '<circle cx="12" cy="12" r="2.6"/><circle cx="12" cy="12" r="7.5" opacity=".55"/>',
     caneta: '<path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/>',
     marcador: '<path d="M3 21h8"/><path d="M9 15l7-8 4 4-8 7z"/><path d="M9 15l-1 4 4-1"/>',
-    temp: '<path d="M3 17l5-9 4 7 4-11 5 9"/>',
     borracha: '<path d="M7 20h11"/><path d="M5 14l7-8 7 7-5 6H9z"/>',
     mao: '<path d="M8 12V6.5a1.5 1.5 0 013 0V11m0-1V4.5a1.5 1.5 0 013 0V11m0-4.5a1.5 1.5 0 013 0V15a6 6 0 01-6 6h-.5a6 6 0 01-5-2.7L4.5 14a1.6 1.6 0 012.5-2z"/>',
     desfazer: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/>',
@@ -60,7 +59,7 @@
   function montar() {
     if (montada) return;
     montada = true;
-    const ferramentas = [['ponteiro', 'Ponteiro (P): um ponto que acompanha o mouse e some'], ['caneta', 'Caneta (C): risco que fica'], ['marcador', 'Grifar (G): marca-texto por cima'], ['temp', 'Rabisco temporário (T): risca e apaga sozinho'], ['borracha', 'Borracha (B)'], ['mao', 'Mão (H): arrastar a página']];
+    const ferramentas = [['ponteiro', 'Ponteiro (P): aponta e, se arrastar, risca um traço que some sozinho'], ['caneta', 'Caneta (C): risco que fica'], ['marcador', 'Grifar (G): marca-texto por cima'], ['borracha', 'Borracha (B)'], ['mao', 'Mão (H): arrastar a página. Com o botão do meio do mouse dá para arrastar em qualquer ferramenta']];
     const el = document.createElement('div');
     el.id = 'lousa'; el.className = 'lousa'; el.hidden = true; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', 'Apresentação');
     el.innerHTML = `
@@ -117,21 +116,28 @@
     });
   }
   async function bitmapDe(blob) { return createImageBitmap(blob); }
+  function carregarImg(url, comCors) {
+    return new Promise((ok, erro) => { const im = new Image(); if (comCors) im.crossOrigin = 'anonymous'; im.onload = () => ok(im); im.onerror = () => erro(new Error('imagem')); im.src = url; });
+  }
+  // Imagem da galeria (R2). 1) fetch sem usar o cache: o navegador pode ter guardado a mesma imagem SEM os cabeçalhos de CORS (a galeria a mostrou
+  // num <img>) e aí o fetch falha com "Failed to fetch"; 2) <img crossorigin>; 3) <img> comum (aparece, mas o print não funciona nessa imagem).
+  async function carregarImagem(url) {
+    try { const r = await fetch(url, { cache: 'no-store' }); if (r.ok) { const bmp = await bitmapDe(await r.blob()); return { tipo: 'bitmap', bmp, w: bmp.width, h: bmp.height }; } } catch (e) { /* tenta o próximo */ }
+    try { const im = await carregarImg(url, true); return { tipo: 'bitmap', bmp: im, w: im.naturalWidth, h: im.naturalHeight }; } catch (e) { /* tenta o próximo */ }
+    try { const im = await carregarImg(url, false); return { tipo: 'bitmap', bmp: im, w: im.naturalWidth, h: im.naturalHeight, protegida: true }; } catch (e) { /* sem jeito */ }
+    throw new Error('Não consegui carregar esta imagem. Atualize a página e tente de novo.');
+  }
   async function obterFonte(item) {
     if (item.fonte) return item.fonte;
-    if (item.tipo === 'imagem') {
-      const r = await fetch(item.url);
-      if (!r.ok) throw new Error('Não consegui carregar a imagem.');
-      const bmp = await bitmapDe(await r.blob());
-      return (item.fonte = { tipo: 'bitmap', bmp, w: bmp.width, h: bmp.height });
-    }
+    if (item.tipo === 'imagem') return (item.fonte = await carregarImagem(item.url));
     if (item.tipo === 'pdfpag') {
       const pagina = await item.pdf.getPage(item.n);
       const v = pagina.getViewport({ scale: 1 });
       return (item.fonte = { tipo: 'pdf', pagina, w: v.width, h: v.height });
     }
     // 'doc': arquivo do Google Drive buscado pelo servidor (PDF ou imagem)
-    const r = await fetch(item.url, { headers: { 'x-cliente-token': S.opcoes.token() } });
+    let r;
+    try { r = await fetch(item.url, { headers: { 'x-cliente-token': S.opcoes.token() } }); } catch (e) { throw new Error('Não consegui falar com o servidor. Confira a internet e tente de novo.'); }
     if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.erro || 'Não consegui abrir o arquivo do Drive.'); }
     const tipo = r.headers.get('content-type') || '';
     if (/pdf/i.test(tipo)) {
@@ -235,33 +241,40 @@
   }
   function aoApertar(e) {
     if (!S || !S.pagina || e.target.closest('.lousa-aviso')) return;
-    $('lousaPalco').setPointerCapture(e.pointerId); S.apertado = true;
+    if (e.button > 1) return; // botão direito e outros: não riscam
+    try { $('lousaPalco').setPointerCapture(e.pointerId); } catch (err) { /* sem captura: continua funcionando dentro do palco */ } S.apertado = true;
     const p = pontoDoEvento(e);
-    if (S.ferr === 'mao') { S.pan = { x: e.clientX, y: e.clientY, tx: S.tx, ty: S.ty }; return; }
+    if (e.button === 1 || S.ferr === 'mao') { e.preventDefault(); S.pan = { x: e.clientX, y: e.clientY, tx: S.tx, ty: S.ty }; $('lousaPalco').classList.add('arrastando'); S.laser = null; S.sujo = true; return; } // botão do MEIO (ou a mão): arrasta a página
     if (S.ferr === 'caneta' || S.ferr === 'marcador' || S.ferr === 'temp') {
       S.atual = { tool: S.ferr, cor: S.cor, w: LARGURA[S.ferr], pts: [p] };
       if (S.ferr === 'temp') S.temp.push(S.atual); else riscosDaPagina().push(S.atual);
       S.sujo = true;
     } else if (S.ferr === 'borracha') apagarEm(p);
-    else if (S.ferr === 'ponteiro') S.laser = { x: p.x, y: p.y, rastro: [] };
+    else if (S.ferr === 'ponteiro') {
+      S.laser = { x: p.x, y: p.y, rastro: [] };
+      S.atual = { tool: 'temp', cor: S.cor, w: LARGURA.temp, pts: [p] }; // arrastar com o ponteiro risca um traço que some sozinho
+      S.temp.push(S.atual);
+    }
   }
   function aoMover(e) {
     if (!S || !S.pagina) return;
     const p = pontoDoEvento(e);
+    if (S.apertado && S.pan) { S.tx = S.pan.tx + (e.clientX - S.pan.x); S.ty = S.pan.ty + (e.clientY - S.pan.y); aplicarTransformacao(); return; }
     if (S.ferr === 'ponteiro') {
       const dentro = p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1;
       if (!dentro) { S.laser = null; S.sujo = true; return; }
       if (!S.laser) S.laser = { x: p.x, y: p.y, rastro: [] };
-      S.laser.rastro.push({ x: S.laser.x, y: S.laser.y, t: performance.now() }); S.laser.x = p.x; S.laser.y = p.y; return;
+      S.laser.rastro.push({ x: S.laser.x, y: S.laser.y, t: performance.now() }); S.laser.x = p.x; S.laser.y = p.y;
+      if (S.apertado && S.atual) S.atual.pts.push(p); // traço temporário do ponteiro
+      return;
     }
     if (!S.apertado) return;
-    if (S.pan) { S.tx = S.pan.tx + (e.clientX - S.pan.x); S.ty = S.pan.ty + (e.clientY - S.pan.y); aplicarTransformacao(); return; }
     if (S.atual) { S.atual.pts.push(p); S.sujo = true; }
     else if (S.ferr === 'borracha') apagarEm(p);
   }
   function aoSoltar() {
     if (!S) return;
-    S.apertado = false; S.pan = null;
+    S.apertado = false; S.pan = null; $('lousaPalco').classList.remove('arrastando');
     if (S.atual && S.atual.tool === 'temp') S.atual.fim = performance.now();
     S.atual = null;
   }
@@ -280,7 +293,7 @@
   }
   function escolherCor(c) {
     S.cor = c; document.querySelectorAll('#lousaFerr [data-cor]').forEach((b) => b.classList.toggle('ativa', b.dataset.cor === c));
-    if (S.ferr === 'ponteiro' || S.ferr === 'borracha' || S.ferr === 'mao') escolherFerramenta('caneta');
+    if (S.ferr === 'borracha' || S.ferr === 'mao') escolherFerramenta('caneta'); // o ponteiro usa a cor escolhida no traço temporário
   }
 
   // ---------- print, anotações, ata ----------
@@ -295,7 +308,8 @@
     const ctx = c.getContext('2d');
     ctx.drawImage(doc, 0, 0, W, H);
     riscosDaPagina().forEach((r) => tracar(ctx, r, W, H, 1)); // só os riscos que ficam (o ponteiro e o rabisco temporário não entram)
-    const imagem = c.toDataURL('image/jpeg', 0.84);
+    let imagem;
+    try { imagem = c.toDataURL('image/jpeg', 0.84); } catch (e) { mostrarFlash('O navegador bloqueou o print desta imagem. Atualize a página e tente de novo.'); return; }
     S.prints.push({ rotulo: S.pagina.rotulo, imagem });
     desenharPrints();
     mostrarFlash(`Print guardado (${S.prints.length}). Vai junto da ata.`);
@@ -386,6 +400,9 @@
     palco.addEventListener('pointerup', aoSoltar); palco.addEventListener('pointercancel', aoSoltar);
     palco.addEventListener('pointerleave', () => { if (S && S.ferr === 'ponteiro') { S.laser = null; S.sujo = true; } });
     palco.addEventListener('wheel', aoRolar, { passive: false });
+    palco.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); }); // sem o círculo de rolagem automática do botão do meio
+    palco.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
+    palco.addEventListener('contextmenu', (e) => e.preventDefault());
     $('lousaFerr').addEventListener('click', (e) => { const f = e.target.closest('[data-ferr]'); if (f) escolherFerramenta(f.dataset.ferr); const c = e.target.closest('[data-cor]'); if (c) escolherCor(c.dataset.cor); });
     $('lousaDesfazer').addEventListener('click', () => { if (S && S.pagina) { riscosDaPagina().pop(); S.sujo = true; } });
     $('lousaLimpar').addEventListener('click', () => { if (S && S.pagina) { S.tinta[S.pagina.chave] = []; S.temp = []; S.sujo = true; } });
@@ -409,7 +426,7 @@
       if (digitando || !$('lousaDialogo').hidden) return;
       const k = e.key.toLowerCase();
       if ((e.ctrlKey || e.metaKey) && k === 'z') { $('lousaDesfazer').click(); e.preventDefault(); return; }
-      const mapa = { p: 'ponteiro', c: 'caneta', g: 'marcador', t: 'temp', b: 'borracha', h: 'mao' };
+      const mapa = { p: 'ponteiro', c: 'caneta', g: 'marcador', b: 'borracha', h: 'mao' };
       if (mapa[k]) escolherFerramenta(mapa[k]);
       else if (e.key === 'ArrowRight' || e.key === 'PageDown') mostrar(S.idx + 1);
       else if (e.key === 'ArrowLeft' || e.key === 'PageUp') mostrar(S.idx - 1);

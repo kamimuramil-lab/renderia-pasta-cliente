@@ -27,6 +27,7 @@ body.lousa-aberta{ overflow:hidden; }
 .lousa-palco[data-ferr="mao"]{ cursor:grab; }
 .lousa-palco[data-ferr="ponteiro"]{ cursor:none; }
 .lousa-palco[data-ferr="borracha"]{ cursor:cell; }
+.lousa-palco.arrastando, .lousa-palco.arrastando[data-ferr]{ cursor:grabbing; }
 .lousa-caixa{ position:absolute; left:0; top:0; transform-origin:0 0; background:#fff; box-shadow:0 6px 30px rgba(0,0,0,.45); }
 .lousa-doc, .lousa-tinta{ position:absolute; left:0; top:0; display:block; }
 .lousa-aviso{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); padding:10px 16px; border-radius:10px; background:rgba(0,0,0,.7); color:#fff; max-width:70%; text-align:center; line-height:1.45; }
