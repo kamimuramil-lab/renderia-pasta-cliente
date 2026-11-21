@@ -143,6 +143,7 @@ function mostrarGaleria(galeria) {
   estado.galeria = galeria;
   aplicarModoEscritorio(galeria);
   document.body.classList.toggle('visual-novo', !!galeria.novoVisual); // servidor antigo não manda = visual de sempre
+  if (window.TemaCores) window.TemaCores.aplicar(galeria.coresEscritorio); // cor de destaque da conta (sem cor = o visual de sempre)
   $('btnIrParaPlanta').style.display = (window.PlantaCliente && window.PlantaCliente.temPlantaUtil(galeria)) ? 'flex' : 'none';
   $('telaLogin').style.display = 'none';
   $('telaGaleria').style.display = 'block';
@@ -697,6 +698,7 @@ async function aplicarIconePersonalizadoNaTelaDeLogin() {
     if (!resp.ok) return;
     const info = await resp.json();
     document.body.classList.toggle('visual-novo', !!info.novoVisual); // tema claro/escuro só se o dono tem o recurso
+    if (window.TemaCores) window.TemaCores.aplicar(info.cores); // a tela de login já nasce com a cor de destaque do escritório
     if (info.iconeUrl) $('imgLogoLogin').src = info.iconeUrl;
     if (info.nomeProjeto) $('tituloLogin').textContent = `Galeria de ${info.nomeProjeto}`;
   } catch (e) { /* sem internet ou link inválido -- mantém a marca padrão RENDERIA */ }

@@ -261,7 +261,8 @@ async function galeriaComUrls(galeriaObj) {
   const estadoPerfil = galeria.lerEstado(CAMINHO_DADOS);
   const nomeEscritorio = galeria.nomeEscritorioDaLicenca(estadoPerfil, galeriaObj.licencaUsuario);
   const contatosEscritorio = galeria.contatosEscritorioDaLicenca(estadoPerfil, galeriaObj.licencaUsuario);
-  return { ...resto, categorias, plantas, fotos, marcaDagua, iconePersonalizado, hub, novoVisual, nomeEscritorio, contatosEscritorio, memorial: memorialCliente };
+  const coresEscritorio = galeria.coresEscritorioDaLicenca(estadoPerfil, galeriaObj.licencaUsuario);
+  return { ...resto, categorias, plantas, fotos, marcaDagua, iconePersonalizado, hub, novoVisual, nomeEscritorio, contatosEscritorio, coresEscritorio, memorial: memorialCliente };
 }
 
 app.get('/saude', (req, res) => res.json({ ok: true, servico: 'renderia-pasta-cliente' }));
@@ -421,7 +422,8 @@ async function perfilComUrls(licencaUsuario) {
   const p = galeria.lerPerfil(CAMINHO_DADOS, licencaUsuario);
   return {
     icone: { existe: !!p.icone.r2Key, url: p.icone.r2Key ? await storage.urlTemporaria(p.icone.r2Key) : null },
-    marca: { existe: !!p.marca.r2Key, url: p.marca.r2Key ? await storage.urlTemporaria(p.marca.r2Key) : null }
+    marca: { existe: !!p.marca.r2Key, url: p.marca.r2Key ? await storage.urlTemporaria(p.marca.r2Key) : null },
+    cores: galeria.coresEscritorioDaLicenca(galeria.lerEstado(CAMINHO_DADOS), licencaUsuario)
   };
 }
 app.get('/api/app/perfil', exigirSessaoArquiteto, async (req, res) => {
@@ -465,6 +467,14 @@ app.put('/api/app/perfil/nome', exigirSessaoArquiteto, (req, res) => {
     const { nome, whatsapp, email, instagram } = req.body || {};
     const r = galeria.definirDadosEscritorio(CAMINHO_DADOS, req.licencaUsuario, { nome, whatsapp, email, instagram });
     res.json({ ok: true, nomeEscritorio: r.nomeEscritorio, contatos: r.contatos });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+// Cor de destaque do site do cliente (vale pra todos os projetos da conta). `destaque` vazio/nulo = volta ao visual padrão.
+app.put('/api/app/perfil/cores', exigirSessaoArquiteto, (req, res) => {
+  try {
+    const { destaque, modelo } = req.body || {};
+    const cores = galeria.definirCoresEscritorio(CAMINHO_DADOS, req.licencaUsuario, { destaque, modelo });
+    res.json({ ok: true, cores });
   } catch (e) { res.status(400).json({ erro: e.message }); }
 });
 app.post('/api/app/perfil/icone', exigirSessaoArquiteto, upload.single('arquivo'), rotaEnviarPerfil('icone'));
@@ -806,7 +816,8 @@ app.get('/api/orcamentos/:linkToken/info-publica', async (req, res) => {
     const pers = galeria.resolverPersonalizacao(galeria.lerEstado(CAMINHO_DADOS), g);
     if (pers.iconeExibir && pers.iconeR2Key) iconeUrl = await storage.urlTemporaria(pers.iconeR2Key);
   } catch (e) { /* sem ícone: a página usa o padrão */ }
-  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl });
+  const cores = galeria.coresEscritorioDaLicenca(galeria.lerEstado(CAMINHO_DADOS), g.licencaUsuario);
+  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl, cores });
 });
 
 app.post('/api/orcamentos/:linkToken/login', limitarPorIP, (req, res) => {
@@ -840,7 +851,7 @@ app.get('/api/orcamentos/:linkToken/itens', exigirSessaoOrcamento, rotaOrcClient
   const g = orcamentosDisponiveis(req.params.linkToken);
   const estadoPerfil = galeria.lerEstado(CAMINHO_DADOS);
   // nome e contatos do escritório: alimentam o balão de ajuda (atalho do WhatsApp) da página de orçamentos
-  return Object.assign(lista, g ? { nomeEscritorio: galeria.nomeEscritorioDaLicenca(estadoPerfil, g.licencaUsuario), contatosEscritorio: galeria.contatosEscritorioDaLicenca(estadoPerfil, g.licencaUsuario) } : {});
+  return Object.assign(lista, g ? { nomeEscritorio: galeria.nomeEscritorioDaLicenca(estadoPerfil, g.licencaUsuario), contatosEscritorio: galeria.contatosEscritorioDaLicenca(estadoPerfil, g.licencaUsuario), coresEscritorio: galeria.coresEscritorioDaLicenca(estadoPerfil, g.licencaUsuario) } : {});
 }));
 app.put('/api/orcamentos/:linkToken/itens/:itemId/status', exigirSessaoOrcamento, rotaOrcCliente((req) => orcLib.mudarStatusCliente(CAMINHO_DADOS, req.params.linkToken, req.params.itemId, (req.body || {}).status)));
 app.post('/api/orcamentos/:linkToken/itens/:itemId/comentarios', exigirSessaoOrcamento, rotaOrcCliente((req) => ({ comentario: orcLib.comentarCliente(CAMINHO_DADOS, req.params.linkToken, req.params.itemId, (req.body || {}).texto) })));
@@ -858,7 +869,8 @@ app.get('/api/cliente/:linkToken/info-publica', async (req, res) => {
   if (!g) return res.status(404).json({ erro: 'Link não encontrado.' });
   const iconeUrl = (g.iconePersonalizado && g.iconePersonalizado.r2Key) ? await storage.urlTemporaria(g.iconePersonalizado.r2Key) : null;
   // `novoVisual`: o dono tem o recurso "Página do projeto" -> a página (inclusive o login) usa o tema claro/escuro novo.
-  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl, novoVisual: g.recursosAtivos.paginaProjeto === true });
+  const cores = galeria.coresEscritorioDaLicenca(galeria.lerEstado(CAMINHO_DADOS), g.licencaUsuario); // cor de destaque da conta: a tela de login já nasce com ela
+  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl, novoVisual: g.recursosAtivos.paginaProjeto === true, cores });
 });
 
 app.post('/api/cliente/:linkToken/login', limitarPorIP, (req, res) => {

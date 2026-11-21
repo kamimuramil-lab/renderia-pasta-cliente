@@ -287,6 +287,7 @@
       if (!r.ok) { document.body.innerHTML = '<div style="padding:60px 24px; text-align:center; color:#9a9ea5; font-family:sans-serif;">Link não encontrado -- confira se você copiou o endereço completo que recebeu.</div>'; return; }
       const info = await r.json();
       $('tituloLogin').textContent = `Orçamentos — ${info.nomeProjeto}`;
+      if (window.TemaCores) window.TemaCores.aplicar(info.cores); // cor de destaque do escritório (sem cor = o visual de sempre)
       if (info.iconeUrl) { $('imgLogoLogin').src = info.iconeUrl; $('imgLogoOrc').src = info.iconeUrl; }
     } catch (e) { /* a tela de login continua com o título genérico */ }
     try { token = localStorage.getItem(CHAVE_TOKEN); } catch (e) { token = null; }
