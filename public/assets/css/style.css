@@ -308,6 +308,16 @@ img{ max-width:100%; display:block; }
 .pin-rotulo-img{ width:150px; height:100px; object-fit:cover; border-radius:5px; display:block; background:#000; }
 .pin-rotulo-img:not([src]){ display:none; }
 .pin-planta:hover .pin-rotulo, .pin-planta:focus-visible .pin-rotulo{ opacity:1; }
+/* Celular: a planta aparece pequena, então os ícones ficam menores (no computador seguem como sempre). A área de toque continua
+   grande (~44px) pelo ::after, então o dedo acerta do mesmo jeito. */
+@media (max-width:620px), (max-height:520px) and (pointer:coarse){
+  .pin-fixa .pin-corpo{ width:22px; height:22px; border-width:1.5px; box-shadow:0 1px 5px rgba(0,0,0,.45); }
+  .pin-fixa .pin-corpo svg{ width:11px; height:11px; }
+  .pin-360 .pin-corpo svg{ width:19px; height:24px; }
+  .pin-insignia{ width:12px; height:12px; font-size:8px; top:-4px; right:-5px; border-width:1px; }
+  .pin-360 .pin-insignia{ top:-1px; right:-3px; }
+  .pin-planta::after{ inset:-11px; }
+}
 
 .planta-controles{
   position:absolute; left:12px; bottom:12px; display:flex; align-items:center; gap:2px; z-index:3;
