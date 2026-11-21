@@ -11,6 +11,7 @@
 <meta name="twitter:card" content="summary">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@800;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/style.css">
+<link rel="stylesheet" href="assets/css/lousa.css">
 <script src="assets/js/tema-cores.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
 </head>
@@ -65,6 +66,7 @@
     <div class="topo-titulo">
       <h1 id="nomeProjetoGaleria" data-ir-inicio role="button" tabindex="0" title="Ir para a tela inicial">Projeto</h1>
     </div>
+    <button class="btn-topo-nav so-escritorio" id="btnApresentarGaleria" title="Apresentar o projeto numa lousa (planta, imagens e 360° não entram)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18v11H3zM12 15v5M8 20h8"/></svg><span>Apresentar</span></button>
     <button class="btn-topo-nav" id="btnPdfGaleria" title="Baixar o PDF das imagens">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg><span>Baixar PDF</span>
     </button>
@@ -94,6 +96,7 @@
       <h1 id="nomeProjetoPlanta" data-ir-inicio role="button" tabindex="0" title="Ir para a tela inicial">Projeto</h1>
       <div class="texto-progresso-planta" id="plantaTextoProgresso"></div>
     </div>
+    <button class="btn-topo-nav so-escritorio" id="btnApresentarPlanta" title="Apresentar o projeto numa lousa (planta e imagens)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18v11H3zM12 15v5M8 20h8"/></svg><span>Apresentar</span></button>
     <button class="btn-topo-nav" id="btnPdfPlanta" title="Baixar o PDF das imagens">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 11l5 5 5-5M4 20h16"/></svg><span>Baixar PDF</span>
     </button>
@@ -142,19 +145,6 @@
     <p class="pdf-dica">Escolha os ambientes que entram no PDF. Cada PDF mostra a <b>data e o horário</b> em que foi gerado. No computador abre a janela de impressão: escolha <b>Salvar como PDF</b>. No celular, o PDF abre numa aba nova, com <b>Compartilhar / Salvar</b>.</p>
     <div class="pdf-atalhos"><button type="button" id="pdfTodos">Marcar todos</button><button type="button" id="pdfNenhum">Desmarcar todos</button></div>
     <div class="pdf-ambientes" id="pdfAmbientes"></div>
-    <label class="pdf-opcao"><input type="checkbox" id="chkPdfNomes" checked> Mostrar o nome de cada imagem</label>
-    <label class="pdf-opcao"><input type="checkbox" id="chkPdfPaleta" checked> Incluir a paleta de cores de cada imagem</label>
-    <fieldset class="pdf-marca" id="pdfMarca">
-      <legend>Marca no canto da imagem</legend>
-      <label><input type="radio" name="pdfMarca" value="logo" id="radioPdfLogo"> Logo</label>
-      <label><input type="radio" name="pdfMarca" value="icone" id="radioPdfIcone"> Ícone</label>
-      <label><input type="radio" name="pdfMarca" value="nenhuma" id="radioPdfNenhuma"> Nenhuma</label>
-    </fieldset>
-    <fieldset class="pdf-marca" id="pdfQualidade" hidden>
-      <legend>Qualidade do PDF</legend>
-      <label><input type="radio" name="pdfQualidade" value="alta" id="radioPdfAlta" checked> Alta (mais nítida, arquivo maior)</label>
-      <label><input type="radio" name="pdfQualidade" value="padrao" id="radioPdfPadrao"> Padrão (arquivo menor)</label>
-    </fieldset>
     <div class="pdf-progresso" id="pdfProgresso" hidden><div class="pdf-progresso-texto" id="pdfProgressoTexto"></div><div class="pdf-progresso-trilho"><div class="pdf-progresso-barra" id="pdfProgressoBarra"></div></div></div>
     <div class="pdf-mensagem" id="pdfMensagem" role="status"></div>
     <div class="dash-modal-acoes"><button type="button" class="dash-btn-sec" id="btnCancelarPdfCliente">Cancelar</button><button type="button" class="dash-btn-pri" id="btnGerarPdfCliente">Gerar PDF</button></div>
@@ -182,6 +172,13 @@
     </button>
     <img id="imgFotoVisualizador" style="display:none;">
     <div id="painelPanoramaCliente" class="painel-panorama" style="display:none;"></div>
+    <div class="capa-ambiente-slide" id="capaAmbienteVisualizador" style="display:none;" aria-hidden="true">
+      <div class="rotulo">Ambiente</div>
+      <h2 class="nome" id="capaAmbienteNome"></h2>
+      <div class="fio"></div>
+      <div class="contagem" id="capaAmbienteContagem"></div>
+      <div class="dica">Passe para o lado para ver as imagens &rsaquo;</div>
+    </div>
     <img id="imgMarcaDagua" class="marca-dagua-overlay" style="display:none;" alt="">
     <canvas id="canvasDesenho" class="canvas-desenho"></canvas>
     <button class="seta-nav direita" id="btnProximaFoto" aria-label="Próxima imagem">
@@ -266,6 +263,7 @@
 <script src="assets/js/planta-mini.js"></script>
 <script src="assets/js/navegacao.js"></script>
 <script src="assets/js/dados-projeto.js"></script>
+<script src="assets/js/apresentar.js"></script>
 <script src="assets/js/hub.js"></script>
 <script src="assets/js/main.js"></script>
 </body>

@@ -61,7 +61,7 @@ console.log('OK');
 console.log('== 9. Baixar PDF (galeria e planta), aviso de revisão e categoria anterior ==');
 const hubjs2 = fs.readFileSync(path.join(pub, 'assets/js/hub.js'), 'utf8');
 const pdfjs = fs.readFileSync(path.join(pub, 'assets/js/pdf-cliente.js'), 'utf8');
-['btnPdfGaleria', 'btnPdfPlanta', 'modalPdfCliente', 'pdfAmbientes', 'btnGerarPdfCliente', 'chkPdfNomes', 'chkPdfPaleta', 'modalAvisoDoc', 'btnAvisoAbrir', 'btnAvisoVoltar', 'rotuloCategoriaAnterior'].forEach((id) => assert.ok(html.includes(`id="${id}"`), 'no HTML: ' + id));
+['btnPdfGaleria', 'btnPdfPlanta', 'modalPdfCliente', 'pdfAmbientes', 'btnGerarPdfCliente', 'modalAvisoDoc', 'btnAvisoAbrir', 'btnAvisoVoltar', 'rotuloCategoriaAnterior'].forEach((id) => assert.ok(html.includes(`id="${id}"`), 'no HTML: ' + id));
 const idsPdf = [...new Set([...pdfjs.matchAll(/\$\('([A-Za-z0-9_]+)'\)/g)].map((m) => m[1]))];
 idsPdf.forEach((id) => assert.ok(html.includes(`id="${id}"`), 'pdf-cliente.js usa #' + id));
 assert.ok(pos('paleta-cores.js') < pos('imagens-pdf.js') && pos('imagens-pdf.js') < pos('pdf-cliente.js') && pos('pdf-cliente.js') < pos('main.js'));

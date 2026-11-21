@@ -52,27 +52,27 @@
       caixa.innerHTML = lista.map((a) => `<label class="pdf-linha"><input type="checkbox" data-ambiente="${a.indice}" checked><span class="pdf-nome">${escapeHtml(a.nome)}</span><span class="pdf-qtd">${a.fotos.length} ${a.fotos.length === 1 ? 'imagem' : 'imagens'}</span></label>`).join('');
       $('btnGerarPdfCliente').disabled = false;
     }
-    prepararOpcoesDeMarca();
-    $('pdfQualidade').hidden = !pdfEmArquivo(); // a escolha de qualidade só existe onde o PDF é um arquivo (celular)
     $('modalPdfCliente').classList.remove('hidden');
   }
+  // O que o PDF mostra (nome de cada imagem, paleta, marca no canto) é decisão do ARQUITETO (guardada no projeto): o cliente só escolhe os ambientes.
+  const configDoPdf = () => { const c = (estado.galeria && estado.galeria.pdfCliente) || {}; return { nomes: c.nomes !== false, paleta: c.paleta !== false, marca: ['auto', 'logo', 'icone', 'nenhuma'].includes(c.marca) ? c.marca : 'auto' }; };
   // Logo / ícone / nenhuma: só liga a opção que existe. Padrão = o que o cliente já vê nas imagens (o logo, senão o ícone, senão nada).
   const urlDaMarca = (tipo) => {
     const g = estado.galeria || {};
     if (tipo === 'logo') return (g.marcaDagua && g.marcaDagua.url) || null;
     return (g.iconePersonalizado && (g.iconePersonalizado.urlArquivo || g.iconePersonalizado.url)) || null;
   };
-  function prepararOpcoesDeMarca() {
+  function marcaDoPdf() {
+    const { marca } = configDoPdf();
     const temLogo = !!urlDaMarca('logo'), temIcone = !!urlDaMarca('icone');
-    $('radioPdfLogo').disabled = !temLogo; $('radioPdfIcone').disabled = !temIcone;
-    $('pdfMarca').hidden = !temLogo && !temIcone; // sem logo nem ícone cadastrados não há o que escolher
-    const escolha = temLogo ? 'logo' : (temIcone ? 'icone' : 'nenhuma');
-    ['logo', 'icone', 'nenhuma'].forEach((v) => { const r = document.querySelector('input[name="pdfMarca"][value="' + v + '"]'); if (r) r.checked = (v === escolha); });
+    if (marca === 'nenhuma') return 'nenhuma';
+    if (marca === 'logo') return temLogo ? 'logo' : 'nenhuma';
+    if (marca === 'icone') return temIcone ? 'icone' : 'nenhuma';
+    return temLogo ? 'logo' : (temIcone ? 'icone' : 'nenhuma'); // automático: o que o cliente já vê nas imagens
   }
   // CELULAR: o PDF é um ARQUIVO desenhado no navegador (sem a margem do iOS); no computador continua a impressão.
   const pdfEmArquivo = () => !!(window.Impressao && window.Impressao.ehCelular() && window.PdfArquivo && window.PdfArquivo.suportado());
-  const qualidadeAlta = () => { const r = document.querySelector('input[name="pdfQualidade"]:checked'); return !r || r.value === 'alta'; };
-  const marcaEscolhida = () => { const r = document.querySelector('input[name="pdfMarca"]:checked'); return r ? r.value : 'nenhuma'; };
+  const marcaEscolhida = () => marcaDoPdf();
   function fecharModal() { if (!gerando) $('modalPdfCliente').classList.add('hidden'); }
 
   // ---------- preparar imagens (no navegador) ----------
@@ -200,13 +200,13 @@
     const marcados = [...$('pdfAmbientes').querySelectorAll('input[data-ambiente]:checked')].map((c) => Number(c.dataset.ambiente));
     const escolhidos = ambientesDisponiveis().filter((a) => marcados.includes(a.indice));
     if (!escolhidos.length) { $('pdfMensagem').textContent = 'Marque pelo menos um ambiente.'; return; }
-    const mostrarNomes = $('chkPdfNomes').checked;
-    const mostrarPaleta = $('chkPdfPaleta').checked;
+    const mostrarNomes = configDoPdf().nomes;
+    const mostrarPaleta = configDoPdf().paleta;
     const total = escolhidos.reduce((s, a) => s + a.fotos.length, 0);
     const sessao = window.Impressao.iniciar(); // NO TOQUE: no celular abre a aba do PDF agora (depois o navegador bloquearia)
     // No celular as imagens vão menores (1500 px, JPEG 0,8: ~3x mais leve): o aparelho monta e imprime o PDF bem mais rápido. A foto do PDF no computador continua em 2000 px.
     // PDF em arquivo + qualidade Alta: as fotos vão no tamanho máximo que o site guarda (2400 px) e JPEG forte (sem reduzir antes de desenhar a página)
-    const alta = pdfEmArquivo() && qualidadeAlta();
+    const alta = pdfEmArquivo(); // no celular o PDF sai sempre em qualidade alta (o cliente não escolhe)
     const ladoMaximo = alta ? 2400 : (sessao.celular ? 1500 : 2000), qualidadeJpeg = alta ? 0.92 : (sessao.celular ? 0.8 : 0.88);
     gerando = true;
     $('btnGerarPdfCliente').disabled = true; $('btnCancelarPdfCliente').disabled = true;
@@ -217,7 +217,7 @@
       const ambientes = [];
       for (const a of escolhidos) {
         let capa = null;
-        if (a.capaUrl) { try { capa = await prepararCapaDeAmbiente(a.capaUrl, alta ? 2400 : (sessao.celular ? 1600 : 2200), alta ? 0.92 : (sessao.celular ? 0.8 : 0.9)); } catch (e) { capa = null; } } // já recortada na proporção da folha
+        if (a.capaUrl) { for (let t = 0; t < 2 && !capa; t++) { try { capa = await prepararCapaDeAmbiente(a.capaUrl, alta ? 2400 : (sessao.celular ? 1600 : 2200), alta ? 0.92 : (sessao.celular ? 0.8 : 0.9)); } catch (e) { capa = null; } } } // já recortada na proporção da folha; tenta 2 vezes
         const imagens = [];
         for (const f of a.fotos) {
           if (sessao.cancelada()) throw new Error('A aba do PDF foi fechada. Toque em Gerar PDF de novo.');

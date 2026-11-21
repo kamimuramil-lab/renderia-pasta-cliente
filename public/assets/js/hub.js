@@ -162,6 +162,7 @@
         ${d.observacao ? `<div class="hub-doc-obs">${esc(d.observacao)}</div>` : ''}
       </div>
       ${href ? `<a class="hub-doc-abrir" data-status="${esc(d.status)}" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Abrir ↗</a>` : ''}
+      ${(d.secao === 'planta_original' || d.secao === 'conceitual') && href ? `<button type="button" class="hub-doc-abrir so-escritorio" data-apresentar="${esc(d.id)}" title="Apresentar este arquivo numa lousa">Apresentar</button>` : ''}
     </div>`;
   }
 
@@ -328,8 +329,20 @@
     } else {
       corpo = `<section class="hub-grupo">${blocoDocumentos(docs)}</section>`;
     }
-    el('hubConteudo').innerHTML = `<div class="hub-corpo"><h2 class="hub-titulo-secao">${esc(TITULOS[secaoAberta] || '')}</h2>${corpo}</div>`;
+    const comLousa = (secaoAberta === 'planta_original' || secaoAberta === 'conceitual') && docs.some((d) => d.status !== 'ANTIGA' && hrefSeguro(d.url));
+    el('hubConteudo').innerHTML = `<div class="hub-corpo"><div class="hub-titulo-linha"><h2 class="hub-titulo-secao">${esc(TITULOS[secaoAberta] || '')}</h2>${comLousa ? '<button type="button" class="hub-doc-abrir so-escritorio" data-apresentar="todos" title="Apresentar os documentos vigentes numa lousa">Apresentar</button>' : ''}</div>${corpo}</div>`;
   }
+  // Apresentar (modo escritório): abre a lousa com o(s) arquivo(s) do Drive. Um documento ou todos os vigentes da seção.
+  el('hubConteudo').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-apresentar]');
+    if (!b || !window.Apresentar) return;
+    const docs = documentosDaSecao(galeriaAtual, secaoAberta).filter((d) => hrefSeguro(d.url));
+    const alvo = b.dataset.apresentar === 'todos' ? docs.filter((d) => d.status !== 'ANTIGA') : docs.filter((d) => d.id === b.dataset.apresentar);
+    if (!alvo.length) return;
+    const itens = alvo.map((d) => ({ chave: 'doc_' + d.id, rotulo: [d.titulo, d.pavimento, 'REV.' + d.revisao].filter(Boolean).join(' - '), tipo: 'doc', url: `/api/cliente/${LINK_TOKEN}/apresentar/documento/${d.id}` }));
+    const g = galeriaAtual;
+    window.Apresentar.abrir({ projeto: g.nomeProjeto, apresentado: (TITULOS[secaoAberta] || '') + ': ' + alvo.map((d) => d.titulo).join(', '), itens, logoUrl: (g.iconePersonalizado && g.iconePersonalizado.url) || (g.marcaDagua && g.marcaDagua.ativa !== false && g.marcaDagua.url) || null, link: LINK_TOKEN, token: () => estado.tokenClienteAtual });
+  });
 
   function renderizar() {
     el('telaHub').classList.toggle('largo', secaoAberta === 'memorial'); // Memorial usa a largura toda (computador/tablet deitado)

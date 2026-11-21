@@ -1,0 +1,57 @@
+/* ===================== LOUSA DE APRESENTAÇÃO (modo escritório) ===================== */
+/* Sempre escura (a reunião costuma ser espelhada no Meet) e enxuta: barra fina, ferramentas estreitas e anotações numa coluna pequena, pra sobrar tela pro projeto. */
+body.lousa-aberta{ overflow:hidden; }
+.lousa{ position:fixed; inset:0; z-index:9000; display:flex; flex-direction:column; background:#101113; color:#e9eaec; font-size:13px; --lousa-borda:#2a2c30; }
+.lousa[hidden]{ display:none; }
+.lousa-topo{ display:flex; align-items:center; gap:4px; height:38px; padding:0 8px; background:#16171a; border-bottom:1px solid var(--lousa-borda); flex-shrink:0; }
+.lousa-logo{ height:24px; max-width:90px; object-fit:contain; margin-right:6px; }
+.lousa-titulo{ font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:38vw; }
+.lousa-espaco{ flex:1; }
+.lousa-btn{ display:inline-flex; align-items:center; justify-content:center; gap:5px; min-width:28px; height:28px; padding:0 6px; border-radius:7px; border:1px solid transparent; background:transparent; color:#d6d8dc; cursor:pointer; font:inherit; }
+.lousa-btn:hover:not(:disabled){ background:#26282c; }
+.lousa-btn:disabled{ opacity:.35; cursor:default; }
+.lousa-btn-texto{ padding:0 10px; font-weight:600; font-size:12.5px; }
+.lousa-encerrar{ background:#e9eaec; color:#101113; }
+.lousa-encerrar:hover:not(:disabled){ background:#fff; }
+.lousa-sep{ width:1px; height:18px; background:var(--lousa-borda); margin:0 4px; }
+.lousa-pg{ min-width:46px; text-align:center; font-variant-numeric:tabular-nums; color:#aeb1b7; }
+.lousa-tempo{ font-variant-numeric:tabular-nums; color:#aeb1b7; font-size:12px; margin:0 4px; }
+.lousa-corpo{ flex:1; display:flex; min-height:0; }
+.lousa-ferr{ width:38px; padding:6px 4px; display:flex; flex-direction:column; align-items:center; gap:3px; background:#16171a; border-right:1px solid var(--lousa-borda); flex-shrink:0; }
+.lousa-ferr-btn{ width:30px; height:30px; padding:0; }
+.lousa-ferr-btn.ativa{ background:var(--destaque); color:var(--on-destaque); }
+.lousa-cores{ display:flex; flex-direction:column; gap:5px; margin:6px 0; }
+.lousa-cor{ width:16px; height:16px; border-radius:50%; border:2px solid transparent; padding:0; cursor:pointer; }
+.lousa-cor.ativa{ border-color:#fff; }
+.lousa-palco{ position:relative; flex:1; min-width:0; overflow:hidden; background:#26282c; touch-action:none; user-select:none; -webkit-user-select:none; cursor:crosshair; }
+.lousa-palco[data-ferr="mao"]{ cursor:grab; }
+.lousa-palco[data-ferr="ponteiro"]{ cursor:none; }
+.lousa-palco[data-ferr="borracha"]{ cursor:cell; }
+.lousa-caixa{ position:absolute; left:0; top:0; transform-origin:0 0; background:#fff; box-shadow:0 6px 30px rgba(0,0,0,.45); }
+.lousa-doc, .lousa-tinta{ position:absolute; left:0; top:0; display:block; }
+.lousa-aviso{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); padding:10px 16px; border-radius:10px; background:rgba(0,0,0,.7); color:#fff; max-width:70%; text-align:center; line-height:1.45; }
+.lousa-aviso[hidden], .lousa-flash[hidden]{ display:none; }
+.lousa-aviso.erro{ background:#7a1f1f; }
+.lousa-flash{ position:absolute; left:50%; bottom:18px; transform:translateX(-50%); padding:8px 14px; border-radius:999px; background:rgba(0,0,0,.78); color:#fff; font-size:12.5px; white-space:nowrap; }
+.lousa-notas{ width:208px; flex-shrink:0; display:flex; flex-direction:column; gap:6px; padding:8px; background:#16171a; border-left:1px solid var(--lousa-borda); }
+.lousa.sem-notas .lousa-notas{ display:none; }
+.lousa-notas-topo{ display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
+.lousa-notas-topo b{ margin-right:auto; font-size:12.5px; }
+.lousa-mini{ padding:2px 7px; font-size:11px; border:1px solid var(--lousa-borda); background:transparent; color:#cfd1d6; border-radius:6px; cursor:pointer; font-family:inherit; }
+.lousa-mini:hover{ background:#26282c; }
+.lousa-notas textarea{ flex:1; min-height:120px; resize:none; width:100%; background:#0e0f11; color:#e9eaec; border:1px solid var(--lousa-borda); border-radius:8px; padding:7px 8px; font:inherit; font-size:13px; line-height:1.45; }
+.lousa-prints{ display:flex; flex-wrap:wrap; gap:5px; max-height:92px; overflow-y:auto; }
+.lousa-print{ position:relative; width:58px; height:42px; border-radius:5px; overflow:hidden; border:1px solid var(--lousa-borda); }
+.lousa-print img{ width:100%; height:100%; object-fit:cover; display:block; }
+.lousa-print button{ position:absolute; top:0; right:0; width:16px; height:16px; line-height:14px; padding:0; border:0; background:rgba(0,0,0,.65); color:#fff; cursor:pointer; font-size:12px; }
+.lousa-dialogo{ position:absolute; inset:0; background:rgba(0,0,0,.55); display:flex; align-items:center; justify-content:center; z-index:5; }
+.lousa-dialogo[hidden]{ display:none; }
+.lousa-dialogo-caixa{ width:min(420px, 90vw); background:#1c1d20; border:1px solid var(--lousa-borda); border-radius:12px; padding:16px 18px; }
+.lousa-dialogo-caixa p{ margin:0 0 14px; line-height:1.5; font-size:14px; }
+.lousa-dialogo-acoes{ display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+.lousa-dialogo-acoes .lousa-btn{ height:32px; border:1px solid var(--lousa-borda); }
+.lousa-dialogo-acoes .principal{ background:#e9eaec; color:#101113; border-color:#e9eaec; }
+.lousa-dialogo-acoes .perigo{ color:#ff8a8a; }
+.lousa-dialogo-erro{ margin-top:10px; padding:8px 10px; border-radius:8px; background:#5a1c1c; color:#ffd0d0; font-size:13px; }
+@media (max-width:760px){ .lousa-notas{ width:150px; } .lousa-titulo{ display:none; } }
+

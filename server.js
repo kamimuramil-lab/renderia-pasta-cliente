@@ -6,6 +6,8 @@ const path = require('path');
 const galeria = require('./lib/galeria');
 const hubLib = require('./lib/hub');
 const recursosDonoLib = require('./lib/recursos-dono');
+const driveLib = require('./lib/drive-arquivo');
+const reunioesLib = require('./lib/reunioes');
 const orcLib = require('./lib/orcamentos');
 const memLib = require('./lib/memorial');
 const dashLib = require('./lib/dashboard');
@@ -296,7 +298,7 @@ async function galeriaComUrls(galeriaObj) {
     const m = memLib.paraCliente(galeriaObj);
     memorialCliente = { ...m, itens: await Promise.all(m.itens.map(async ({ fotoR2Key, ...i }) => ({ ...i, fotoUrl: fotoR2Key ? await storage.urlTemporaria(fotoR2Key) : null }))) };
   }
-  const { clienteSenhaHash, sessoesClienteAtivas, orcamentos, recursosAtivos, memorial, ...resto } = galeriaObj;
+  const { clienteSenhaHash, sessoesClienteAtivas, orcamentos, recursosAtivos, memorial, reunioes, ...resto } = galeriaObj;
   const estadoPerfil = galeria.lerEstado(CAMINHO_DADOS);
   const nomeEscritorio = galeria.nomeEscritorioDaLicenca(estadoPerfil, galeriaObj.licencaUsuario);
   const contatosEscritorio = galeria.contatosEscritorioDaLicenca(estadoPerfil, galeriaObj.licencaUsuario);
@@ -391,6 +393,37 @@ app.post('/api/app/galeria/:projetoId/marca-dagua', exigirSessaoArquiteto, uploa
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
+});
+
+// O que o PDF das imagens que o CLIENTE baixa mostra (nome de cada imagem, paleta, marca no canto). Quem define é o arquiteto.
+app.put('/api/app/galeria/:projetoId/pdf-cliente', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), (req, res) => {
+  try {
+    const { nomes, paleta, marca } = req.body || {};
+    res.json({ ok: true, pdfCliente: galeria.atualizarPdfCliente(CAMINHO_DADOS, req.params.projetoId, { nomes, paleta, marca }, req.licencaUsuario) });
+  } catch (e) {
+    res.status(400).json({ erro: e.message });
+  }
+});
+
+// Atas das reuniões de apresentação (só o escritório vê; o cliente nunca recebe).
+app.get('/api/app/galeria/:projetoId/reunioes', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), async (req, res) => {
+  try {
+    const lista = reunioesLib.listar(CAMINHO_DADOS, req.params.projetoId, req.licencaUsuario);
+    const g = galeria.buscarGaleriaPorProjeto(CAMINHO_DADOS, req.params.projetoId);
+    const reunioes = await Promise.all(lista.map(async (r) => ({
+      id: r.id, titulo: r.titulo, apresentado: r.apresentado, notas: r.notas, iniciouEm: r.iniciouEm, encerrouEm: r.encerrouEm, criadaEm: r.criadaEm,
+      texto: reunioesLib.textoParaCopiar(r, g && g.nomeProjeto),
+      prints: await Promise.all((r.prints || []).map(async (p) => ({ rotulo: p.rotulo, url: await storage.urlTemporaria(p.r2Key) })))
+    })));
+    res.json({ ok: true, reunioes });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+app.delete('/api/app/galeria/:projetoId/reunioes/:reuniaoId', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), async (req, res) => {
+  try {
+    const chaves = reunioesLib.excluir(CAMINHO_DADOS, req.params.projetoId, req.params.reuniaoId, req.licencaUsuario);
+    for (const chave of chaves) { try { await storage.excluirArquivo(chave); } catch (e) { console.error('Aviso: falhou excluir o print da reunião:', e.message); } }
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
 });
 
 // Só as opções (ativar/desativar, transparência, escala) -- sem
@@ -957,6 +990,64 @@ function exigirQueNaoSejaLeitura(req, res, next) {
   if (req.somenteLeitura) return res.status(403).json({ erro: 'Modo escritório: só visualização (aprovar e comentar são do cliente).' });
   next();
 }
+
+// ====================================================================
+// APRESENTAÇÃO (lousa do modo escritório): o arquiteto abre a pasta pelo dashboard e apresenta o projeto numa lousa com ponteiro, caneta e anotações.
+// Só vale pra sessão de ESCRITÓRIO (nunca pro cliente final). As atas ficam só pro escritório (o cliente nunca as recebe).
+// ====================================================================
+function exigirEscritorio(req, res, next) {
+  if (!req.somenteLeitura) return res.status(403).json({ erro: 'Só o escritório (abrindo a pasta pelo dashboard) usa a apresentação.' });
+  next();
+}
+const STATUS_DRIVE = { 'link-invalido': 400, 'nao-compartilhado': 422, 'grande-demais': 413, demorou: 504 };
+// O arquivo (PDF ou imagem) de um documento do hub, buscado no Google Drive pelo servidor (o navegador não lê o Drive direto).
+app.get('/api/cliente/:linkToken/apresentar/documento/:docId', exigirSessaoCliente, exigirEscritorio, async (req, res) => {
+  try {
+    const g = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, req.params.linkToken);
+    const doc = g && ((g.hub && g.hub.documentos) || []).find((d) => d.id === req.params.docId);
+    if (!doc) return res.status(404).json({ erro: 'Documento não encontrado.' });
+    const r = await driveLib.baixar(doc.url, { base: process.env.RENDERIA_DRIVE_URL_BASE || undefined });
+    res.setHeader('Content-Type', r.tipo);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.send(r.buffer);
+  } catch (e) {
+    res.status(STATUS_DRIVE[e.codigo] || 502).json({ erro: e.message || 'Não consegui buscar o arquivo.', motivo: e.codigo || 'falha' });
+  }
+});
+// Salva a ata da reunião (anotações + prints). Prints chegam como imagens JPEG/PNG em base64; cada uma é conferida pelos bytes.
+app.post('/api/cliente/:linkToken/reunioes', exigirSessaoCliente, exigirEscritorio, async (req, res) => {
+  const gravados = [];
+  try {
+    const dados = reunioesLib.validarDados(req.body);
+    const g = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, req.params.linkToken);
+    if (!g) return res.status(404).json({ erro: 'Link não encontrado.' });
+    const brutos = (req.body && Array.isArray(req.body.prints)) ? req.body.prints : [];
+    const imagens = brutos.map((p) => {
+      const m = /^data:image\/(jpeg|png);base64,([A-Za-z0-9+/=]+)$/.exec((p && p.imagem) || '');
+      if (!m) throw new Error('Imagem do print inválida (use JPEG ou PNG).');
+      const buf = Buffer.from(m[2], 'base64');
+      if (!buf.length || buf.length > 6 * 1024 * 1024) throw new Error('Cada print pode ter até 6 MB.');
+      const ehPng = buf.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+      const ehJpg = buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+      if (!(ehPng || ehJpg)) throw new Error('O arquivo do print não é uma imagem válida.');
+      return { buf, tipo: ehPng ? 'image/png' : 'image/jpeg', ext: ehPng ? 'png' : 'jpg' };
+    });
+    const pasta = crypto.randomBytes(8).toString('hex');
+    const prints = [];
+    for (let i = 0; i < imagens.length; i++) {
+      const chave = `reunioes/${g.projetoId.replace(/[^A-Za-z0-9_-]/g, '_')}/${pasta}/print-${i + 1}.${imagens[i].ext}`;
+      await storage.salvarArquivo(chave, imagens[i].buf, imagens[i].tipo);
+      gravados.push(chave);
+      prints.push({ rotulo: dados.rotulosDosPrints[i] || `Print ${i + 1}`, r2Key: chave });
+    }
+    const { reuniao } = reunioesLib.adicionar(CAMINHO_DADOS, req.params.linkToken, dados, prints);
+    registrarAtividade(req, 'reuniao_salva', g.licencaUsuario, g.projetoId, `${prints.length} print(s)`);
+    res.json({ ok: true, reuniao: { id: reuniao.id, titulo: reuniao.titulo, encerrouEm: reuniao.encerrouEm, prints: prints.length } });
+  } catch (e) {
+    for (const chave of gravados) { try { await storage.excluirArquivo(chave); } catch (e2) { /* sobra de arquivo é só lixo */ } }
+    res.status(400).json({ erro: e.message });
+  }
+});
 
 app.get('/api/cliente/:linkToken/galeria', exigirSessaoCliente, async (req, res) => {
   try {

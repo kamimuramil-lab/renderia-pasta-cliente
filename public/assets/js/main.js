@@ -133,6 +133,20 @@ function entrarNoProjeto(galeria) {
 function mostrarTelaGaleriaDaPlanta() { $('telaGaleria').style.display = 'block'; if (window.NavCliente) window.NavCliente.sincronizar(); }
 $('btnIrParaPlanta').addEventListener('click', () => window.PlantaCliente.abrir());
 
+// ---------- Apresentar (modo escritório): a lousa com a(s) planta(s) e as imagens do Projeto criativo ----------
+function logoDoEscritorio(g) { return (g.iconePersonalizado && g.iconePersonalizado.url) || (g.marcaDagua && g.marcaDagua.ativa !== false && g.marcaDagua.url) || null; }
+function itensDoProjetoCriativo() {
+  const g = estado.galeria; const itens = [];
+  (g.plantas || []).forEach((p) => itens.push({ chave: 'planta_' + p.id, rotulo: 'Planta - ' + (p.nome || 'baixa'), tipo: 'imagem', url: p.url }));
+  (estado.categoriasOrdenadas || []).forEach((cat) => cat.fotos.filter((f) => f.tipo !== '360').forEach((f) => itens.push({ chave: 'foto_' + f.id, rotulo: cat.nome + ' - ' + (window.nomeParaCliente ? window.nomeParaCliente(f) : f.nomeExibicao), tipo: 'imagem', url: f.url })));
+  return itens;
+}
+function apresentarProjetoCriativo() {
+  if (!window.Apresentar || !estado.galeria) return;
+  window.Apresentar.abrir({ projeto: estado.galeria.nomeProjeto, apresentado: 'Projeto criativo (planta e imagens)', itens: itensDoProjetoCriativo(), logoUrl: logoDoEscritorio(estado.galeria), link: LINK_TOKEN, token: () => estado.tokenClienteAtual });
+}
+['btnApresentarGaleria', 'btnApresentarPlanta'].forEach((id) => { const b = document.getElementById(id); if (b) b.addEventListener('click', apresentarProjetoCriativo); });
+
 // ---------- Modo escritório: a pasta foi aberta pelo dashboard (só leitura; o servidor também recusa aprovar/comentar) ----------
 function aplicarModoEscritorio(galeria) {
   const ativo = !!(galeria && galeria.modoEscritorio);
@@ -441,6 +455,16 @@ function renderizarFotoAtualNoVisualizador() {
     img.style.display = 'block';
     img.onload = () => { img.style.visibility = 'visible'; posicionarMarcaDagua(foto); ajustarLarguraPainelInferior(foto); };
     img.src = foto.url;
+  }
+
+  // CAPA do ambiente: a foto vira capa (escurecida, preenchendo a tela) com o nome grande por cima; nas outras imagens volta ao normal.
+  const capa = $('capaAmbienteVisualizador');
+  $('imgFotoVisualizador').classList.toggle('capa-escura', !!foto.__ehMood);
+  capa.style.display = foto.__ehMood ? 'flex' : 'none';
+  if (foto.__ehMood && categoriaAtual) {
+    $('capaAmbienteNome').textContent = categoriaAtual.nome;
+    const n = contarSemCapa(categoriaAtual);
+    $('capaAmbienteContagem').textContent = n ? `${n} ${n === 1 ? 'imagem' : 'imagens'}` : '';
   }
 
   $('modalHistoricoComentarios').classList.add('hidden');
