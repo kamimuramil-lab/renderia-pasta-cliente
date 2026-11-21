@@ -41,8 +41,8 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
    escuro, o logo grande e centralizado, o nome do projeto e os dados. Rodapé: autoria e direitos autorais à esquerda, data e hora à direita. */
 .capa-projeto { background: #1b1c1e; color: #f2f2f2; display: flex; }
 .capa-projeto .foto-capa { position: relative; width: 46%; height: 100%; overflow: hidden; background: #000; flex-shrink: 0; }
-.capa-projeto .foto-capa img { position: absolute; inset: -4%; width: 108%; height: 108%; object-fit: cover; filter: grayscale(1) blur(2.2px); }
-.capa-projeto .foto-capa.pronta img { inset: 0; width: 100%; height: 100%; filter: none; } /* foto já tratada (preto e branco + desfoque) por quem montou: sem filtro no papel */
+.capa-projeto .foto-capa img { position: absolute; inset: -4%; width: 108%; height: 108%; object-fit: cover; filter: grayscale(1) brightness(.55); }
+.capa-projeto .foto-capa.pronta img { inset: 0; width: 100%; height: 100%; filter: none; } /* foto já tratada (preto e branco + escurecida) por quem montou: sem filtro no papel */
 .capa-projeto .foto-capa::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to right, rgba(27,28,30,0) 70%, rgba(27,28,30,.55) 100%); }
 .capa-projeto .painel { flex: 1; padding: 14mm 15mm 30mm 15mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .capa-projeto img.logo { max-width: 112mm; max-height: 58mm; object-fit: contain; margin: 0 auto 13mm; filter: brightness(0) invert(1); }

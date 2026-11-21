@@ -60,12 +60,18 @@
       'ajustar();window.addEventListener("resize",ajustar);' +
       'var abriuImpressao=false;window.addEventListener("beforeprint",function(){abriuImpressao=true;raiz.classList.add("rt-imprimindo");});' +
       'window.addEventListener("afterprint",function(){raiz.classList.remove("rt-imprimindo");ajustar();});' +
-      'var DICA="A janela de impressão não abriu? Toque nos três pontinhos do navegador e escolha Compartilhar > Imprimir (ou Imprimir), depois salve como PDF.";bt.onclick=function(){abriuImpressao=false;try{window.print();}catch(e){est.textContent=DICA;return;}setTimeout(function(){if(!abriuImpressao)est.textContent=DICA;},2000);};document.getElementById("rt-fechar").onclick=function(){window.close();};' +
+      // Chrome/Firefox/Edge do iPhone (CriOS, FxiOS, EdgiOS) NÃO implementam window.print(): o botão não faz nada. Aí o passo a passo manual aparece já de cara.
+      'var ND=/CriOS|FxiOS|EdgiOS|OPiOS/.test(navigator.userAgent||"");' +
+      'var DICA_IOS="Neste navegador do iPhone o botão de imprimir não abre sozinho. Toque no ícone Compartilhar (quadrado com seta) e em Imprimir. Na tela de impressão, abra a prévia com a pinça (dois dedos) e toque em Compartilhar > Salvar em Arquivos. Ou abra este site no Safari.";' +
+      'var DICA="A janela de impressão não abriu? Toque em Compartilhar (quadrado com seta) e escolha Imprimir; depois abra a prévia com a pinça e salve como PDF.";' +
+      'if(ND)bt.textContent="Como salvar o PDF";' +
+      'bt.onclick=function(){abriuImpressao=false;if(ND){est.textContent=DICA_IOS;ajustar();}try{window.print();}catch(e){est.textContent=ND?DICA_IOS:DICA;ajustar();return;}setTimeout(function(){if(!abriuImpressao){est.textContent=ND?DICA_IOS:DICA;ajustar();}},2000);};document.getElementById("rt-fechar").onclick=function(){window.close();};' +
       'var fontes=document.fonts&&document.fonts.ready?Promise.race([document.fonts.ready,new Promise(function(ok){setTimeout(ok,4000);})]):Promise.resolve();' +
       'var prontas=Promise.all([fontes].concat([].map.call(document.images,function(im){return im.decode?im.decode().catch(function(){}):Promise.resolve();})));' +
       'Promise.race([prontas,new Promise(function(ok){setTimeout(ok,12000);})]).then(function(){' + // o botão NUNCA fica preso esperando uma imagem lenta
       'est.textContent=' + JSON.stringify(aviso ? 'Pronto. ' + aviso + ' Toque em \u201cSalvar como PDF\u201d.' : 'Pronto. Toque em \u201cSalvar como PDF\u201d e, na janela que abrir, escolha salvar como PDF.') + ';ajustar();' +
-      (imprimirSozinho ? 'setTimeout(function(){try{window.print();}catch(e){}},500);' : '') +
+      'if(ND){est.textContent=' + JSON.stringify(aviso ? aviso + ' ' : '') + '+DICA_IOS;ajustar();}' +
+      (imprimirSozinho ? 'else{setTimeout(function(){try{window.print();}catch(e){}},500);}' : '') +
       '});})();' + '</' + 'script>';
     let h = String(html);
     h = h.replace(/<title>[\s\S]*?<\/title>/i, () => '<title>' + escHtml(tituloArquivo) + '</title>');

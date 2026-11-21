@@ -128,20 +128,17 @@
   }
 
   // Capa e logo SEM filtro CSS: o celular tem dificuldade em imprimir/mostrar `filter` (blur, invert) em imagens grandes. Aqui o preto e
-  // branco + desfoque leve da foto da capa e o logo em branco são feitos no próprio desenho (canvas), e o PDF recebe imagens prontas.
+  // branco + escurecimento da foto da capa e o logo em branco são feitos no próprio desenho (canvas), e o PDF recebe imagens prontas.
+  // A capa NÃO tem desfoque (o blur tirava a qualidade da foto): só preto e branco, escurecida (fator 0,55; o mesmo do filtro de reserva do imagens-pdf).
   const imagemDeUri = (uri) => new Promise((ok, erro) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => erro(new Error('imagem inválida')); im.src = uri; });
   async function prepararFotoDaCapa(uri) {
     const im = await imagemDeUri(uri);
-    const { canvas, ctx } = desenhar(im, 1100);
+    const { canvas, ctx } = desenhar(im, 1400);
     const dados = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const d = dados.data;
-    for (let i = 0; i < d.length; i += 4) { const y = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]); d[i] = d[i + 1] = d[i + 2] = y; }
+    for (let i = 0; i < d.length; i += 4) { const y = Math.round((0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) * 0.55); d[i] = d[i + 1] = d[i + 2] = y; }
     ctx.putImageData(dados, 0, 0);
-    const pequeno = document.createElement('canvas'); // desfoque leve: encolhe e amplia de volta
-    pequeno.width = Math.max(1, Math.round(canvas.width / 4)); pequeno.height = Math.max(1, Math.round(canvas.height / 4));
-    const pc = pequeno.getContext('2d'); pc.imageSmoothingEnabled = true; pc.imageSmoothingQuality = 'high'; pc.drawImage(canvas, 0, 0, pequeno.width, pequeno.height);
-    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; ctx.drawImage(pequeno, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.82);
+    return canvas.toDataURL('image/jpeg', 0.88);
   }
   async function logoEmBranco(uri) {
     const im = await imagemDeUri(uri);
