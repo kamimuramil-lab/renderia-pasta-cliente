@@ -64,7 +64,17 @@ img{ max-width:100%; display:block; }
 .topo-galeria .selo{ width:34px; height:34px; border-radius:10px; overflow:hidden; background:var(--steel-100); flex-shrink:0; }
 .topo-galeria .selo img{ width:100%; height:100%; object-fit:cover; }
 .topo-galeria h1{ font-size:16px; }
+.topo-galeria .topo-titulo{ flex:1; min-width:0; }
 .topo-galeria .marca-rodape{ font-size:11px; color:var(--text-faint); font-family:'IBM Plex Mono',monospace; }
+/* Celular: a barra vira DUAS linhas (botões em cima, nome do projeto e progresso embaixo, com a largura toda). Em uma linha só o nome
+   ficava espremido ("APA / DGT") e o texto de progresso quebrava em 3 linhas. */
+@media (max-width:620px){
+  #telaGaleria .topo-galeria, #telaPlanta .topo-galeria{ padding:12px 14px; gap:8px 10px; flex-wrap:wrap; }
+  #telaGaleria .topo-galeria .selo, #telaPlanta .topo-galeria .selo{ margin-right:auto; }            /* empurra os botões pra direita; o logo fica ao lado do "Início" */
+  #telaGaleria .topo-titulo, #telaPlanta .topo-titulo{ order:5; flex:1 1 100%; }
+  #telaGaleria .topo-titulo h1, #telaPlanta .topo-titulo h1{ line-height:1.2; }
+  #telaGaleria .topo-galeria .marca-rodape{ display:none; }                                           /* a marca no canto não cabe nesta linha */
+}
 
 .wrap-galeria{ max-width:1200px; margin:0 auto; padding:28px 24px 60px; }
 .secao-ambiente{ margin-bottom:36px; }
