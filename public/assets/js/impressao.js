@@ -31,6 +31,19 @@
       '<body><div id="t">Preparando o PDF…</div><div class="tr"><i id="b"></i></div><small>Não feche esta aba: o PDF está sendo montado e aparece aqui, pronto para salvar.</small></body></html>';
   }
   function escrever(janela, html) { janela.document.open(); janela.document.write(html); janela.document.close(); }
+  // O documento final vai pra aba por um endereço de verdade (blob:) em vez de ficar numa página "em branco" montada por script: o Compartilhar >
+  // Imprimir do iPhone (Chrome) não respondia numa aba assim. Se o navegador recusar o blob, cai no document.write de sempre.
+  function mostrarNaAba(janela, documento) {
+    try {
+      if (janela.location && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function' && typeof Blob !== 'undefined') {
+        const url = URL.createObjectURL(new Blob([documento], { type: 'text/html;charset=utf-8' }));
+        janela.location.replace(url);
+        setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) { /* nada a fazer */ } }, 15 * 60 * 1000);
+        return;
+      }
+    } catch (e) { /* cai no document.write abaixo */ }
+    escrever(janela, documento);
+  }
   function abrirAbaDePreparo() {
     let w = null;
     try { w = window.open('', '_blank'); } catch (e) { w = null; }
@@ -43,14 +56,15 @@
   function prepararDocumento(html, tituloArquivo, largura, imprimirSozinho, aviso) {
     const estilo = '<style>' +
       '@media screen{html{background:#26282c;-webkit-text-size-adjust:100%;text-size-adjust:100%}body{margin:0;padding-top:var(--rt-barra,72px);display:flow-root}' + // flow-root: a margem negativa que desconta a altura do scale fica DENTRO do corpo (senão o corpo continua com a altura cheia)
-      '.rt-barra{position:fixed;top:0;left:0;right:0;z-index:2147483000;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 12px;background:#101114;color:#fff;font:600 15px/1.3 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.5)}' +
-      '.rt-barra #rt-estado{flex:1 1 180px;min-width:0}.rt-barra button{font:700 15px system-ui,-apple-system,Segoe UI,sans-serif;border:0;border-radius:999px;padding:12px 20px;background:#fff;color:#111;cursor:pointer}' +
-      '.rt-barra button:disabled{opacity:.5}.rt-barra #rt-fechar{background:transparent;color:#ddd;border:1px solid #555;padding:11px 16px}' +
+      // barra COMPACTA (texto pequeno numa linha, botões embaixo): no celular ela não pode tomar a tela
+      '.rt-barra{position:fixed;top:0;left:0;right:0;z-index:2147483000;display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:8px 10px;background:#101114;color:#fff;font:600 13px/1.3 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.5)}' +
+      '.rt-barra #rt-estado{flex:1 1 100%;min-width:0;color:#d6d7db;font-weight:500}.rt-barra button{font:700 14px system-ui,-apple-system,Segoe UI,sans-serif;border:0;border-radius:999px;padding:9px 16px;background:#fff;color:#111;cursor:pointer}' +
+      '.rt-barra button:disabled{opacity:.5}.rt-barra #rt-fechar{background:transparent;color:#ddd;border:1px solid #555;padding:8px 14px}' +
       '#rt-folhas{width:' + Number(largura) + 'px;transform-origin:0 0;display:flex;flex-direction:column;align-items:center;gap:12px;padding-bottom:30px}#rt-folhas>*{box-shadow:0 4px 22px rgba(0,0,0,.45);flex:none}' +
       'html.rt-imprimindo .rt-barra{display:none!important}html.rt-imprimindo #rt-folhas{transform:none!important;margin:0!important;width:auto!important;display:block!important}html.rt-imprimindo body{padding-top:0!important}}' +
       '@media print{.rt-barra{display:none!important}#rt-folhas{display:block!important;transform:none!important;margin:0!important;width:auto!important}}' +
       '</style>';
-    const barra = '<div class="rt-barra"><span id="rt-estado">Preparando…</span><button type="button" id="rt-imprimir">Salvar como PDF</button><button type="button" id="rt-fechar">Fechar</button></div>';
+    const barra = '<div class="rt-barra"><span id="rt-estado">Preparando…</span><button type="button" id="rt-imprimir">Salvar como PDF</button><button type="button" id="rt-fechar">Fechar</button><div id="rt-ajuda" hidden></div></div>';
     const script = '<script>(function(){' +
       'var W=' + Number(largura) + ',raiz=document.documentElement,barra=document.querySelector(".rt-barra"),est=document.getElementById("rt-estado"),bt=document.getElementById("rt-imprimir");' +
       'var folhas=document.getElementById("rt-folhas");' +
@@ -61,17 +75,19 @@
       'var abriuImpressao=false;window.addEventListener("beforeprint",function(){abriuImpressao=true;raiz.classList.add("rt-imprimindo");});' +
       'window.addEventListener("afterprint",function(){raiz.classList.remove("rt-imprimindo");ajustar();});' +
       // Chrome/Firefox/Edge do iPhone (CriOS, FxiOS, EdgiOS) NÃO implementam window.print(): o botão não faz nada. Aí o passo a passo manual aparece já de cara.
+      // O texto da barra é CURTO; o passo a passo fica escondido atrás do botão "Passo a passo" (o Rodrigo não gostou do texto grande na tela).
       'var ND=/CriOS|FxiOS|EdgiOS|OPiOS/.test(navigator.userAgent||"");' +
-      'var DICA_IOS="Neste navegador do iPhone o botão de imprimir não abre sozinho. Toque no ícone Compartilhar (quadrado com seta) e em Imprimir. Na tela de impressão, abra a prévia com a pinça (dois dedos) e toque em Compartilhar > Salvar em Arquivos. Ou abra este site no Safari.";' +
-      'var DICA="A janela de impressão não abriu? Toque em Compartilhar (quadrado com seta) e escolha Imprimir; depois abra a prévia com a pinça e salve como PDF.";' +
-      'if(ND)bt.textContent="Como salvar o PDF";' +
-      'bt.onclick=function(){abriuImpressao=false;if(ND){est.textContent=DICA_IOS;ajustar();}try{window.print();}catch(e){est.textContent=ND?DICA_IOS:DICA;ajustar();return;}setTimeout(function(){if(!abriuImpressao){est.textContent=ND?DICA_IOS:DICA;ajustar();}},2000);};document.getElementById("rt-fechar").onclick=function(){window.close();};' +
+      'var curto=ND?"Toque em Compartilhar e depois em Imprimir.":"Toque em “Salvar como PDF”.";' +
+      'var ajuda=document.getElementById("rt-ajuda");' +
+      'ajuda.style.cssText="flex:1 1 100%;font:400 13px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;color:#cfd0d4";' +
+      'ajuda.textContent="1) Toque no ícone Compartilhar (quadrado com seta, na barra do navegador). 2) Toque em Imprimir. 3) Na tela de impressão, abra a prévia com a pinça (dois dedos). 4) Toque em Compartilhar e em Salvar em Arquivos. Se o Imprimir não responder, abra este site no Safari.";' +
+      'if(ND)bt.textContent="Passo a passo";' +
+      'bt.onclick=function(){if(ND){ajuda.hidden=!ajuda.hidden;ajustar();return;}abriuImpressao=false;try{window.print();}catch(e){est.textContent="A janela não abriu? "+curto;ajuda.hidden=false;ajustar();return;}setTimeout(function(){if(!abriuImpressao){est.textContent="A janela não abriu? Toque em Compartilhar e depois em Imprimir.";ajuda.hidden=false;ajustar();}},2000);};document.getElementById("rt-fechar").onclick=function(){window.close();};' +
       'var fontes=document.fonts&&document.fonts.ready?Promise.race([document.fonts.ready,new Promise(function(ok){setTimeout(ok,4000);})]):Promise.resolve();' +
       'var prontas=Promise.all([fontes].concat([].map.call(document.images,function(im){return im.decode?im.decode().catch(function(){}):Promise.resolve();})));' +
       'Promise.race([prontas,new Promise(function(ok){setTimeout(ok,12000);})]).then(function(){' + // o botão NUNCA fica preso esperando uma imagem lenta
-      'est.textContent=' + JSON.stringify(aviso ? 'Pronto. ' + aviso + ' Toque em \u201cSalvar como PDF\u201d.' : 'Pronto. Toque em \u201cSalvar como PDF\u201d e, na janela que abrir, escolha salvar como PDF.') + ';ajustar();' +
-      'if(ND){est.textContent=' + JSON.stringify(aviso ? aviso + ' ' : '') + '+DICA_IOS;ajustar();}' +
-      (imprimirSozinho ? 'else{setTimeout(function(){try{window.print();}catch(e){}},500);}' : '') +
+      'est.textContent=' + JSON.stringify(aviso ? 'Pronto. ' + aviso + ' ' : 'Pronto. ') + '+curto;ajustar();' +
+      (imprimirSozinho ? 'if(!ND){setTimeout(function(){try{window.print();}catch(e){}},500);}' : '') +
       '});})();' + '</' + 'script>';
     let h = String(html);
     h = h.replace(/<title>[\s\S]*?<\/title>/i, () => '<title>' + escHtml(tituloArquivo) + '</title>');
@@ -129,7 +145,7 @@
         const largura = (opcoes && opcoes.largura) || LARGURA_A4_PAISAGEM;
         if (janela) {
           if (janela.closed) throw new Error('A aba do PDF foi fechada. Toque em Gerar PDF de novo.');
-          escrever(janela, prepararDocumento(html, tituloArquivo, largura, true, opcoes && opcoes.aviso));
+          mostrarNaAba(janela, prepararDocumento(html, tituloArquivo, largura, true, opcoes && opcoes.aviso));
           return { via: 'janela' };
         }
         if (celular) {
@@ -138,7 +154,7 @@
             abrir() {
               const w = window.open('', '_blank');
               if (!w) throw new Error('O navegador bloqueou a abertura do PDF. Permita pop-ups para este site e tente de novo.');
-              escrever(w, prepararDocumento(html, tituloArquivo, largura, false, opcoes && opcoes.aviso));
+              mostrarNaAba(w, prepararDocumento(html, tituloArquivo, largura, false, opcoes && opcoes.aviso));
             }
           };
         }
