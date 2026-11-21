@@ -53,6 +53,7 @@
       $('btnGerarPdfCliente').disabled = false;
     }
     prepararOpcoesDeMarca();
+    $('pdfQualidade').hidden = !pdfEmArquivo(); // a escolha de qualidade só existe onde o PDF é um arquivo (celular)
     $('modalPdfCliente').classList.remove('hidden');
   }
   // Logo / ícone / nenhuma: só liga a opção que existe. Padrão = o que o cliente já vê nas imagens (o logo, senão o ícone, senão nada).
@@ -68,6 +69,9 @@
     const escolha = temLogo ? 'logo' : (temIcone ? 'icone' : 'nenhuma');
     ['logo', 'icone', 'nenhuma'].forEach((v) => { const r = document.querySelector('input[name="pdfMarca"][value="' + v + '"]'); if (r) r.checked = (v === escolha); });
   }
+  // CELULAR: o PDF é um ARQUIVO desenhado no navegador (sem a margem do iOS); no computador continua a impressão.
+  const pdfEmArquivo = () => !!(window.Impressao && window.Impressao.ehCelular() && window.PdfArquivo && window.PdfArquivo.suportado());
+  const qualidadeAlta = () => { const r = document.querySelector('input[name="pdfQualidade"]:checked'); return !r || r.value === 'alta'; };
   const marcaEscolhida = () => { const r = document.querySelector('input[name="pdfMarca"]:checked'); return r ? r.value : 'nenhuma'; };
   function fecharModal() { if (!gerando) $('modalPdfCliente').classList.add('hidden'); }
 
@@ -155,9 +159,9 @@
     if (bmp.close) bmp.close();
     return canvas.toDataURL('image/jpeg', qualidade);
   }
-  async function prepararFotoDaCapa(uri) {
+  async function prepararFotoDaCapa(uri, ladoMaior) {
     const im = await imagemDeUri(uri);
-    const { canvas, ctx } = recortarCobrindo(im, PROPORCAO_CAPA_PROJETO, 1400);
+    const { canvas, ctx } = recortarCobrindo(im, PROPORCAO_CAPA_PROJETO, ladoMaior || 1400);
     const dados = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const d = dados.data;
     for (let i = 0; i < d.length; i += 4) { const y = Math.round((0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) * 0.55); d[i] = d[i + 1] = d[i + 2] = y; }
@@ -201,7 +205,9 @@
     const total = escolhidos.reduce((s, a) => s + a.fotos.length, 0);
     const sessao = window.Impressao.iniciar(); // NO TOQUE: no celular abre a aba do PDF agora (depois o navegador bloquearia)
     // No celular as imagens vão menores (1500 px, JPEG 0,8: ~3x mais leve): o aparelho monta e imprime o PDF bem mais rápido. A foto do PDF no computador continua em 2000 px.
-    const ladoMaximo = sessao.celular ? 1500 : 2000, qualidadeJpeg = sessao.celular ? 0.8 : 0.88;
+    // PDF em arquivo + qualidade Alta: as fotos vão no tamanho máximo que o site guarda (2400 px) e JPEG forte (sem reduzir antes de desenhar a página)
+    const alta = pdfEmArquivo() && qualidadeAlta();
+    const ladoMaximo = alta ? 2400 : (sessao.celular ? 1500 : 2000), qualidadeJpeg = alta ? 0.92 : (sessao.celular ? 0.8 : 0.88);
     gerando = true;
     $('btnGerarPdfCliente').disabled = true; $('btnCancelarPdfCliente').disabled = true;
     $('pdfMensagem').textContent = '';
@@ -211,7 +217,7 @@
       const ambientes = [];
       for (const a of escolhidos) {
         let capa = null;
-        if (a.capaUrl) { try { capa = await prepararCapaDeAmbiente(a.capaUrl, sessao.celular ? 1600 : 2200, sessao.celular ? 0.8 : 0.9); } catch (e) { capa = null; } } // já recortada na proporção da folha
+        if (a.capaUrl) { try { capa = await prepararCapaDeAmbiente(a.capaUrl, alta ? 2400 : (sessao.celular ? 1600 : 2200), alta ? 0.92 : (sessao.celular ? 0.8 : 0.9)); } catch (e) { capa = null; } } // já recortada na proporção da folha
         const imagens = [];
         for (const f of a.fotos) {
           if (sessao.cancelada()) throw new Error('A aba do PDF foi fechada. Toque em Gerar PDF de novo.');
@@ -233,7 +239,7 @@
       if (urlLogo) { try { const l = await prepararLogo(urlLogo); logo = l.claro ? l.uri : await logoEmBranco(l.uri); logoClaro = true; } catch (e) { logo = null; logoClaro = false; } } // a capa é escura: o logo já vai claro (sem filtro CSS)
       let fotoCapa = null;
       const primeira = ambientes[0] && ambientes[0].imagens[0];
-      if (primeira) { try { fotoCapa = await prepararFotoDaCapa(primeira.uri); } catch (e) { fotoCapa = null; } } // sem ela, o imagens-pdf usa a 1ª imagem com filtro CSS
+      if (primeira) { try { fotoCapa = await prepararFotoDaCapa(primeira.uri, alta ? 2000 : 1400); } catch (e) { fotoCapa = null; } } // sem ela, o imagens-pdf usa a 1ª imagem com filtro CSS
       // marca pequena no canto superior direito de cada imagem (logo ou ícone, a escolha do cliente no PDF)
       let marca = null;
       const tipoMarca = marcaEscolhida();
@@ -242,13 +248,13 @@
       const agora = new Date(); // o horário da geração: cada PDF baixado tem o seu
       const opcoesPdf = {
         nomeProjeto: g.nomeProjeto, dadosProjeto: (g.hub && g.hub.dadosProjeto) || '', escritorio: g.nomeEscritorio || '',
-        logo, logoClaro, marca, fotoCapa, contatos: contatosParaOPdf(g), ambientes, mostrarNomes, mostrarPaleta, agora
+        logo, logoClaro, marca, fotoCapa, contatos: contatosParaOPdf(g), ambientes, mostrarNomes, mostrarPaleta, agora, qualidade: alta ? 'alta' : 'padrao'
       };
       const aviso = falhas ? `${falhas} imagem(ns) não puderam ser carregadas e ficaram de fora do PDF.` : '';
       let entrega = null;
       // CELULAR: um ARQUIVO PDF de verdade (cada página desenhada no canvas): sem a margem branca que o iOS impõe ao imprimir.
       // Se o aparelho não conseguir desenhar, cai na impressão do navegador (abaixo), como antes.
-      if (sessao.celular && window.PdfArquivo && window.PdfArquivo.suportado()) {
+      if (sessao.celular && pdfEmArquivo()) {
         try {
           const r = await window.PdfArquivo.gerarImagens(opcoesPdf, {
             progresso: (feito, totalPaginas) => mostrarProgresso(`Montando a página ${feito} de ${totalPaginas}...`, feito, totalPaginas, sessao),

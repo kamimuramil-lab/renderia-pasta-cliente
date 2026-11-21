@@ -148,6 +148,11 @@
       <label><input type="radio" name="pdfMarca" value="icone" id="radioPdfIcone"> Ícone</label>
       <label><input type="radio" name="pdfMarca" value="nenhuma" id="radioPdfNenhuma"> Nenhuma</label>
     </fieldset>
+    <fieldset class="pdf-marca" id="pdfQualidade" hidden>
+      <legend>Qualidade do PDF</legend>
+      <label><input type="radio" name="pdfQualidade" value="alta" id="radioPdfAlta" checked> Alta (mais nítida, arquivo maior)</label>
+      <label><input type="radio" name="pdfQualidade" value="padrao" id="radioPdfPadrao"> Padrão (arquivo menor)</label>
+    </fieldset>
     <div class="pdf-progresso" id="pdfProgresso" hidden><div class="pdf-progresso-texto" id="pdfProgressoTexto"></div><div class="pdf-progresso-trilho"><div class="pdf-progresso-barra" id="pdfProgressoBarra"></div></div></div>
     <div class="pdf-mensagem" id="pdfMensagem" role="status"></div>
     <div class="dash-modal-acoes"><button type="button" class="dash-btn-sec" id="btnCancelarPdfCliente">Cancelar</button><button type="button" class="dash-btn-pri" id="btnGerarPdfCliente">Gerar PDF</button></div>
@@ -253,6 +258,7 @@
 <script src="assets/js/paleta-cores.js"></script>
 <script src="assets/js/imagens-pdf.js"></script>
 <script src="assets/js/pdf-arquivo.js"></script>
+<script src="assets/js/memorial-arquivo.js"></script>
 <script src="assets/js/pdf-cliente.js"></script>
 <script src="assets/js/planta.js"></script>
 <script src="assets/js/planta-mini.js"></script>

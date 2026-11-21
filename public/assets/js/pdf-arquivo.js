@@ -15,6 +15,8 @@
   const FAMILIA = "'Segoe UI', Arial, Helvetica, sans-serif";
   const LARGURA_PX = 2105;                // ~180 dpi na folha A4 paisagem
   const QUALIDADE_JPEG = 0.9;
+  const LARGURA_PX_ALTA = 2800;           // ~240 dpi (limite seguro do canvas no iPhone: 2800 x 1980 = 5,5 milhões de pixels)
+  const QUALIDADE_JPEG_ALTA = 0.93;
   const PAGINA_PT = [841.89, 595.28];     // A4 paisagem em pontos do PDF
 
   // ---------- escritor de PDF (puro) ----------
@@ -32,7 +34,8 @@
     return '<' + hex + '>';
   }
   const dois = (n) => String(n).padStart(2, '0');
-  // paginas: [{ jpeg: Uint8Array, largura, altura }] (um JPEG por página, cobrindo a folha inteira) -> Uint8Array do arquivo PDF
+  // paginas: [{ jpeg: Uint8Array, largura, altura, links?: [{ x, y, w, h (mm, do canto superior esquerdo da folha), url }] }]
+  //   (um JPEG por página cobrindo a folha inteira; os links viram áreas clicáveis do PDF) -> Uint8Array do arquivo PDF
   function montarPdf(paginas, opcoes) {
     const o = opcoes || {};
     const [wpt, hpt] = PAGINA_PT;
@@ -44,12 +47,15 @@
     const inicioObj = (n) => { offs[n] = pos; addTxt(n + ' 0 obj\n'); };
     const n = paginas.length;
     const idInfo = 3 + 3 * n;
+    let proxId = idInfo + 1; // os links (anotações) vêm depois do Info
+    const idsLinks = paginas.map((p) => (Array.isArray(p.links) ? p.links : []).map(() => proxId++));
+    const ultimoId = proxId - 1;
     addTxt('%PDF-1.4\n%\xe2\xe3\xcf\xd3\n');
     inicioObj(1); addTxt('<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
     inicioObj(2); addTxt('<< /Type /Pages /Count ' + n + ' /Kids [' + paginas.map((_, i) => (3 + 3 * i) + ' 0 R').join(' ') + '] >>\nendobj\n');
     paginas.forEach((p, i) => {
       const pg = 3 + 3 * i, ct = pg + 1, im = pg + 2;
-      inicioObj(pg); addTxt('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + wpt + ' ' + hpt + '] /Resources << /XObject << /Im0 ' + im + ' 0 R >> >> /Contents ' + ct + ' 0 R >>\nendobj\n');
+      inicioObj(pg); addTxt('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + wpt + ' ' + hpt + '] /Resources << /XObject << /Im0 ' + im + ' 0 R >> >> /Contents ' + ct + ' 0 R' + (idsLinks[i].length ? ' /Annots [' + idsLinks[i].map((id) => id + ' 0 R').join(' ') + ']' : '') + ' >>\nendobj\n');
       const conteudo = 'q ' + wpt + ' 0 0 ' + hpt + ' 0 0 cm /Im0 Do Q';
       inicioObj(ct); addTxt('<< /Length ' + conteudo.length + ' >>\nstream\n' + conteudo + '\nendstream\nendobj\n');
       inicioObj(im);
@@ -60,10 +66,16 @@
     const d = o.data instanceof Date ? o.data : new Date();
     const dataPdf = 'D:' + d.getFullYear() + dois(d.getMonth() + 1) + dois(d.getDate()) + dois(d.getHours()) + dois(d.getMinutes()) + dois(d.getSeconds());
     inicioObj(idInfo); addTxt('<< /Title ' + textoPdf(o.titulo) + ' /Producer (RENDERIA) /CreationDate (' + dataPdf + ') >>\nendobj\n');
+    const kpt = wpt / LARG; // mm -> pontos do PDF
+    paginas.forEach((p, i) => (Array.isArray(p.links) ? p.links : []).forEach((l, j) => {
+      const x1 = (l.x * kpt).toFixed(2), x2 = ((l.x + l.w) * kpt).toFixed(2), y1 = (hpt - (l.y + l.h) * kpt).toFixed(2), y2 = (hpt - l.y * kpt).toFixed(2);
+      inicioObj(idsLinks[i][j]);
+      addTxt('<< /Type /Annot /Subtype /Link /Rect [' + x1 + ' ' + y1 + ' ' + x2 + ' ' + y2 + '] /Border [0 0 0] /A << /S /URI /URI ' + textoPdf(l.url) + ' >> >>\nendobj\n');
+    }));
     const xref = pos;
-    addTxt('xref\n0 ' + (idInfo + 1) + '\n0000000000 65535 f \n');
-    for (let k = 1; k <= idInfo; k++) addTxt(String(offs[k]).padStart(10, '0') + ' 00000 n \n');
-    addTxt('trailer\n<< /Size ' + (idInfo + 1) + ' /Root 1 0 R /Info ' + idInfo + ' 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
+    addTxt('xref\n0 ' + (ultimoId + 1) + '\n0000000000 65535 f \n');
+    for (let k = 1; k <= ultimoId; k++) addTxt(String(offs[k]).padStart(10, '0') + ' 00000 n \n');
+    addTxt('trailer\n<< /Size ' + (ultimoId + 1) + ' /Root 1 0 R /Info ' + idInfo + ' 0 R >>\nstartxref\n' + xref + '\n%%EOF\n');
     const todo = new Uint8Array(pos);
     let p0 = 0;
     partes.forEach((u) => { todo.set(u, p0); p0 += u.length; });
@@ -334,6 +346,33 @@
   const cedeAVez = () => new Promise((ok) => setTimeout(ok, 0));
   const imagemSegura = (uri) => (typeof uri === 'string' && /^data:image\/(png|jpe?g|webp);base64,[A-Za-z0-9+/=]+$/.test(uri) ? uri : null);
 
+  // Baixa uma imagem (fetch com CORS, cache desligado) e devolve um canvas REDUZIDO a no máximo ladoMax px: o memorial tem dezenas de fotos
+  // de 20 mm, e guardar cada uma em 2400 px estouraria a memória do celular. Plano B: <img crossorigin>. Lança erro se não conseguir.
+  async function baixarImagem(url, ladoMax) {
+    let fonte = null, motivo = '';
+    try {
+      const resp = await fetch(url, { mode: 'cors', cache: 'no-store' });
+      if (!resp.ok) throw new Error('o servidor das imagens respondeu ' + resp.status);
+      const blob = await resp.blob();
+      if (raiz.createImageBitmap) { try { fonte = await raiz.createImageBitmap(blob); } catch (e) { fonte = null; } }
+      if (!fonte) {
+        const obj = URL.createObjectURL(blob);
+        try { fonte = await carregarImagem(obj); } finally { setTimeout(() => URL.revokeObjectURL(obj), 5000); }
+      }
+    } catch (e) { motivo = (e && e.message) || 'falha ao baixar'; }
+    if (!fonte) {
+      fonte = await new Promise((ok, erro) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => ok(im); im.onerror = () => erro(new Error(motivo || 'imagem indisponível')); im.src = url; });
+    }
+    const w = fonte.naturalWidth || fonte.width, h = fonte.naturalHeight || fonte.height;
+    const k = Math.min(1, ladoMax / Math.max(w, h));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+    const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(fonte, 0, 0, c.width, c.height);
+    if (fonte.close) fonte.close();
+    return c;
+  }
+
   function suportado() {
     try {
       if (typeof document === 'undefined' || typeof Blob === 'undefined' || typeof atob !== 'function') return false;
@@ -344,7 +383,7 @@
   }
 
   // opcoes: as MESMAS do ImagensPdf.montarHtml (nomeProjeto, dadosProjeto, escritorio, logo, marca, fotoCapa, contatos, mostrarNomes, mostrarPaleta,
-  //   agora, ambientes [{ nome, capa, capaPronta, imagens [{ id, nome, uri, paleta }] }]). ganchos: { progresso(feito, total), cancelada() }.
+  //   agora, qualidade ('alta' = 240 dpi/JPEG 0,93; senão 180 dpi/0,9), ambientes [{ nome, capa, capaPronta, imagens [{ id, nome, uri, paleta }] }]). ganchos: { progresso(feito, total), cancelada() }.
   // -> { blob (application/pdf), paginas, bytes }; lança erro se não houver imagem.
   async function gerarImagens(opcoes, ganchos) {
     const o = opcoes || {}, g = ganchos || {};
@@ -365,14 +404,16 @@
       contatos: [c.whatsapp, c.email, c.instagram].map((x) => String(x || '').trim()).filter(Boolean)
     };
     const totalPaginas = 1 + ambientes.length + totalImgs + 1;
+    const alta = o.qualidade === 'alta'; // alta: ~240 dpi (as fotos do site têm até 2400 px: cabem sem perder detalhe) e JPEG mais forte
+    const larguraPx = alta ? LARGURA_PX_ALTA : LARGURA_PX, qualidadeJpeg = alta ? QUALIDADE_JPEG_ALTA : QUALIDADE_JPEG;
     const canvas = document.createElement('canvas');
-    canvas.width = LARGURA_PX; canvas.height = Math.round(LARGURA_PX * ALT / LARG);
+    canvas.width = larguraPx; canvas.height = Math.round(larguraPx * ALT / LARG);
     const ctx = canvas.getContext('2d');
     const pc = criarPincel(ctx, canvas.width / LARG);
     const paginas = [];
     const fechar = async (rotulo) => {
       if (g.cancelada && g.cancelada()) throw new Error('A aba do PDF foi fechada. Toque em Gerar PDF de novo.');
-      paginas.push({ jpeg: dataUriParaBytes(canvas.toDataURL('image/jpeg', QUALIDADE_JPEG)), largura: canvas.width, altura: canvas.height });
+      paginas.push({ jpeg: dataUriParaBytes(canvas.toDataURL('image/jpeg', qualidadeJpeg)), largura: canvas.width, altura: canvas.height });
       if (g.progresso) g.progresso(paginas.length, totalPaginas, rotulo);
       await cedeAVez();
     };
@@ -405,7 +446,12 @@
     return { blob: new Blob([bytes], { type: 'application/pdf' }), paginas: paginas.length, bytes: bytes.length };
   }
 
-  const api = { montarPdf, gerarImagens, suportado, alturasDaPaleta, textoPdf };
+  const api = {
+    montarPdf, gerarImagens, suportado, alturasDaPaleta, textoPdf,
+    // ferramentas de desenho, usadas também pelo memorial-arquivo.js
+    criarPincel, alturaLinha, carregarImagem, baixarImagem, dataUriParaBytes, cedeAVez,
+    medidas: { LARG, ALT, PX_CSS, FIO, PT, LARGURA_PX, LARGURA_PX_ALTA, QUALIDADE_JPEG, QUALIDADE_JPEG_ALTA }
+  };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.PdfArquivo = api;
 })(typeof window !== 'undefined' ? window : this);

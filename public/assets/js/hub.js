@@ -274,12 +274,28 @@
       const logo = galeriaAtual.marcaDagua && galeriaAtual.marcaDagua.url && galeriaAtual.marcaDagua.ativa !== false ? galeriaAtual.marcaDagua.url : null;
       const c = window.AjudaCliente ? window.AjudaCliente.contatosValidos(galeriaAtual.contatosEscritorio) : {};
       const escritorio = { nome: galeriaAtual.nomeEscritorio || '', whatsapp: c.whatsapp && window.AjudaCliente ? window.AjudaCliente.formatarWhatsapp(c.whatsapp) : '', email: c.email || '', instagram: c.instagram ? '@' + c.instagram : '' };
-      const doc = window.MemorialDoc.montarHtml({ nomeProjeto: galeriaAtual.nomeProjeto, logo, itens: m.itens, setores: m.setores, setor, agora: new Date(), escritorio });
+      const opcoes = { nomeProjeto: galeriaAtual.nomeProjeto, logo, itens: m.itens, setores: m.setores, setor, agora: new Date(), escritorio };
       const hoje = new Date().toLocaleDateString('pt-BR').split('/').join('-');
       const titulo = `${galeriaAtual.nomeProjeto} - Memorial de itens${setor ? ' - ' + setor : ''} - ${hoje}`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim(); // vira o nome sugerido do arquivo
-      sessao.entregar(doc.html, titulo).then((r) => {
-        if (r.via === 'toque') avisoDoMemorial('O PDF está pronto.', { rotulo: 'Abrir o PDF', acao: r.abrir });
-      }).catch((e) => { sessao.fechar(); avisoDoMemorial(e.message || 'Não consegui gerar o PDF.'); });
+      const aposEntregar = (r) => { if (r.via === 'toque') avisoDoMemorial('O PDF está pronto.', { rotulo: 'Abrir o PDF', acao: r.abrir }); else avisoDoMemorial(''); };
+      const falha = (e) => { sessao.fechar(); avisoDoMemorial(e.message || 'Não consegui gerar o PDF.'); };
+      const pelaImpressao = async () => aposEntregar(await sessao.entregar(window.MemorialDoc.montarHtml(opcoes).html, titulo));
+      // CELULAR: um ARQUIVO PDF de verdade (páginas desenhadas no canvas, link "Ver produto" clicável), sem a margem branca que o iOS impõe
+      // ao imprimir. Se o aparelho não conseguir desenhar, cai na impressão do navegador como antes.
+      if (sessao.celular && window.MemorialArquivo && window.PdfArquivo && window.PdfArquivo.suportado()) {
+        window.MemorialArquivo.gerar(opcoes, {
+          progresso: (texto, fr) => { sessao.progresso(texto, fr); avisoDoMemorial(texto); },
+          cancelada: () => sessao.cancelada()
+        })
+          .then((r) => sessao.entregarArquivo(r.blob, titulo + '.pdf', { paginas: r.paginas, bytes: r.bytes, aviso: r.aviso }).then(aposEntregar))
+          .catch((e) => {
+            if (sessao.cancelada()) { falha(e); return; }
+            if (window.console) console.warn('Memorial em arquivo falhou, usando a impressão do navegador:', e && e.message);
+            pelaImpressao().catch(falha);
+          });
+        return;
+      }
+      pelaImpressao().catch(falha);
     } catch (e) {
       sessao.fechar();
       avisoDoMemorial(e.message || 'Não consegui gerar o PDF.');

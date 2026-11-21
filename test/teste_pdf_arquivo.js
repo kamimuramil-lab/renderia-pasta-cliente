@@ -39,6 +39,23 @@ txt.replace(/\/Length (\d+) >>\nstream\n/g, (m, len, pos) => {
 assert.strictEqual(achou, 6, '3 conteúdos + 3 imagens');
 ok('PDF de 3 páginas: xref, offsets e comprimentos corretos; A4 paisagem; 1 JPEG por página');
 
+console.log('== 1b. Links clicáveis (memorial: "Ver produto") ==');
+const comLinks = Buffer.from(montarPdf([
+  { jpeg: jpegs[0].jpeg, largura: 2800, altura: 1980, links: [{ x: 50, y: 40, w: 20, h: 5, url: 'https://exemplo.com.br/p?x=(1)&y=2' }, { x: 10, y: 100, w: 30, h: 4.76, url: 'https://exemplo.com.br/outro' }] },
+  { jpeg: jpegs[1].jpeg, largura: 2800, altura: 1980 },
+  { jpeg: jpegs[2].jpeg, largura: 2800, altura: 1980, links: [{ x: 0, y: 0, w: 297, h: 210, url: 'https://exemplo.com.br/tudo' }] }
+], { titulo: 'm' }));
+const tl = comLinks.toString('latin1');
+assert.strictEqual((tl.match(/\/Subtype \/Link/g) || []).length, 3, '3 áreas clicáveis');
+assert.ok(/\/Annots \[\d+ 0 R \d+ 0 R\]/.test(tl) && (tl.match(/\/Annots/g) || []).length === 2, 'só as páginas com link têm /Annots');
+assert.ok(tl.includes('/URI (https://exemplo.com.br/p?x=\\(1\\)&y=2)'), 'parênteses do endereço escapados');
+// 50 mm -> 141.73 pt; a área 40..45 mm de cima vira y de baixo: 595.28 - 45*2.8346 = 467.72 .. 595.28 - 40*2.8346 = 481.89
+assert.ok(tl.includes('/Rect [141.73 467.72 198.43 481.89]'), 'o retângulo do link fica no lugar certo da folha (mm -> pontos, origem embaixo)');
+const ini2 = Number(/startxref\n(\d+)\n%%EOF/.exec(tl)[1]);
+const tam2 = Number(/\/Size (\d+)/.exec(tl)[1]);
+tl.slice(ini2).split('\n').slice(3, 3 + tam2 - 1).forEach((l, i) => assert.ok(tl.slice(Number(l.slice(0, 10))).startsWith((i + 1) + ' 0 obj\n'), `com links: objeto ${i + 1} no offset certo`));
+ok('links: anotações, escape, posição e xref continuam certos');
+
 console.log('== 2. Título com acento e caracteres especiais ==');
 assert.strictEqual(textoPdf('abc (x)\\'), '(abc \\(x\\)\\\\)');
 assert.strictEqual(textoPdf('Imagens — açaí'), '<FEFF0049006D006100670065006E0073002020140020006100E7006100ED>'); // "—" = 2014, "ç" = 00E7, "í" = 00ED
