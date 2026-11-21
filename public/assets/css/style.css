@@ -414,6 +414,8 @@ body.visual-novo[data-tema="claro"]{
 .card-foto .nome-foto, .card-foto .badge-360, .card-foto .badge-comentario{ color:#fff; }
 .barra-progresso-cliente{ border:1px solid var(--line); }
 .msg-erro-login{ color:var(--hub-vermelho); }
+/* Assinatura do escritório vencida: aviso no lugar do formulário de login */
+.msg-indisponivel{ margin-top:6px; padding:14px 16px; border-radius:var(--radius-m); border:1px solid var(--line); background:var(--bg-elev-2); color:var(--text); font-size:14px; line-height:1.55; text-align:center; }
 .planta-controles, .pin-rotulo{ --steel-100:#f4f5f7; --text-dim:#c7cbd1; } /* chips escuros por cima da planta */
 .leg-icone{ box-shadow:0 0 0 1px var(--line); }
 .btn-tema{ padding:9px 11px; }

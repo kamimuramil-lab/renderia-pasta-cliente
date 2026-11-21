@@ -27,8 +27,19 @@ async function chamarAPI(caminho, opcoes = {}) {
     headers: Object.assign({}, opcoes.headers || {}, estado.tokenClienteAtual ? { 'x-cliente-token': estado.tokenClienteAtual } : {})
   }));
   const dados = await resp.json().catch(() => ({}));
-  if (!resp.ok) throw new Error(dados.erro || 'Erro ao falar com o servidor.');
+  if (!resp.ok) { const e = new Error(dados.erro || 'Erro ao falar com o servidor.'); e.indisponivel = !!dados.indisponivel; throw e; }
   return dados;
+}
+
+// Assinatura do escritório vencida: a pasta fica indisponível (nada foi apagado). A tela de login troca o formulário por um aviso amigável.
+function mostrarIndisponivel(mensagem) {
+  const aviso = $('msgIndisponivel');
+  if (!aviso) return;
+  aviso.textContent = mensagem || 'Esta pasta está temporariamente indisponível. Fale com o escritório responsável pelo seu projeto.';
+  aviso.style.display = 'block';
+  ['.card-login .sub', '.card-login .campo-login', '.card-login .linha-lembrar', '#btnEntrarCliente', '#msgErroLogin'].forEach((sel) => {
+    document.querySelectorAll(sel).forEach((el) => { el.style.display = 'none'; });
+  });
 }
 
 // ---------- Login ----------
@@ -42,6 +53,7 @@ async function tentarEntrarComTokenSalvo() {
     return true;
   } catch (e) {
     estado.tokenClienteAtual = null;
+    if (e.indisponivel) { mostrarIndisponivel(e.message); return false; } // vencida: mantém o token salvo; renovando, volta a abrir
     localStorage.removeItem(CHAVE_LOCAL); // token velho/inválido -- limpa e pede login de novo
     return false;
   }
@@ -69,7 +81,7 @@ async function fazerLogin() {
       body: JSON.stringify({ usuario, senha })
     });
     const dados = await resp.json();
-    if (!resp.ok) throw new Error(dados.erro || 'Usuário ou senha incorretos.');
+    if (!resp.ok) { if (dados.indisponivel) mostrarIndisponivel(dados.erro); throw new Error(dados.erro || 'Usuário ou senha incorretos.'); }
     estado.tokenClienteAtual = dados.token;
     if ($('chkLembrarDispositivo').checked) localStorage.setItem(CHAVE_LOCAL, dados.token);
     else localStorage.removeItem(CHAVE_LOCAL);
@@ -699,6 +711,7 @@ async function aplicarIconePersonalizadoNaTelaDeLogin() {
     const info = await resp.json();
     document.body.classList.toggle('visual-novo', !!info.novoVisual); // tema claro/escuro só se o dono tem o recurso
     if (window.TemaCores) window.TemaCores.aplicar(info.cores); // a tela de login já nasce com a cor de destaque do escritório
+    if (info.indisponivel) mostrarIndisponivel(info.aviso);
     if (info.iconeUrl) $('imgLogoLogin').src = info.iconeUrl;
     if (info.nomeProjeto) $('tituloLogin').textContent = `Galeria de ${info.nomeProjeto}`;
   } catch (e) { /* sem internet ou link inválido -- mantém a marca padrão RENDERIA */ }

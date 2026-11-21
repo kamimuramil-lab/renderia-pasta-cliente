@@ -284,6 +284,10 @@
   (async function iniciar() {
     try {
       const r = await fetch(`/api/orcamentos/${LINK}/info-publica`);
+      if (r.status === 403) { // assinatura do escritório vencida: a pasta fica indisponível (nada foi apagado)
+        const j = await r.json().catch(() => ({}));
+        if (j.indisponivel) { document.body.innerHTML = '<div style="padding:60px 24px; text-align:center; color:#9a9ea5; font-family:sans-serif;"></div>'; document.body.firstChild.textContent = j.erro || 'Esta pasta está temporariamente indisponível. Fale com o escritório responsável pelo seu projeto.'; return; }
+      }
       if (!r.ok) { document.body.innerHTML = '<div style="padding:60px 24px; text-align:center; color:#9a9ea5; font-family:sans-serif;">Link não encontrado -- confira se você copiou o endereço completo que recebeu.</div>'; return; }
       const info = await r.json();
       $('tituloLogin').textContent = `Orçamentos — ${info.nomeProjeto}`;

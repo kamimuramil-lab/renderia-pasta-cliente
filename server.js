@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const path = require('path');
 const galeria = require('./lib/galeria');
 const hubLib = require('./lib/hub');
+const recursosDonoLib = require('./lib/recursos-dono');
 const orcLib = require('./lib/orcamentos');
 const memLib = require('./lib/memorial');
 const dashLib = require('./lib/dashboard');
@@ -105,14 +106,20 @@ app.get('/', async (req, res) => {
 const CAMINHO_ORC_HTML = path.join(__dirname, 'public', 'orcamentos.html');
 const ORC_HTML_BRUTO = fs.existsSync(CAMINHO_ORC_HTML) ? fs.readFileSync(CAMINHO_ORC_HTML, 'utf8') : '';
 // A Pasta de Orçamentos só fica disponível pro cliente enquanto o DONO tem o recurso na licença (cópia em g.recursosAtivos).
-function orcamentosDisponiveis(linkToken) {
+async function orcamentosDisponiveis(linkToken) {
   const g = orcLib.buscarPorLinkToken(CAMINHO_DADOS, linkToken);
-  return (g && g.recursosAtivos.orcamentos === true) ? g : null;
+  if (!g || (await galeriaIndisponivel(g))) return null; // assinatura vencida: restrito
+  return ((await recursosDoDono(g)).orcamentos === true) ? g : null;
+}
+// Link de orçamentos cuja pasta existe mas está INDISPONÍVEL por assinatura vencida (a página explica em vez de dizer "link não encontrado").
+async function orcamentosVencidos(linkToken) {
+  const g = orcLib.buscarPorLinkToken(CAMINHO_DADOS, linkToken);
+  return !!(g && (await galeriaIndisponivel(g)));
 }
 const lerOrcHtml = () => (storage.MODO_LOCAL ? fs.readFileSync(CAMINHO_ORC_HTML, 'utf8') : ORC_HTML_BRUTO);
-app.get('/orcamentos', (req, res) => {
+app.get('/orcamentos', async (req, res) => {
   let nome = null;
-  try { const g = orcamentosDisponiveis(req.query.o); if (g) nome = g.nomeProjeto; } catch (e) { /* título genérico */ }
+  try { const g = await orcamentosDisponiveis(req.query.o); if (g) nome = g.nomeProjeto; } catch (e) { /* título genérico */ }
   const html = comVersaoNosAssets(lerOrcHtml())
     .split('__OG_TITULO__').join(nome ? `${nome} — Orçamentos` : 'Orçamentos do seu projeto')
     .split('__OG_DESCRICAO__').join('Veja os orçamentos do seu projeto, acompanhe o andamento e comente.')
@@ -151,6 +158,37 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 
 const PORTA = process.env.PORT || 3000;
 const CAMINHO_DADOS = galeria.caminhoPadrao(__dirname);
 const LICENCA_SERVIDOR_URL = process.env.LICENCA_SERVIDOR_URL || null;
+
+// Recursos do DONO consultados AO VIVO no servidor de licença (cache curto): trocar o nível da conta vale pra todos os projetos, sem esperar o
+// arquiteto abrir cada um. Só liga com URL da licença + segredo compartilhado (RENDERIA_SEGREDO_SERVIDORES, o MESMO nos dois servidores);
+// sem eles, tudo segue como antes (cópia guardada na galeria). Se o servidor de licença cair, vale o último valor conhecido. Ver lib/recursos-dono.js.
+const recursosDono = recursosDonoLib.criarResolvedor({
+  urlLicenca: LICENCA_SERVIDOR_URL,
+  segredo: process.env.RENDERIA_SEGREDO_SERVIDORES || null,
+  ttlMs: Math.max(1, Number(process.env.RECURSOS_DONO_TTL_SEGUNDOS) || 60) * 1000,
+  falhaMs: Math.max(1, Number(process.env.RECURSOS_DONO_FALHA_SEGUNDOS) || 15) * 1000,
+  aoConfirmar: (usuario, recursos, ativa) => galeria.sincronizarRecursosDaConta(CAMINHO_DADOS, usuario, recursos, ativa),
+  aviso: (m) => console.error('Aviso: ' + m)
+});
+// O que o DONO da galeria tem AGORA ({ paginaProjeto, orcamentos, memorial }); sem como confirmar, a cópia guardada na galeria.
+async function recursosDoDono(g) {
+  return (await recursosDono.obter(g && g.licencaUsuario, g && g.recursosAtivos)) || { paginaProjeto: false, orcamentos: false, memorial: false };
+}
+// Assinatura VENCIDA = acesso restrito pro cliente final e pro dashboard (o arquiteto já é barrado no servidor de licença: a sessão dele deixa
+// de valer). NADA é apagado: renovar a licença reabre tudo (em até ~1 min, pelo cache). Sem como confirmar (nada configurado), libera como sempre.
+const MSG_PASTA_INDISPONIVEL = 'Esta pasta está temporariamente indisponível. Fale com o escritório responsável pelo seu projeto.';
+async function galeriaIndisponivel(g) {
+  if (!g) return false;
+  const e = await recursosDono.obterEstado(g.licencaUsuario, g.recursosAtivos, g.contaAtiva);
+  return e.ativa === false;
+}
+// Dashboard online da conta (só vale com a assinatura em dia E a Página do projeto). Sem como confirmar (nada configurado), libera como sempre foi.
+// -> 'ok' | 'vencida' | 'sem-recurso'
+async function situacaoDoDashboard(licencaConta) {
+  const e = await recursosDono.obterEstado(licencaConta, null, true);
+  if (e.ativa === false) return 'vencida';
+  return (e.recursos === null || e.recursos.paginaProjeto === true) ? 'ok' : 'sem-recurso';
+}
 
 // Backup diário do arquivo de dados no R2 (60 dias) e limpeza do registro de atividades (180 dias).
 backup.iniciarRotina(CAMINHO_DADOS);
@@ -244,7 +282,8 @@ async function galeriaComUrls(galeriaObj) {
   // `capaUrl` = a foto escolhida como capa (some se a foto foi apagada/arquivada: volta pra capa padrão).
   const fotoCapa = galeriaObj.hub.capaFotoId ? fotos.find((f) => f.id === galeriaObj.hub.capaFotoId && !f.arquivada) : null;
   // Sem o recurso "Página do projeto" no dono da galeria, o hub NÃO sai (o cliente cai na galeria clássica, como sempre foi).
-  const novoVisual = galeriaObj.recursosAtivos.paginaProjeto === true;
+  const recursosVivos = await recursosDoDono(galeriaObj); // o que o dono tem AGORA (ao vivo, com reserva)
+  const novoVisual = recursosVivos.paginaProjeto === true;
   const hub = novoVisual
     ? { ...galeriaObj.hub, gruposExecutivo: hubLib.gruposDoExecutivo(galeriaObj.hub), capaUrl: fotoCapa ? fotoCapa.url : null }
     : { dadosProjeto: '', links: {}, gruposExecutivo: hubLib.gruposDoExecutivo({}), documentos: [], capaFotoId: null, capaUrl: null };
@@ -253,7 +292,7 @@ async function galeriaComUrls(galeriaObj) {
   // Memorial de itens: só aparece pro cliente quando o dono tem o recurso "memorial" E a página do projeto (o cartão mora no hub).
   // Nunca leva o valor nem as chaves do armazenamento (só a URL temporária da foto do produto).
   let memorialCliente = { itens: [], setores: memLib.SETORES };
-  if (novoVisual && galeriaObj.recursosAtivos.memorial === true) {
+  if (novoVisual && recursosVivos.memorial === true) {
     const m = memLib.paraCliente(galeriaObj);
     memorialCliente = { ...m, itens: await Promise.all(m.itens.map(async ({ fotoR2Key, ...i }) => ({ ...i, fotoUrl: fotoR2Key ? await storage.urlTemporaria(fotoR2Key) : null }))) };
   }
@@ -809,8 +848,11 @@ app.delete('/api/app/galeria/:projetoId/memorial/itens/:itemId/foto', exigirSess
 // Pasta Cliente e a de lá NÃO abre isto (listas de sessão separadas, header diferente).
 // ====================================================================
 app.get('/api/orcamentos/:linkToken/info-publica', async (req, res) => {
-  const g = orcamentosDisponiveis(req.params.linkToken);
-  if (!g) return res.status(404).json({ erro: 'Link não encontrado.' });
+  const g = await orcamentosDisponiveis(req.params.linkToken);
+  if (!g) {
+    if (await orcamentosVencidos(req.params.linkToken)) return res.status(403).json({ erro: MSG_PASTA_INDISPONIVEL, indisponivel: true });
+    return res.status(404).json({ erro: 'Link não encontrado.' });
+  }
   let iconeUrl = null;
   try {
     const pers = galeria.resolverPersonalizacao(galeria.lerEstado(CAMINHO_DADOS), g);
@@ -820,23 +862,31 @@ app.get('/api/orcamentos/:linkToken/info-publica', async (req, res) => {
   res.json({ nomeProjeto: g.nomeProjeto, iconeUrl, cores });
 });
 
-app.post('/api/orcamentos/:linkToken/login', limitarPorIP, (req, res) => {
-  if (!orcamentosDisponiveis(req.params.linkToken)) return res.status(404).json({ erro: 'Link não encontrado.' });
+app.post('/api/orcamentos/:linkToken/login', limitarPorIP, async (req, res) => {
+  const dono = await orcamentosDisponiveis(req.params.linkToken);
+  if (!dono) {
+    if (await orcamentosVencidos(req.params.linkToken)) return res.status(403).json({ erro: MSG_PASTA_INDISPONIVEL, indisponivel: true });
+    return res.status(404).json({ erro: 'Link não encontrado.' });
+  }
   try {
     const { usuario, senha } = req.body || {};
     const token = orcLib.loginCliente(CAMINHO_DADOS, req.params.linkToken, usuario, senha);
-    const dono = orcamentosDisponiveis(req.params.linkToken);
-    if (dono) registrarAtividade(req, 'orcamentos_login', dono.licencaUsuario, dono.projetoId);
+    registrarAtividade(req, 'orcamentos_login', dono.licencaUsuario, dono.projetoId);
     res.json({ ok: true, token });
   } catch (e) {
-    const dono = orcamentosDisponiveis(req.params.linkToken);
-    if (dono) registrarAtividade(req, 'orcamentos_login_falha', dono.licencaUsuario, dono.projetoId);
+    registrarAtividade(req, 'orcamentos_login_falha', dono.licencaUsuario, dono.projetoId);
     res.status(401).json({ erro: e.message });
   }
 });
 
-function exigirSessaoOrcamento(req, res, next) {
-  if (!orcamentosDisponiveis(req.params.linkToken)) return res.status(403).json({ erro: 'Esta pasta de orçamentos não está disponível no momento.' });
+async function exigirSessaoOrcamento(req, res, next) {
+  try {
+    req.donoOrcamento = await orcamentosDisponiveis(req.params.linkToken);
+  } catch (e) { return res.status(500).json({ erro: 'Erro conferindo a licença do escritório.' }); }
+  if (!req.donoOrcamento) {
+    if (await orcamentosVencidos(req.params.linkToken)) return res.status(403).json({ erro: MSG_PASTA_INDISPONIVEL, indisponivel: true });
+    return res.status(403).json({ erro: 'Esta pasta de orçamentos não está disponível no momento.' });
+  }
   const token = req.headers['x-orcamento-token'];
   if (!token || !orcLib.validarTokenCliente(CAMINHO_DADOS, req.params.linkToken, token)) {
     return res.status(401).json({ erro: 'Faça login de novo.' });
@@ -848,7 +898,7 @@ const rotaOrcCliente = (fn) => (req, res) => {
 };
 app.get('/api/orcamentos/:linkToken/itens', exigirSessaoOrcamento, rotaOrcCliente((req) => {
   const lista = orcLib.listarParaCliente(CAMINHO_DADOS, req.params.linkToken);
-  const g = orcamentosDisponiveis(req.params.linkToken);
+  const g = req.donoOrcamento; // já conferido ao vivo no middleware
   const estadoPerfil = galeria.lerEstado(CAMINHO_DADOS);
   // nome e contatos do escritório: alimentam o balão de ajuda (atalho do WhatsApp) da página de orçamentos
   return Object.assign(lista, g ? { nomeEscritorio: galeria.nomeEscritorioDaLicenca(estadoPerfil, g.licencaUsuario), contatosEscritorio: galeria.contatosEscritorioDaLicenca(estadoPerfil, g.licencaUsuario), coresEscritorio: galeria.coresEscritorioDaLicenca(estadoPerfil, g.licencaUsuario) } : {});
@@ -870,10 +920,15 @@ app.get('/api/cliente/:linkToken/info-publica', async (req, res) => {
   const iconeUrl = (g.iconePersonalizado && g.iconePersonalizado.r2Key) ? await storage.urlTemporaria(g.iconePersonalizado.r2Key) : null;
   // `novoVisual`: o dono tem o recurso "Página do projeto" -> a página (inclusive o login) usa o tema claro/escuro novo.
   const cores = galeria.coresEscritorioDaLicenca(galeria.lerEstado(CAMINHO_DADOS), g.licencaUsuario); // cor de destaque da conta: a tela de login já nasce com ela
-  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl, novoVisual: g.recursosAtivos.paginaProjeto === true, cores });
+  const indisponivel = await galeriaIndisponivel(g); // assinatura do escritório vencida: a tela de login avisa e não deixa entrar
+  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl, novoVisual: (await recursosDoDono(g)).paginaProjeto === true, cores, indisponivel, ...(indisponivel ? { aviso: MSG_PASTA_INDISPONIVEL } : {}) });
 });
 
-app.post('/api/cliente/:linkToken/login', limitarPorIP, (req, res) => {
+app.post('/api/cliente/:linkToken/login', limitarPorIP, async (req, res) => {
+  try {
+    const donoDoLink = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, req.params.linkToken);
+    if (donoDoLink && await galeriaIndisponivel(donoDoLink)) return res.status(403).json({ erro: MSG_PASTA_INDISPONIVEL, indisponivel: true });
+  } catch (e) { return res.status(500).json({ erro: 'Erro conferindo a licença do escritório.' }); }
   try {
     const { usuario, senha } = req.body || {};
     const token = galeria.loginCliente(CAMINHO_DADOS, req.params.linkToken, usuario, senha);
@@ -886,7 +941,11 @@ app.post('/api/cliente/:linkToken/login', limitarPorIP, (req, res) => {
   }
 });
 
-function exigirSessaoCliente(req, res, next) {
+async function exigirSessaoCliente(req, res, next) {
+  try {
+    const donoDoLink = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, req.params.linkToken);
+    if (donoDoLink && await galeriaIndisponivel(donoDoLink)) return res.status(403).json({ erro: MSG_PASTA_INDISPONIVEL, indisponivel: true });
+  } catch (e) { return res.status(500).json({ erro: 'Erro conferindo a licença do escritório.' }); }
   const token = req.headers['x-cliente-token'];
   const sessao = token ? galeria.sessaoCliente(CAMINHO_DADOS, req.params.linkToken, token) : null;
   if (!sessao) return res.status(401).json({ erro: 'Faça login de novo.' });
@@ -911,6 +970,8 @@ app.get('/api/cliente/:linkToken/galeria', exigirSessaoCliente, async (req, res)
     const resultado = await galeriaComUrls(g);
     resultado.fotos = resultado.fotos.filter((f) => !f.arquivada); // cliente nunca vê arquivadas
     delete resultado.meta; // etiquetas do dashboard (arquitetos etc.) são do escritório
+    // Controle interno de avisos (quem o escritório já avisou sobre cada documento) é SÓ do escritório: nunca sai pro cliente final.
+    if (resultado.hub && Array.isArray(resultado.hub.documentos)) resultado.hub = { ...resultado.hub, documentos: resultado.hub.documentos.map(({ controleInterno, ...doc }) => doc) };
     delete resultado.vistoCliente;
     resultado.novidadesCliente = galeria.novidadesDoCliente(g); // bolinhas: o que mudou desde que o CLIENTE abriu cada aba (o escritório vê o mesmo, só lendo)
     if (req.somenteLeitura) resultado.modoEscritorio = true;
@@ -960,9 +1021,14 @@ app.post('/api/cliente/:linkToken/fotos/:fotoId/aprovar', exigirSessaoCliente, e
 // ====================================================================
 // DASHBOARD ONLINE (nov/2026) -- senha mestra por conta, lista de projetos com etiquetas e abertura "modo escritório".
 // ====================================================================
-function exigirSessaoDashboard(req, res, next) {
+const MSG_DASHBOARD_SEM_RECURSO = 'O Dashboard online não está incluído na licença deste escritório no momento.';
+const MSG_DASHBOARD_VENCIDO = 'A assinatura deste escritório está vencida. Renove para voltar a acessar o Dashboard online (nada foi apagado).';
+const respostaDashboard = (sit) => (sit === 'vencida' ? { erro: MSG_DASHBOARD_VENCIDO, indisponivel: true } : { erro: MSG_DASHBOARD_SEM_RECURSO, recurso: 'paginaProjeto' });
+async function exigirSessaoDashboard(req, res, next) {
   const licenca = dashLib.validarSessao(CAMINHO_DADOS, req.params.linkDash, req.headers['x-dashboard-token']);
   if (!licenca) return res.status(401).json({ erro: 'Entre de novo com a senha mestra.' });
+  try { const sit = await situacaoDoDashboard(licenca); if (sit !== 'ok') return res.status(403).json(respostaDashboard(sit)); }
+  catch (e) { return res.status(500).json({ erro: 'Erro conferindo a licença do escritório.' }); }
   req.licencaConta = licenca;
   next();
 }
@@ -974,8 +1040,10 @@ app.get('/api/dashboard/:linkDash/info-publica', (req, res) => {
   if (!dashLib.linkExiste(CAMINHO_DADOS, req.params.linkDash)) return res.status(404).json({ erro: 'Link não encontrado.' });
   res.json({ ok: true });
 });
-app.post('/api/dashboard/:linkDash/login', limitarPorIP, (req, res) => {
+app.post('/api/dashboard/:linkDash/login', limitarPorIP, async (req, res) => {
   const dono = dashLib.licencaDoLink(CAMINHO_DADOS, req.params.linkDash);
+  try { const sit = dono ? await situacaoDoDashboard(dono) : 'ok'; if (sit !== 'ok') return res.status(403).json(respostaDashboard(sit)); }
+  catch (e) { return res.status(500).json({ erro: 'Erro conferindo a licença do escritório.' }); }
   try {
     const token = dashLib.login(CAMINHO_DADOS, req.params.linkDash, (req.body || {}).senha);
     if (dono) registrarAtividade(req, 'dashboard_login', dono, null);
