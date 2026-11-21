@@ -76,26 +76,57 @@ function comVersaoNosAssets(html) {
     try { return `${caminho}?v=${Math.round(fs.statSync(path.join(__dirname, 'public', caminho)).mtimeMs)}`; } catch (e) { return m; }
   });
 }
+// Ícone do ARQUITETO na prévia do link (WhatsApp etc.) e na aba do navegador: o que ele configurou em Configurações > "Ícone e logo da empresa".
+// Antes a prévia usava um endereço ASSINADO de 1 h do armazenamento: depois disso o WhatsApp/navegador recebiam "negado" e o ícone sumia.
+// Agora a página aponta pra /marca (endereço fixo, que serve o arquivo) e leva um trecho da chave do arquivo (?v=) pra a prévia trocar
+// quando o arquiteto troca o ícone. Ordem: ícone do projeto > ícone da conta > logo da conta > logo do RENDERIA.
+//   origem 'g' = pasta do cliente | 'o' = pasta de orçamentos | 'c' = dashboard (link da conta)
+function chaveDaMarca(origem, token) {
+  if (typeof token !== 'string' || !token || token.length > 200) return null;
+  const estado = galeria.lerEstado(CAMINHO_DADOS);
+  if (origem === 'c') {
+    const licenca = dashLib.licencaDoLink(CAMINHO_DADOS, token);
+    if (!licenca) return null;
+    const perfil = galeria.perfilDaLicenca(estado, licenca);
+    return perfil.icone.r2Key || perfil.marca.r2Key || null;
+  }
+  const g = origem === 'g' ? galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, token) : (origem === 'o' ? orcLib.buscarPorLinkToken(CAMINHO_DADOS, token) : null);
+  if (!g) return null;
+  const pers = galeria.resolverPersonalizacao(estado, g);
+  if (!pers.iconeExibir) return null; // o arquiteto desligou "Exibir ícone" neste projeto: a prévia também não mostra
+  return pers.iconeR2Key || pers.marcaR2Key || null;
+}
+function imagemDaPagina(req, origem, token) {
+  const padrao = `${req.protocol}://${req.get('host')}/assets/img/logo.jpg`;
+  try {
+    const chave = chaveDaMarca(origem, token);
+    if (!chave) return padrao;
+    const v = require('crypto').createHash('sha1').update(chave).digest('hex').slice(0, 8);
+    return `${req.protocol}://${req.get('host')}/marca?${origem}=${encodeURIComponent(token)}&v=${v}`;
+  } catch (e) { return padrao; }
+}
+app.get('/marca', async (req, res) => {
+  const origem = ['g', 'o', 'c'].find((k) => typeof req.query[k] === 'string');
+  try {
+    const chave = origem ? chaveDaMarca(origem, req.query[origem]) : null;
+    if (!chave) return res.redirect(302, '/assets/img/logo.jpg');
+    const bytes = await storage.lerArquivo(chave);
+    res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600', 'X-Content-Type-Options': 'nosniff' }).send(bytes);
+  } catch (e) { res.redirect(302, '/assets/img/logo.jpg'); }
+});
+
 app.get('/', async (req, res) => {
   let tituloProjeto = null;
-  let iconeUrl = null;
   const linkToken = req.query.g;
   if (linkToken) {
     try {
       const g = galeria.buscarGaleriaPorLinkToken(CAMINHO_DADOS, linkToken);
-      if (g) {
-        tituloProjeto = g.nomeProjeto;
-        // Ícone do projeto, senão o da conta do arquiteto (e só se o projeto não desligou "Exibir ícone")
-        const pers = galeria.resolverPersonalizacao(galeria.lerEstado(CAMINHO_DADOS), g);
-        if (pers.iconeExibir && pers.iconeR2Key) {
-          iconeUrl = await storage.urlTemporaria(pers.iconeR2Key);
-        }
-      }
-    } catch (e) { /* se der erro na busca, só cai no título/ícone genéricos abaixo */ }
+      if (g) tituloProjeto = g.nomeProjeto;
+    } catch (e) { /* se der erro na busca, só cai no título genérico abaixo */ }
   }
   const ogTitulo = tituloProjeto ? `${tituloProjeto} — Sua Galeria RENDERIA` : 'RENDERIA — Sua Galeria';
   const ogDescricao = 'Veja as fotos do seu projeto, aprove ou peça alterações.';
-  const ogImagem = iconeUrl || `${req.protocol}://${req.get('host')}/assets/img/logo.jpg`;
+  const ogImagem = imagemDaPagina(req, 'g', linkToken);
   const html = comVersaoNosAssets(lerIndexHtml())
     .split('__OG_TITULO__').join(ogTitulo)
     .split('__OG_DESCRICAO__').join(ogDescricao)
@@ -125,7 +156,7 @@ app.get('/orcamentos', async (req, res) => {
   const html = comVersaoNosAssets(lerOrcHtml())
     .split('__OG_TITULO__').join(nome ? `${nome} — Orçamentos` : 'Orçamentos do seu projeto')
     .split('__OG_DESCRICAO__').join('Veja os orçamentos do seu projeto, acompanhe o andamento e comente.')
-    .split('__OG_IMAGEM__').join(`${req.protocol}://${req.get('host')}/assets/img/logo.jpg`);
+    .split('__OG_IMAGEM__').join(imagemDaPagina(req, 'o', req.query.o));
   res.send(html);
 });
 
@@ -134,10 +165,17 @@ const CAMINHO_DASH_HTML = path.join(__dirname, 'public', 'dashboard.html');
 const DASH_HTML_BRUTO = fs.existsSync(CAMINHO_DASH_HTML) ? fs.readFileSync(CAMINHO_DASH_HTML, 'utf8') : '';
 const lerDashHtml = () => (storage.MODO_LOCAL ? fs.readFileSync(CAMINHO_DASH_HTML, 'utf8') : DASH_HTML_BRUTO);
 app.get('/dashboard', (req, res) => {
+  // título com o nome do escritório (se o arquiteto cadastrou), pra link compartilhado dizer de quem é
+  let titulo = 'DASHBOARD de projetos';
+  try {
+    const licenca = typeof req.query.c === 'string' ? dashLib.licencaDoLink(CAMINHO_DADOS, req.query.c) : null;
+    const nome = licenca ? galeria.nomeEscritorioDaLicenca(galeria.lerEstado(CAMINHO_DADOS), licenca).trim() : '';
+    if (nome) titulo = `DASHBOARD — ${nome}`;
+  } catch (e) { /* título genérico */ }
   const html = comVersaoNosAssets(lerDashHtml())
-    .split('__OG_TITULO__').join('Dashboard de projetos')
+    .split('__OG_TITULO__').join(titulo)
     .split('__OG_DESCRICAO__').join('Acesso restrito.')
-    .split('__OG_IMAGEM__').join(`${req.protocol}://${req.get('host')}/assets/img/logo.jpg`);
+    .split('__OG_IMAGEM__').join(imagemDaPagina(req, 'c', req.query.c));
   res.send(html);
 });
 

@@ -146,6 +146,38 @@
     if (acao.startsWith('secao:')) { secaoAberta = acao.slice(6); renderizar(); window.scrollTo(0, 0); }
   }
 
+  // ---------- Compartilhar o link de um documento: copia e avisa "Link copiado!" ----------
+  const ICONE_COMPARTILHAR = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>';
+  let temporizadorAvisoCopiado = null;
+  function avisarCopiado(texto, erro) {
+    let a = document.getElementById('avisoCopiado');
+    if (!a) { a = document.createElement('div'); a.id = 'avisoCopiado'; a.className = 'aviso-copiado'; a.setAttribute('role', 'status'); a.setAttribute('aria-live', 'polite'); document.body.appendChild(a); }
+    a.textContent = texto;
+    a.classList.toggle('erro', !!erro);
+    a.classList.add('visivel');
+    clearTimeout(temporizadorAvisoCopiado);
+    temporizadorAvisoCopiado = setTimeout(() => a.classList.remove('visivel'), 2200);
+  }
+  async function copiarTexto(texto) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try { await navigator.clipboard.writeText(texto); return; } catch (e) { /* permissão negada (navegador embutido, alguns celulares): tenta o caminho antigo abaixo */ }
+    }
+    const t = document.createElement('textarea'); // navegador sem a API, página sem https ou permissão negada: caminho antigo
+    t.value = texto; t.setAttribute('readonly', ''); t.style.cssText = 'position:fixed;top:0;left:0;opacity:0;';
+    document.body.appendChild(t); t.select();
+    const ok = document.execCommand && document.execCommand('copy');
+    t.remove();
+    if (!ok) throw new Error('sem permissão para copiar');
+  }
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-compartilhar]');
+    if (!b) return;
+    const url = hrefSeguro(b.getAttribute('data-compartilhar'));
+    if (!url) return;
+    try { await copiarTexto(url); avisarCopiado('Link copiado!'); }
+    catch (err) { avisarCopiado('Não consegui copiar o link.', true); }
+  });
+
   // ---------- Lista de documentos de uma seção ----------
   function linhaDocumento(d) {
     const href = hrefSeguro(d.url);
@@ -160,8 +192,9 @@
         </div>
         ${d.observacao ? `<div class="hub-doc-obs">${esc(d.observacao)}</div>` : ''}
       </div>
-      ${href ? `<a class="hub-doc-abrir" data-status="${esc(d.status)}" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Abrir ↗</a>` : ''}
-      ${(d.secao === 'planta_original' || d.secao === 'conceitual') && href ? `<button type="button" class="hub-doc-abrir so-escritorio" data-apresentar="${esc(d.id)}" title="Apresentar este arquivo numa lousa">Apresentar</button>` : ''}
+      ${href ? `<div class="hub-doc-botoes"><a class="hub-doc-abrir" data-status="${esc(d.status)}" href="${esc(href)}" target="_blank" rel="noopener noreferrer">Abrir ↗</a>
+      <button type="button" class="hub-doc-compartilhar" data-compartilhar="${esc(href)}" title="Copiar o link deste documento para compartilhar" aria-label="Copiar o link do documento">${ICONE_COMPARTILHAR}</button>
+      ${(d.secao === 'planta_original' || d.secao === 'conceitual') ? `<button type="button" class="hub-doc-abrir so-escritorio" data-apresentar="${esc(d.id)}" title="Apresentar este arquivo numa lousa">Apresentar</button>` : ''}</div>` : ''}
     </div>`;
   }
 

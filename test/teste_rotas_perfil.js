@@ -34,7 +34,7 @@ const PNG2 = Buffer.concat([PNG, Buffer.from('')]); // mesma assinatura; bytes i
       res.writeHead(200, { 'Content-Type': 'application/json' });
       let token = null; try { token = JSON.parse(corpo).token; } catch (e) { /* vazio */ }
       const usuario = { tokA: 'arqA', tokB: 'arqB' }[token];
-      res.end(JSON.stringify(usuario ? { valida: true, usuario, limiteFotos: 50 } : { valida: false, motivo: 'Sessão inválida.' }));
+      res.end(JSON.stringify(usuario ? { valida: true, usuario, limiteFotos: 50, recursos: { paginaProjeto: true, orcamentos: true, memorial: true } } : { valida: false, motivo: 'Sessão inválida.' }));
     });
   });
   await new Promise((r) => licenca.listen(0, '127.0.0.1', r));
@@ -137,11 +137,11 @@ const PNG2 = Buffer.concat([PNG, Buffer.from('')]); // mesma assinatura; bytes i
     let g = (await api('GET', '/api/app/galeria/projA1', 'tokA')).json;
     assert.strictEqual(g.iconePersonalizado.url, null); assert.ok(g.iconePersonalizado.urlArquivo, 'o app ainda enxerga o arquivo'); assert.strictEqual(g.iconePersonalizado.exibir, false);
     const paginaOff = await (await fetch(`${BASE}/?g=${gA1.json.linkToken}`)).text();
-    assert.ok(!paginaOff.includes('perfis/'), 'prévia do link sem o ícone quando "Exibir ícone" está desligado');
+    assert.ok(!paginaOff.includes('/marca?g='), 'prévia do link sem o ícone quando "Exibir ícone" está desligado');
     const paginaA2 = await (await fetch(`${BASE}/?g=${gA2.json.linkToken}`)).text();
-    assert.ok(paginaA2.includes('perfis/'), 'o outro projeto continua com o ícone na prévia do link');
+    assert.ok(paginaA2.includes('/marca?g='), 'o outro projeto continua com o ícone na prévia do link');
     await api('PUT', '/api/app/galeria/projA1/icone', 'tokA', { exibir: true });
-    assert.ok((await (await fetch(`${BASE}/?g=${gA1.json.linkToken}`)).text()).includes('perfis/'));
+    assert.ok((await (await fetch(`${BASE}/?g=${gA1.json.linkToken}`)).text()).includes('/marca?g='));
     ok('"Exibir ícone" desligado: o cliente não recebe o ícone (nem na prévia do link); religar traz de volta');
 
     // ---- 8) logo desligado por projeto
@@ -152,6 +152,64 @@ const PNG2 = Buffer.concat([PNG, Buffer.from('')]); // mesma assinatura; bytes i
     assert.strictEqual((await api('GET', '/api/app/galeria/projA2', 'tokA')).json.marcaDagua.ativa, true, 'o outro projeto não foi afetado');
     await api('PUT', '/api/app/galeria/projA1/marca-dagua', 'tokA', { ativa: true });
     ok('"Exibir logo" é por projeto (usa a opção que já existia)');
+
+    // ---- 9b) prévia do link e ícone da aba: o ícone da conta do arquiteto (endereço fixo /marca, que não expira)
+    {
+      const paginaA1 = await (await fetch(`${BASE}/?g=${gA1.json.linkToken}`)).text();
+      const og = paginaA1.match(/<meta property="og:image" content="([^"]+)">/);
+      assert.ok(og && og[1].includes('/marca?g=' + gA1.json.linkToken), 'og:image aponta pro ícone da conta (endereço fixo)');
+      assert.ok(!og[1].includes('X-Amz') && !og[1].includes('Expires'), 'sem endereço assinado que expira');
+      assert.ok(paginaA1.includes('<link rel="icon" href="' + og[1] + '">') && paginaA1.includes('<link rel="apple-touch-icon" href="' + og[1] + '">'), 'o ícone da aba é o mesmo');
+      const rm = await fetch(og[1].replace(BASE, '').startsWith('/') ? og[1] : og[1]);
+      assert.strictEqual(rm.status, 200); assert.strictEqual(rm.headers.get('content-type'), 'image/png');
+      assert.deepStrictEqual(Buffer.from(await rm.arrayBuffer()), PNG, 'serve o arquivo do arquiteto');
+      // projeto da conta B (sem ícone nem logo): cai no logo do RENDERIA
+      const paginaB = await (await fetch(`${BASE}/?g=${gB.json.linkToken}`)).text();
+      assert.ok(paginaB.includes('/assets/img/logo.jpg') && !paginaB.includes('/marca?'), 'conta sem ícone: logo padrão');
+      // token inexistente / sem token: nunca erro, sempre o padrão (e nunca vaza o arquivo de outra conta)
+      for (const q of ['?g=naoexiste', '?o=naoexiste', '?c=naoexiste', '', '?g=' + gB.json.linkToken]) {
+        const rr = await fetch(`${BASE}/marca${q}`);
+        assert.strictEqual(rr.status, 200, 'cai no logo padrão: ' + q);
+        assert.strictEqual(rr.headers.get('content-type'), 'image/jpeg', 'logo padrão (jpg) e não o PNG da conta A: ' + q);
+      }
+      // "Exibir ícone" desligado: a prévia não usa o ícone do arquiteto
+      await api('PUT', '/api/app/galeria/projA1/icone', 'tokA', { exibir: false });
+      assert.ok(!(await (await fetch(`${BASE}/?g=${gA1.json.linkToken}`)).text()).includes('/marca?g='));
+      assert.strictEqual((await fetch(`${BASE}/marca?g=${gA1.json.linkToken}`)).headers.get('content-type'), 'image/jpeg');
+      await api('PUT', '/api/app/galeria/projA1/icone', 'tokA', { exibir: true });
+      // trocar o ícone muda o endereço (a prévia do WhatsApp não fica presa no ícone velho)
+      const v1 = og[1].match(/&v=(\w+)/)[1];
+      await api('POST', '/api/app/perfil/icone', 'tokA', arquivo(PNG, 'trocado.png'));
+      const v2 = (await (await fetch(`${BASE}/?g=${gA1.json.linkToken}`)).text()).match(/&v=(\w+)/)[1];
+      assert.notStrictEqual(v1, v2, 'ícone trocado = ?v= diferente');
+      // dashboard e orçamentos
+      r = await api('PUT', '/api/app/dashboard/senha', 'tokA', { senha: 'mestra123' });
+      assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+      {
+        const link = r.json.linkToken;
+        const dash = await (await fetch(`${BASE}/dashboard?c=${link}`)).text();
+        assert.ok(dash.includes('/marca?c=' + link) && dash.includes('<link rel="icon" href="'), 'dashboard com o ícone do arquiteto');
+        assert.strictEqual((await fetch(`${BASE}/marca?c=${link}`)).headers.get('content-type'), 'image/png');
+        assert.ok(!(await (await fetch(`${BASE}/dashboard?c=naoexiste`)).text()).includes('/marca?'), 'link inválido: sem marca');
+        const titulo = (h) => (h.match(/<title>([^<]*)<\/title>/) || [])[1];
+        assert.strictEqual(titulo(dash), 'DASHBOARD de projetos', 'sem nome do escritório: DASHBOARD em maiúsculas');
+        assert.strictEqual((await api('PUT', '/api/app/perfil/nome', 'tokA', { nome: 'Studio Kamimura' })).status, 200);
+        const dashNome = await (await fetch(`${BASE}/dashboard?c=${link}`)).text();
+        assert.strictEqual(titulo(dashNome), 'DASHBOARD — Studio Kamimura', 'com o nome do escritório');
+        assert.ok(dashNome.includes('content="DASHBOARD — Studio Kamimura"'), 'og:title igual');
+        assert.strictEqual(titulo(await (await fetch(`${BASE}/dashboard?c=naoexiste`)).text()), 'DASHBOARD de projetos', 'link inválido não vaza o nome');
+        ok('dashboard: o link compartilhado leva o ícone do arquiteto (prévia e aba)');
+      }
+      // pasta de orçamentos: mesmo ícone
+      r = await api('PUT', '/api/app/galeria/projA1/orcamentos/acesso', 'tokA', { usuario: 'orcA1', senha: 'senha1234' });
+      assert.strictEqual(r.status, 200, JSON.stringify(r.json));
+      const linkOrc = (await api('GET', '/api/app/galeria/projA1/orcamentos', 'tokA')).json.acesso.linkToken;
+      const paginaOrc = await (await fetch(`${BASE}/orcamentos?o=${linkOrc}`)).text();
+      assert.ok(paginaOrc.includes('/marca?o=' + linkOrc) && paginaOrc.includes('<link rel="icon" href="'), 'orçamentos com o ícone do arquiteto');
+      assert.strictEqual((await fetch(`${BASE}/marca?o=${linkOrc}`)).headers.get('content-type'), 'image/png');
+      ok('pasta de orçamentos: o link compartilhado leva o ícone do arquiteto');
+      ok('prévia do link e ícone da aba usam o ícone da conta (endereço fixo, sem expirar); sem ícone cai no padrão; "Exibir ícone" desligado e ícone trocado respeitados');
+    }
 
     // ---- 9) ícone PRÓPRIO do projeto vence o da conta; remover volta ao da conta e apaga o arquivo
     r = await api('POST', '/api/app/galeria/projA2/icone', 'tokA', arquivo(PNG2, 'proprio.png'));
