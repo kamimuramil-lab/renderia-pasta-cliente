@@ -47,6 +47,7 @@ assert.ok(css.includes('.lousa{ position:fixed;') && css.includes('background:#1
 assert.ok(/\.lousa-ferr\{ width:38px;/.test(css) && /\.lousa-notas\{ width:208px;/.test(css) && css.includes('.lousa.sem-notas .lousa-notas{ display:none; }'), 'ferramentas e anotações pequenas; anotações recolhem');
 ['ponteiro', 'caneta', 'marcador', 'borracha', 'mao'].forEach((f) => assert.ok(mod.includes(`'${f}'`), 'ferramenta ' + f));
 assert.ok(!mod.includes("['temp', 'Rabisco temporário"), 'não existe mais a ferramenta "temporário" separada');
+assert.ok(mod.includes("ferr: 'ponteiro', cor: 'vermelho'") && mod.includes("escolherFerramenta('ponteiro'); escolherCor('vermelho');"), 'toda apresentação começa no PONTEIRO (o lápis é escolha de quem quer deixar o traço)');
 assert.ok(/S\.ferr === 'ponteiro'\) \{\s*S\.laser = \{[^}]*\};\s*S\.atual = \{ tool: 'temp'/.test(mod) && mod.includes('S.atual.pts.push(p); // traço temporário do ponteiro'), 'o PONTEIRO também risca um traço temporário que some sozinho');
 assert.ok(mod.includes('e.button === 1 || S.ferr === \'mao\'') && mod.includes('if (e.button > 1) return;') && mod.includes("palco.addEventListener('mousedown', (e) => { if (e.button === 1) e.preventDefault(); })"), 'botão do MEIO arrasta a página em qualquer ferramenta (sem o autoscroll do navegador); botão direito não risca');
 assert.ok(mod.includes("fetch(url, { cache: 'no-store' })") && mod.includes('protegida: true') && mod.includes('Não consegui falar com o servidor. Confira a internet'), 'imagens da galeria: fetch sem cache (evita o "Failed to fetch" do cache sem CORS), plano B com <img> e mensagens em português');
@@ -61,4 +62,8 @@ ok('PDF do cliente: só a escolha dos ambientes na tela dele');
 // capa do ambiente na galeria
 assert.ok(html.includes('id="capaAmbienteVisualizador"') && style.includes('.capa-ambiente-slide') && style.includes('img.capa-escura') && main.includes("classList.toggle('capa-escura', !!foto.__ehMood)"), 'capa do ambiente: foto escurecida preenchendo a tela, com o nome grande');
 ok('capa do ambiente: slide próprio, escurecido, com o nome grande');
+// botões de decisão dos orçamentos (site do cliente): tom suave, sem o verde/vermelho cheio
+assert.ok(!/\.orc-decisao-sel\.s-fechado\{ background-color:var\(--green\)/.test(style) && !/\.orc-decisao-sel\.s-recusado\{ background-color:var\(--hub-vermelho\)/.test(style) && !/\.orc-selo\.s-fechado\{ background:var\(--green\)/.test(style) && !/\.orc-selo\.s-recusado\{ background:var\(--hub-vermelho\)/.test(style), 'Aprovado/Recusado não são mais preenchidos com a cor cheia');
+assert.ok(/\.orc-decisao-sel\.s-fechado\{[^}]*color-mix\(in srgb, var\(--green\) 14%, transparent\)[^}]*color:var\(--green\)/.test(style) && /\.orc-decisao-sel\.s-recusado\{[^}]*color-mix\(in srgb, var\(--hub-vermelho\) 13%, transparent\)[^}]*color:var\(--hub-vermelho\)/.test(style), 'Aprovado/Recusado: fundo bem leve, borda fina e texto colorido');
+ok('botões de decisão dos orçamentos (Aprovado/Recusado) em tom suave');
 console.log('\nTudo certo: lousa de apresentação (site).');

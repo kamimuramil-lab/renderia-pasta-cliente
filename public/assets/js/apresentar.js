@@ -372,14 +372,14 @@
     montar();
     const itens = (opcoes.itens || []).map((i) => Object.assign({}, i));
     if (!itens.length) { alert('Não há nada para apresentar aqui ainda.'); return; }
-    S = { opcoes, itens, idx: 0, token: 0, tinta: {}, temp: [], laser: null, prints: [], ferr: 'caneta', cor: 'vermelho', zoom: 1, tx: 0, ty: 0, pagina: null, inicio: new Date(), sujo: true, apertado: false };
+    S = { opcoes, itens, idx: 0, token: 0, tinta: {}, temp: [], laser: null, prints: [], ferr: 'ponteiro', cor: 'vermelho', zoom: 1, tx: 0, ty: 0, pagina: null, inicio: new Date(), sujo: true, apertado: false };
     const rasc = lerRascunho();
     $('lousaTexto').value = rasc ? rasc.notas : '';
     if (rasc && rasc.inicio) S.inicio = new Date(rasc.inicio);
     $('lousaLogo').hidden = !opcoes.logoUrl; if (opcoes.logoUrl) $('lousaLogo').src = opcoes.logoUrl;
     desenharPrints(); fecharDialogo(); aviso('');
     const lousa = $('lousa'); lousa.hidden = false; document.body.classList.add('lousa-aberta');
-    escolherFerramenta('caneta'); escolherCor('vermelho');
+    escolherFerramenta('ponteiro'); escolherCor('vermelho'); // começa no ponteiro (o lápis é escolha de quem quer deixar o traço)
     S.relogio = setInterval(() => { $('lousaTempo').textContent = duracao(Math.floor((Date.now() - S.inicio.getTime()) / 1000)); }, 1000);
     $('lousaTempo').textContent = duracao(Math.floor((Date.now() - S.inicio.getTime()) / 1000));
     requestAnimationFrame(() => { mostrar(0); quadro(); });
