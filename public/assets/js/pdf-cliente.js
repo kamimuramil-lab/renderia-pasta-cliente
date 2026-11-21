@@ -131,9 +131,33 @@
   // branco + escurecimento da foto da capa e o logo em branco são feitos no próprio desenho (canvas), e o PDF recebe imagens prontas.
   // A capa NÃO tem desfoque (o blur tirava a qualidade da foto): só preto e branco, escurecida (fator 0,55; o mesmo do filtro de reserva do imagens-pdf).
   const imagemDeUri = (uri) => new Promise((ok, erro) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => erro(new Error('imagem inválida')); im.src = uri; });
+  // Recorta (cobrindo, pelo centro) a imagem na proporção largura/altura pedida; o maior lado sai com no máximo `ladoMaior` px.
+  // Assim a foto vai pro PDF já no formato do espaço dela e o papel não precisa de position:absolute + object-fit (o iPhone não imprimia isso).
+  function recortarCobrindo(origem, proporcao, ladoMaior) {
+    const w = origem.naturalWidth || origem.width, h = origem.naturalHeight || origem.height;
+    let sw = w, sh = h;
+    if (w / h > proporcao) sw = h * proporcao; else sh = w / proporcao;
+    const sx = (w - sw) / 2, sy = (h - sh) / 2;
+    let cw, ch;
+    if (proporcao >= 1) { cw = Math.min(ladoMaior, sw); ch = cw / proporcao; } else { ch = Math.min(ladoMaior, sh); cw = ch * proporcao; }
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(cw)); canvas.height = Math.max(1, Math.round(ch));
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(origem, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+    return { canvas, ctx };
+  }
+  const PROPORCAO_CAPA_PROJETO = (297 * 0.46) / 209.6; // a foto ocupa 46% da largura da folha, de cima a baixo
+  const PROPORCAO_FOLHA = 297 / 209.6;
+  async function prepararCapaDeAmbiente(url, ladoMaior, qualidade) {
+    const bmp = await carregarBitmap(url);
+    const { canvas } = recortarCobrindo(bmp, PROPORCAO_FOLHA, ladoMaior);
+    if (bmp.close) bmp.close();
+    return canvas.toDataURL('image/jpeg', qualidade);
+  }
   async function prepararFotoDaCapa(uri) {
     const im = await imagemDeUri(uri);
-    const { canvas, ctx } = desenhar(im, 1400);
+    const { canvas, ctx } = recortarCobrindo(im, PROPORCAO_CAPA_PROJETO, 1400);
     const dados = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const d = dados.data;
     for (let i = 0; i < d.length; i += 4) { const y = Math.round((0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) * 0.55); d[i] = d[i + 1] = d[i + 2] = y; }
@@ -187,7 +211,7 @@
       const ambientes = [];
       for (const a of escolhidos) {
         let capa = null;
-        if (a.capaUrl) { try { capa = (await prepararImagem(a.capaUrl, sessao.celular ? 1600 : 2200, sessao.celular ? 0.8 : 0.9, false)).uri; } catch (e) { capa = null; } }
+        if (a.capaUrl) { try { capa = await prepararCapaDeAmbiente(a.capaUrl, sessao.celular ? 1600 : 2200, sessao.celular ? 0.8 : 0.9); } catch (e) { capa = null; } } // já recortada na proporção da folha
         const imagens = [];
         for (const f of a.fotos) {
           if (sessao.cancelada()) throw new Error('A aba do PDF foi fechada. Toque em Gerar PDF de novo.');
@@ -198,7 +222,7 @@
           } catch (e) { falhas++; ultimoMotivo = (e && (e.name && e.name !== 'Error' ? e.name + ': ' : '') + (e.message || '')) || 'erro desconhecido'; }
           feitas++;
         }
-        ambientes.push({ nome: a.nome, capa, imagens });
+        ambientes.push({ nome: a.nome, capa, capaPronta: !!capa, imagens });
       }
       if (!ambientes.some((a) => a.imagens.length)) {
         // as imagens existem, mas nenhuma pôde ser carregada neste aparelho (não é "falta de imagens")
@@ -216,12 +240,31 @@
       if (tipoMarca !== 'nenhuma' && urlDaMarca(tipoMarca)) { try { marca = (await prepararLogo(urlDaMarca(tipoMarca), 400)).uri; } catch (e) { marca = null; } }
       mostrarProgresso('Montando o PDF...', total, total, sessao);
       const agora = new Date(); // o horário da geração: cada PDF baixado tem o seu
-      const { html } = window.ImagensPdf.montarHtml({
+      const opcoesPdf = {
         nomeProjeto: g.nomeProjeto, dadosProjeto: (g.hub && g.hub.dadosProjeto) || '', escritorio: g.nomeEscritorio || '',
         logo, logoClaro, marca, fotoCapa, contatos: contatosParaOPdf(g), ambientes, mostrarNomes, mostrarPaleta, agora
-      });
+      };
       const aviso = falhas ? `${falhas} imagem(ns) não puderam ser carregadas e ficaram de fora do PDF.` : '';
-      const entrega = await sessao.entregar(html, nomeDoArquivo(g.nomeProjeto, agora), { aviso }); // o aviso também aparece na aba do PDF (o painel some)
+      let entrega = null;
+      // CELULAR: um ARQUIVO PDF de verdade (cada página desenhada no canvas): sem a margem branca que o iOS impõe ao imprimir.
+      // Se o aparelho não conseguir desenhar, cai na impressão do navegador (abaixo), como antes.
+      if (sessao.celular && window.PdfArquivo && window.PdfArquivo.suportado()) {
+        try {
+          const r = await window.PdfArquivo.gerarImagens(opcoesPdf, {
+            progresso: (feito, totalPaginas) => mostrarProgresso(`Montando a página ${feito} de ${totalPaginas}...`, feito, totalPaginas, sessao),
+            cancelada: () => sessao.cancelada()
+          });
+          entrega = await sessao.entregarArquivo(r.blob, nomeDoArquivo(g.nomeProjeto, agora) + '.pdf', { aviso, paginas: r.paginas, bytes: r.bytes });
+        } catch (e) {
+          if (sessao.cancelada()) throw e; // a aba foi fechada: não adianta tentar de novo
+          if (window.console) console.warn('PDF em arquivo falhou, usando a impressão do navegador:', e && e.message);
+          entrega = null;
+        }
+      }
+      if (!entrega) {
+        const { html } = window.ImagensPdf.montarHtml(opcoesPdf);
+        entrega = await sessao.entregar(html, nomeDoArquivo(g.nomeProjeto, agora), { aviso }); // o aviso também aparece na aba do PDF (o painel some)
+      }
       if (entrega.via === 'toque') {
         // celular com a aba bloqueada pelo navegador: um botão (o toque libera a abertura)
         const caixa = $('pdfMensagem');

@@ -43,6 +43,10 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
 .capa-projeto .foto-capa { position: relative; width: 46%; height: 100%; overflow: hidden; background: #000; flex-shrink: 0; }
 .capa-projeto .foto-capa img { position: absolute; inset: -4%; width: 108%; height: 108%; object-fit: cover; filter: grayscale(1) brightness(.55); }
 .capa-projeto .foto-capa.pronta img { inset: 0; width: 100%; height: 100%; filter: none; } /* foto já tratada (preto e branco + escurecida) por quem montou: sem filtro no papel */
+/* Foto já RECORTADA na proporção certa por quem montou (página do cliente no celular): imagem comum no fluxo, com tamanho em mm, SEM
+   position:absolute nem object-fit. O WebKit do iPhone não imprimia a foto nessa combinação (capa e capas de ambiente saíam pretas). */
+.capa-projeto .foto-capa.pronta { height: 209.6mm; }
+.capa-projeto .foto-capa.pronta img { position: static; display: block; width: 100%; height: 209.6mm; filter: none; }
 .capa-projeto .foto-capa::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to right, rgba(27,28,30,0) 70%, rgba(27,28,30,.55) 100%); }
 .capa-projeto .painel { flex: 1; padding: 14mm 15mm 30mm 15mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .capa-projeto img.logo { max-width: 112mm; max-height: 58mm; object-fit: contain; margin: 0 auto 13mm; filter: brightness(0) invert(1); }
@@ -72,6 +76,10 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
 .capa-ambiente .contagem { font-size: 9.5pt; letter-spacing: .1em; }
 .capa-ambiente.com-foto { align-items: flex-end; background: #111; }
 .capa-ambiente.com-foto img.fundo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.capa-ambiente.com-foto.pronta { display: block; }
+.capa-ambiente.com-foto.pronta img.fundo { position: static; display: block; width: 297mm; height: 209.6mm; object-fit: fill; }
+.capa-ambiente.com-foto.pronta .veu { inset: auto; left: 0; top: 0; width: 297mm; height: 209.6mm; }
+.capa-ambiente.com-foto.pronta .texto { position: absolute; left: 0; bottom: 0; }
 .capa-ambiente.com-foto .veu { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.74) 0%, rgba(0,0,0,.34) 38%, rgba(0,0,0,0) 66%); }
 .capa-ambiente.com-foto .texto { position: relative; color: #fff; padding: 0 20mm 19mm; width: 100%; }
 .capa-ambiente.com-foto .rotulo { opacity: .82; }
@@ -123,14 +131,15 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
   //   marca (data URI do logo OU do ícone que vai pequeno no canto superior direito de cada imagem; vazio = sem marca), mostrarNomes,
   //   contatos ({ whatsapp, email, instagram } já formatados pra ler, ex. "(11) 98380-0042", "@perfil"; vazio = só o nome) na página final "MUITO OBRIGADO!",
   //   fotoCapa (data URI de uma foto JÁ em preto e branco e desfocada pra metade da capa; vazio = a 1ª imagem, tratada por filtro CSS),
-  //   mostrarPaleta (padrão true), agora (Date; padrão = o momento da geração), ambientes: [{ nome, capa (data URI|null),
+  //   mostrarPaleta (padrão true), agora (Date; padrão = o momento da geração), ambientes: [{ nome, capa (data URI|null), capaPronta (a capa JÁ está
+  //   recortada em 297x209,6 mm: vai como imagem comum, sem absolute/object-fit; o iPhone não imprimia esses),
   //   imagens: [{ id, nome, uri (data URI), paleta: [{hex, rgb, pct}] }] }] }
   // -> { html, totalImagens, ambientesIncluidos, geradoEm }  (lança erro se não houver nenhuma imagem)
   function montarHtml(opcoes) {
     const o = opcoes || {};
     const mostrarPaleta = o.mostrarPaleta !== false;
     const ambientes = (Array.isArray(o.ambientes) ? o.ambientes : [])
-      .map((a) => ({ nome: String((a && a.nome) || '').trim() || 'Outras imagens', capa: imagemSegura(a && a.capa), imagens: ((a && a.imagens) || []).filter((i) => i && imagemSegura(i.uri)) }))
+      .map((a) => ({ nome: String((a && a.nome) || '').trim() || 'Outras imagens', capa: imagemSegura(a && a.capa), capaPronta: !!(a && a.capaPronta), imagens: ((a && a.imagens) || []).filter((i) => i && imagemSegura(i.uri)) }))
       .filter((a) => a.imagens.length);
     const total = ambientes.reduce((s, a) => s + a.imagens.length, 0);
     if (!total) throw new Error('Não há imagens (fora as 360°) para gerar o PDF com essa seleção.');
@@ -160,7 +169,7 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
       const rotulo = `Ambiente ${dois(idx + 1)}`;
       const contagem = esc(plural(a.imagens.length, 'imagem', 'imagens'));
       paginas.push(a.capa
-        ? `<section class="pagina capa-ambiente com-foto"><img class="fundo" src="${a.capa}" alt=""><div class="veu"></div><div class="texto"><div class="rotulo">${esc(rotulo)}</div><div class="nome">${esc(a.nome)}</div><div class="fio"></div><div class="contagem">${contagem}</div></div>${carimbo}</section>`
+        ? `<section class="pagina capa-ambiente com-foto${a.capaPronta ? ' pronta' : ''}"><img class="fundo" src="${a.capa}" alt=""><div class="veu"></div><div class="texto"><div class="rotulo">${esc(rotulo)}</div><div class="nome">${esc(a.nome)}</div><div class="fio"></div><div class="contagem">${contagem}</div></div>${carimbo}</section>`
         : `<section class="pagina capa-ambiente sem-foto"><div class="texto"><div class="rotulo">${esc(rotulo)}</div><div class="nome">${esc(a.nome)}</div><div class="fio"></div><div class="contagem">${contagem}</div></div>${carimbo}</section>`);
       a.imagens.forEach((im) => {
         const paleta = mostrarPaleta ? paletaHtml(im.paleta) : '';
@@ -180,7 +189,7 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
     return { html, totalImagens: total, ambientesIncluidos: ambientes.map((a) => a.nome), geradoEm: dataHoraCurta(agora) };
   }
 
-  const api = { montarHtml, paletaHtml, dataHoraCurta };
+  const api = { montarHtml, paletaHtml, dataHoraCurta, dataPorExtenso, plural, AVISO_AUTORAL }; // os 3 últimos: o desenhista de PDF de verdade (pdf-arquivo.js) usa os mesmos textos
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.ImagensPdf = api;
 })(typeof window !== 'undefined' ? window : this);

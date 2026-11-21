@@ -123,6 +123,29 @@
     });
   }
 
+  // ---------- arquivo PDF de verdade (celular) ----------
+  // O PDF já está pronto (blob). A aba mostra "PDF pronto" com: Compartilhar/Salvar (folha de compartilhar do aparelho, com o nome certo do arquivo),
+  // Abrir o PDF (o leitor do aparelho, que também tem Compartilhar/Salvar em Arquivos) e Baixar o arquivo.
+  function paginaDoArquivo(url, nomeArquivo, opcoes) {
+    const o = opcoes || {};
+    const nome = String(nomeArquivo || 'documento.pdf');
+    const seguro = (s) => JSON.stringify(String(s)).replace(/</g, '\\u003c');
+    const info = [o.paginas ? o.paginas + (o.paginas === 1 ? ' página' : ' páginas') : '', o.bytes ? (o.bytes / 1048576).toFixed(1).replace('.', ',') + ' MB' : ''].filter(Boolean).join(' · ');
+    return '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>' + escHtml(nome) + '</title>' +
+      '<style>body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#17181b;color:#eee;font:600 18px/1.35 system-ui,-apple-system,Segoe UI,sans-serif;text-align:center;padding:24px;box-sizing:border-box}' +
+      '.ok{width:56px;height:56px;border-radius:50%;background:#2e7d4f;display:flex;align-items:center;justify-content:center;font-size:30px}h1{margin:0;font-size:22px}p{margin:0;color:#aaa;font-weight:400;font-size:14px}' +
+      'button,a.sec{display:block;width:min(320px,86vw);box-sizing:border-box;font:700 17px system-ui,-apple-system,Segoe UI,sans-serif;border-radius:999px;padding:15px 20px;text-decoration:none;cursor:pointer}' +
+      'button{border:0;background:#fff;color:#111}a.sec{border:1px solid #555;color:#ddd;background:transparent;font-size:15px;padding:12px 20px}small{max-width:330px;color:#aaa;font-weight:400;font-size:13px}</style></head>' +
+      '<body><div class="ok">&#10003;</div><h1>PDF pronto</h1><p>' + escHtml(info) + '</p>' +
+      '<button type="button" id="bt">Compartilhar / Salvar</button>' +
+      '<a class="sec" id="abrir" href="' + escHtml(url) + '">Abrir o PDF</a><a class="sec" id="baixar" href="' + escHtml(url) + '" download="' + escHtml(nome) + '">Baixar o arquivo</a>' +
+      '<small>' + (o.aviso ? escHtml(o.aviso) + ' ' : '') + 'Para guardar: toque em Compartilhar / Salvar e escolha “Salvar em Arquivos”.</small>' +
+      '<script>(function(){var url=' + seguro(url) + ',nome=' + seguro(nome) + ';' +
+      'document.getElementById("bt").onclick=function(){fetch(url).then(function(r){return r.blob();}).then(function(b){var f=new File([b],nome,{type:"application/pdf"});' +
+      'if(navigator.canShare&&navigator.canShare({files:[f]}))return navigator.share({files:[f],title:nome});location.href=url;})' +
+      '.catch(function(e){if(!e||e.name!=="AbortError")location.href=url;});};})();' + '</' + 'script></body></html>';
+  }
+
   // ---------- API ----------
   // CHAMAR DENTRO DO CLIQUE. -> { usaJanela, progresso(texto, fracao), cancelada(), entregar(html, tituloArquivo, {largura}), fechar() }
   function iniciar() {
@@ -160,9 +183,34 @@
         }
         await imprimirNoQuadro(html, tituloArquivo);
         return { via: 'quadro' };
+      },
+      // O PDF já é um ARQUIVO (blob): aba "PDF pronto" no celular; no computador baixa direto. -> { via: 'janela' | 'toque' (+ abrir) | 'download' }
+      async entregarArquivo(blob, nomeArquivo, opcoes) {
+        const url = URL.createObjectURL(blob);
+        setTimeout(() => { try { URL.revokeObjectURL(url); } catch (e) { /* nada a fazer */ } }, 30 * 60 * 1000);
+        const doc = paginaDoArquivo(url, nomeArquivo, opcoes);
+        if (janela) {
+          if (janela.closed) throw new Error('A aba do PDF foi fechada. Toque em Gerar PDF de novo.');
+          mostrarNaAba(janela, doc);
+          return { via: 'janela' };
+        }
+        if (celular) {
+          return {
+            via: 'toque',
+            abrir() {
+              const w = window.open('', '_blank');
+              if (!w) throw new Error('O navegador bloqueou a abertura do PDF. Permita pop-ups para este site e tente de novo.');
+              mostrarNaAba(w, doc);
+            }
+          };
+        }
+        const a = document.createElement('a');
+        a.href = url; a.download = nomeArquivo; a.style.display = 'none';
+        document.body.appendChild(a); a.click(); a.remove();
+        return { via: 'download' };
       }
     };
   }
 
-  window.Impressao = { iniciar, config, ehCelular, prepararDocumento, LARGURA_A4_PAISAGEM };
+  window.Impressao = { iniciar, config, ehCelular, prepararDocumento, paginaDoArquivo, LARGURA_A4_PAISAGEM };
 })();
