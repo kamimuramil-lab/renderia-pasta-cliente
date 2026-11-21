@@ -879,7 +879,8 @@ body.modo-escritorio #btnAprovarFoto, body.modo-escritorio #btnAlternarDesenho, 
 .pdf-atalhos{ display:flex; gap:8px; }
 .pdf-atalhos button{ background:transparent; border:1px solid var(--line); color:var(--text-dim); border-radius:999px; padding:6px 13px; font-size:12.5px; font-weight:700; }
 .pdf-atalhos button:hover{ color:var(--text); border-color:var(--steel-500); }
-.pdf-ambientes{ display:flex; flex-direction:column; gap:4px; max-height:38vh; overflow-y:auto; border:1px solid var(--line); border-radius:var(--radius-s); padding:6px; background:var(--bg); }
+.pdf-caixa > *{ flex-shrink:0; } /* o modal rola INTEIRO: nada dentro dele encolhe (a lista de ambientes chegava a ficar com 2 linhas, ou invisível, em celular baixo) */
+.pdf-ambientes{ display:flex; flex-direction:column; gap:4px; max-height:38vh; min-height:min(150px, 38vh); overflow-y:auto; border:1px solid var(--line); border-radius:var(--radius-s); padding:6px; background:var(--bg); }
 .pdf-linha{ display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:8px; cursor:pointer; }
 .pdf-linha:hover{ background:var(--bg-elev-2); }
 .pdf-linha input, .pdf-opcao input{ width:18px; height:18px; margin:0; accent-color:var(--steel-100); flex-shrink:0; }
