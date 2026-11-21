@@ -74,15 +74,28 @@
   // ---------- preparar imagens (no navegador) ----------
   // fetch com cache desligado: a mesma imagem já foi mostrada na galeria SEM CORS, e o navegador reaproveitaria essa cópia
   // (que não pode ser lida pelo canvas). O arquivo vem como blob: o canvas nunca fica "contaminado".
-  async function carregarBitmap(url) {
-    const resp = await fetch(url, { mode: 'cors', cache: 'no-store' });
-    if (!resp.ok) throw new Error('imagem indisponível');
-    const blob = await resp.blob();
-    if (window.createImageBitmap) return createImageBitmap(blob);
+  // Do blob ao desenho: createImageBitmap primeiro; se o navegador recusar (alguns Safari/iPad recusam WebP ou blobs grandes), cai no <img>.
+  async function bitmapDeBlob(blob) {
+    if (window.createImageBitmap) { try { return await createImageBitmap(blob); } catch (e) { /* tenta pelo <img> abaixo */ } }
     const obj = URL.createObjectURL(blob);
     try {
-      return await new Promise((ok, erro) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => erro(new Error('imagem inválida')); im.src = obj; });
+      return await new Promise((ok, erro) => { const im = new Image(); im.onload = () => ok(im); im.onerror = () => erro(new Error('o navegador não conseguiu abrir a imagem')); im.src = obj; });
     } finally { setTimeout(() => URL.revokeObjectURL(obj), 5000); }
+  }
+  async function carregarBitmap(url) {
+    let motivo = '';
+    try {
+      const resp = await fetch(url, { mode: 'cors', cache: 'no-store' });
+      if (!resp.ok) throw new Error('o servidor das imagens respondeu ' + resp.status);
+      return await bitmapDeBlob(await resp.blob());
+    } catch (e) { motivo = (e && e.message) || 'falha ao baixar a imagem'; }
+    // plano B: carregar direto como <img crossorigin> (alguns navegadores móveis falham no fetch mas abrem assim)
+    return new Promise((ok, erro) => {
+      const im = new Image(); im.crossOrigin = 'anonymous';
+      im.onload = () => ok(im);
+      im.onerror = () => erro(new Error(motivo));
+      im.src = url;
+    });
   }
   function desenhar(bitmap, ladoMax) {
     const w = bitmap.width, h = bitmap.height;
@@ -171,7 +184,7 @@
     gerando = true;
     $('btnGerarPdfCliente').disabled = true; $('btnCancelarPdfCliente').disabled = true;
     $('pdfMensagem').textContent = '';
-    let feitas = 0, falhas = 0;
+    let feitas = 0, falhas = 0, ultimoMotivo = '';
     try {
       const g = estado.galeria;
       const ambientes = [];
@@ -185,10 +198,14 @@
           try {
             const p = await prepararImagem(f.url, ladoMaximo, qualidadeJpeg, mostrarPaleta);
             imagens.push({ id: f.id, nome: window.nomeParaCliente ? window.nomeParaCliente(f) : f.nomeExibicao, uri: p.uri, paleta: mostrarPaleta ? window.PaletaCores.paletaDominante(p.pixels, 5) : [] });
-          } catch (e) { falhas++; }
+          } catch (e) { falhas++; ultimoMotivo = (e && (e.name && e.name !== 'Error' ? e.name + ': ' : '') + (e.message || '')) || 'erro desconhecido'; }
           feitas++;
         }
         ambientes.push({ nome: a.nome, capa, imagens });
+      }
+      if (!ambientes.some((a) => a.imagens.length)) {
+        // as imagens existem, mas nenhuma pôde ser carregada neste aparelho (não é "falta de imagens")
+        throw new Error('Não consegui carregar nenhuma das ' + total + ' imagens neste aparelho (' + ultimoMotivo + '). Atualize a página e tente de novo; se continuar, avise o escritório com este texto.');
       }
       let logo = null, logoClaro = false;
       const urlLogo = g.marcaDagua && g.marcaDagua.ativa !== false ? g.marcaDagua.url : null;
