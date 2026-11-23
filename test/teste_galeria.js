@@ -44,14 +44,15 @@ const fotoAposApagar = galeria.buscarGaleriaPorProjeto(CAMINHO, 'projNomeVazio')
 assert.strictEqual(fotoAposApagar.nomeExibicao, '', 'deveria ter aceitado apagar o nome de vez, não voltar pro antigo');
 console.log('OK');
 
-console.log('== 4. Adicionar fotos até o limite de 50 por projeto, a 51a falha ==');
+console.log('== 4. Sem limite de fotos por projeto (o que vale é o limite da licença, conferido no server.js) ==');
 for (let i = 0; i < 50; i++) {
   galeria.adicionarFoto(CAMINHO, 'proj1', { nomeExibicao: `Foto ${i}`, tag: 'Sala', tipo: 'fixa', r2Key: `proj1/foto${i}.webp`, capturaIdOrigem: `captura_${i}` });
 }
-assert.throws(() => {
-  galeria.adicionarFoto(CAMINHO, 'proj1', { nomeExibicao: 'Foto 51', tipo: 'fixa', r2Key: 'proj1/foto51.webp' });
-}, /limite de 50 fotos/);
-console.log('OK -- bloqueou a 51a foto');
+// outro dono, só pra provar que um projeto passa de 50 sem mexer nas contagens dos testes seguintes
+galeria.criarOuAtualizarGaleria(CAMINHO, { projetoId: 'projSemTeto', licencaUsuario: 'outro-dono@teste.com', nomeProjeto: 'Sem teto', clienteUsuario: 'semteto', clienteSenha: 'senha1234' });
+for (let i = 0; i < 70; i++) galeria.adicionarFoto(CAMINHO, 'projSemTeto', { nomeExibicao: `F${i}`, tipo: 'fixa', r2Key: `projSemTeto/f${i}.webp` });
+assert.strictEqual(galeria.buscarGaleriaPorProjeto(CAMINHO, 'projSemTeto').fotos.length, 70, 'passou de 50 fotos no mesmo projeto (antes a 51ª era barrada)');
+console.log('OK -- 70 fotos num projeto só');
 
 console.log('== 4b. capturaIdOrigem fica salvo, pro selinho de aprovada voltar pra galeria principal do app ==');
 const primeiraDoProj1 = galeria.buscarGaleriaPorProjeto(CAMINHO, 'proj1').fotos[0];

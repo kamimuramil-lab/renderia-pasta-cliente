@@ -904,6 +904,7 @@ const rotaAmb = (fn) => (req, res) => { try { res.json({ ok: true, ...fn(req) })
 app.get('/api/app/memorial/ambientes', exigirSessaoArquiteto, exigirRecurso('memorial'), rotaAmb((req) => memLib.lerAmbientes(CAMINHO_DADOS, req.licencaUsuario)));
 app.post('/api/app/memorial/ambientes', exigirSessaoArquiteto, exigirRecurso('memorial'), rotaAmb((req) => memLib.adicionarAmbiente(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).nome)));
 app.post('/api/app/memorial/ambientes/renomear', exigirSessaoArquiteto, exigirRecurso('memorial'), rotaAmb((req) => memLib.renomearAmbiente(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).de, (req.body || {}).para)));
+app.post('/api/app/memorial/ambientes/mover', exigirSessaoArquiteto, exigirRecurso('memorial'), rotaAmb((req) => memLib.moverAmbiente(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).nome, (req.body || {}).direcao)));
 app.post('/api/app/memorial/ambientes/excluir', exigirSessaoArquiteto, exigirRecurso('memorial'), rotaAmb((req) => memLib.excluirAmbiente(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).nome)));
 app.post('/api/app/memorial/ambientes/restaurar', exigirSessaoArquiteto, exigirRecurso('memorial'), rotaAmb((req) => memLib.restaurarAmbientes(CAMINHO_DADOS, req.licencaUsuario)));
 // Setores do memorial (criar, renomear, excluir -- só vazio): devolve a lista nova.

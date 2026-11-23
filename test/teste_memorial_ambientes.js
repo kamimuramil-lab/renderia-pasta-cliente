@@ -146,6 +146,29 @@ const SEM = { paginaProjeto: true, orcamentos: true, memorial: false };
     assert.strictEqual(r.status, 400); assert.match(r.json.erro, /No máximo 60/);
     ok('no máximo 60 ambientes');
 
+    console.log('== 9b. Mover pra cima/baixo (a etiqueta dos itens segue a ordem) ==');
+    await api('POST', AMB + '/restaurar', { sessao: 'tokA', corpo: {} });
+    await api('POST', AMB, { sessao: 'tokA', corpo: { nome: 'Varanda' } }); // nasce no fim
+    const itemMov = (await novoItem('tokA', 'projA1', { item: 'Mov', ambientes: ['AS', 'Varanda'] })).json.item;
+    assert.deepStrictEqual(itemMov.ambientes, ['AS', 'Varanda']);
+    r = await api('POST', AMB + '/mover', { sessao: 'tokA', corpo: { nome: 'Varanda', direcao: 'cima' } });
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.json.ambientes[26], 'Varanda'); assert.strictEqual(r.json.ambientes[27], 'C.01');
+    for (let k = 0; k < 40; k++) await api('POST', AMB + '/mover', { sessao: 'tokA2', corpo: { nome: 'Varanda', direcao: 'cima' } }); // vale do outro computador; para no topo
+    r = await api('GET', AMB, { sessao: 'tokA' });
+    assert.strictEqual(r.json.ambientes[0], 'Varanda', 'chegou ao topo e parou (sem erro)');
+    assert.strictEqual(r.json.ambientes.length, 28);
+    const movido = (await memorial('tokA', 'projA1')).itens.find((i) => i.id === itemMov.id);
+    assert.deepStrictEqual(movido.ambientes, ['Varanda', 'AS'], 'a etiqueta do item acompanha a ordem nova da lista');
+    r = await api('POST', AMB + '/mover', { sessao: 'tokA', corpo: { nome: 'Varanda', direcao: 'baixo' } });
+    assert.strictEqual(r.json.ambientes[0], 'AS'); assert.strictEqual(r.json.ambientes[1], 'Varanda');
+    for (const [corpo, re] of [[{ nome: 'Nada', direcao: 'cima' }, /não encontrado/], [{ nome: 'AS', direcao: 'lado' }, /Direção inválida/]]) {
+      r = await api('POST', AMB + '/mover', { sessao: 'tokA', corpo }); assert.strictEqual(r.status, 400); assert.match(r.json.erro, re);
+    }
+    assert.strictEqual((await api('POST', AMB + '/mover', { sessao: 'tokASem', corpo: { nome: 'AS', direcao: 'cima' } })).status, 403);
+    assert.strictEqual((await api('GET', AMB, { sessao: 'tokB' })).json.ambientes[0], 'AS', 'outra conta não muda');
+    ok('mover sobe/desce, para na ponta, vale nos 2 computadores, reordena as etiquetas dos itens, recusa inválidos e sem recurso');
+    await api('POST', AMB + '/restaurar', { sessao: 'tokA', corpo: {} });
+
     console.log('== 10. O cliente continua vendo as etiquetas dos itens ==');
     const link = (await api('GET', '/api/app/galeria/projA2', { sessao: 'tokA' })).json.linkToken;
     const tokCli = (await api('POST', `/api/cliente/${link}/login`, { corpo: { usuario: 'cliprojA2', senha: 'senha1234' } })).json.token;
