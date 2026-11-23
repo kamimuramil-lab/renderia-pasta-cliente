@@ -1228,6 +1228,20 @@ app.delete('/api/app/galeria/:projetoId', exigirSessaoArquiteto, async (req, res
   } catch (e) { res.status(400).json({ erro: e.message }); }
 });
 
+// Lista as Pastas do Cliente da CONTA (todas as da licença, de qualquer computador da equipe). O app compara com os projetos que tem e mostra as
+// que ficaram SEM projeto na lista daquele computador (ex.: projeto removido do app, ou criado em outro computador). Só dados de identificação e
+// tamanho: nunca link, senha, nem conteúdo. Qualquer nível de licença (é manutenção da própria conta, não um recurso).
+app.get('/api/app/galerias', exigirSessaoArquiteto, (req, res) => {
+  try {
+    const estado = galeria.lerEstado(CAMINHO_DADOS);
+    const galerias = estado.galerias.filter((g) => g.licencaUsuario === req.licencaUsuario).map((g) => ({
+      projetoId: g.projetoId, nomeProjeto: g.nomeProjeto, criadoEm: g.criadoEm || null, atualizadoEm: g.atualizadoEm || null,
+      nFotos: (g.fotos || []).length, nPlantas: (g.plantas || []).length, nDocumentos: ((g.hub && g.hub.documentos) || []).length
+    }));
+    res.json({ ok: true, galerias });
+  } catch (e) { res.status(500).json({ erro: e.message }); }
+});
+
 // Registro de atividades: com ?projetoId = daquele projeto; sem = da conta (acessos ao dashboard, exclusões). Só o que é da PRÓPRIA conta.
 app.get('/api/app/atividades', exigirSessaoArquiteto, (req, res) => {
   res.json({ ok: true, atividades: atividades.listar(CAMINHO_DADOS, { licenca: req.licencaUsuario, projetoId: req.query.projetoId || null, limite: req.query.limite }) });

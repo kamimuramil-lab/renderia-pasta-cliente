@@ -40,7 +40,11 @@
   }
 
   // ---------- janela de escolha ----------
+  // O PDF só vale na licença completa: a galeria diz isso em `novoVisual` (o dono tem o recurso "Página do projeto", conferido ao vivo no servidor).
+  // O botão some pelo CSS; aqui é a segunda trava, caso alguém chame a função direto.
+  const pdfLiberado = () => !!(estado.galeria && estado.galeria.novoVisual);
   function abrirModal() {
+    if (!pdfLiberado()) return;
     const lista = ambientesDisponiveis();
     const caixa = $('pdfAmbientes');
     $('pdfMensagem').textContent = '';
@@ -306,5 +310,5 @@
   }
   document.addEventListener('DOMContentLoaded', ligar);
 
-  window.PdfCliente = { abrirModal, ambientesDisponiveis };
+  window.PdfCliente = { abrirModal, ambientesDisponiveis, pdfLiberado };
 })();
