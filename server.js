@@ -633,6 +633,13 @@ app.put('/api/app/galeria/:projetoId/plantas/:plantaId', exigirSessaoArquiteto, 
 });
 
 // Troca só a imagem da planta -- os ícones continuam onde estavam.
+// Textos escritos em cima da planta (lista completa substitui a anterior). O cliente recebe junto com a planta.
+app.put('/api/app/galeria/:projetoId/plantas/:plantaId/textos', exigirSessaoArquiteto, (req, res) => {
+  try {
+    const planta = galeria.definirTextosDaPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.plantaId, (req.body || {}).textos, req.licencaUsuario);
+    res.json({ ok: true, planta: { id: planta.id, textos: planta.textos } });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
 app.post('/api/app/galeria/:projetoId/plantas/:plantaId/imagem', exigirSessaoArquiteto, upload.single('arquivo'), async (req, res) => {
   let chave = null;
   try {

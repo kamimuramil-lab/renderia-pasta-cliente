@@ -294,6 +294,9 @@ body.modo-escritorio .so-escritorio{ display:inline-flex !important; }
 .planta-palco img{ width:100%; height:100%; max-width:none; object-fit:contain; display:block; pointer-events:none; background:#fff; }
 /* Camada dos ícones: por cima da planta, SEM zoom aplicado (ícones sempre nítidos); só os ícones recebem clique. */
 .planta-pins{ position:absolute; inset:0; pointer-events:none; z-index:2; }
+/* Textos do arquiteto em cima da planta (nome dos ambientes...): dentro do palco, escalam com o zoom. O tamanho é uma fração da largura da planta (--pw). */
+.planta-textos{ position:absolute; inset:0; pointer-events:none; }
+.pl-texto{ position:absolute; transform:translate(-50%, -50%); font-size:calc(var(--t, .018) * var(--pw, 800px)); line-height:1.15; white-space:pre; text-align:center; padding:.1em .35em; border-radius:.3em; font-family:'Inter', system-ui, sans-serif; }
 
 /* Leque de visão da câmera: degradê azul bem suave (abertura de 64°) que some com a distância. 0° = pra cima, sentido
    horário. O cone vem do conic-gradient; o esmaecer com a distância vem da máscara radial. Sem clique, atrás dos ícones. */

@@ -142,6 +142,7 @@
     const palco = pid('plantaPalco');
     palco.style.width = `${ST.baseW}px`;
     palco.style.height = `${ST.baseH}px`;
+    palco.style.setProperty('--pw', `${ST.baseW}px`); // largura da planta: o tamanho de cada texto é uma fração dela
     aplicarTransformacao();
   }
 
@@ -202,6 +203,8 @@
       renderizar();
     }));
 
+    // Textos que o arquiteto escreveu em cima da planta (nome dos ambientes etc.): ficam DENTRO do palco, então acompanham o zoom e o arrasto.
+    pid('plantaTextos').innerHTML = window.PlantaTextos ? window.PlantaTextos.html(atual.textos) : '';
     const img = pid('imgPlanta');
     if (ST.imgSrcAtual !== atual.url) {
       ST.imgSrcAtual = atual.url;
