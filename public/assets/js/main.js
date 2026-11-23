@@ -450,9 +450,11 @@ function renderizarFotoAtualNoVisualizador() {
     // exemplo) até a nova terminar de carregar, dando aquele "flash".
     img.style.visibility = 'hidden';
     img.style.display = 'block';
-    img.onload = () => { img.style.visibility = 'visible'; posicionarMarcaDagua(foto); ajustarLarguraPainelInferior(foto); };
+    img.onload = () => { img.style.visibility = 'visible'; posicionarMarcaDagua(foto); ajustarLarguraPainelInferior(foto); if (window.AnotacoesFoto) window.AnotacoesFoto.mostrar(foto); };
     img.src = foto.url;
   }
+  if (window.AnotacoesFoto && (foto.tipo === '360' || foto.__ehMood)) window.AnotacoesFoto.mostrar(foto); // 360° e capa: sem pinos (as anotações do 360° vêm depois)
+  else if (window.AnotacoesFoto) window.AnotacoesFoto.mostrar(null); // some os da foto anterior enquanto a nova carrega
 
   // CAPA do ambiente: a foto vira capa (escurecida, preenchendo a tela) com o nome grande por cima; nas outras imagens volta ao normal.
   const capa = $('capaAmbienteVisualizador');

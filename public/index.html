@@ -183,6 +183,9 @@
       <div class="dica">Passe para o lado para ver as imagens &rsaquo;</div>
     </div>
     <img id="imgMarcaDagua" class="marca-dagua-overlay" style="display:none;" alt="">
+    <!-- Anotações do arquiteto sobre a foto: pinos (ícone + número) e o balão com texto/imagem. A camada não recebe clique; só os pinos. -->
+    <div id="camadaAnotacoes" class="camada-anotacoes" style="display:none;"></div>
+    <div id="balaoAnotacao" class="an-balao" role="dialog" aria-label="Anotação" hidden></div>
     <canvas id="canvasDesenho" class="canvas-desenho"></canvas>
     <button class="seta-nav direita" id="btnProximaFoto" aria-label="Próxima imagem">
       <svg class="ico-prox" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 18l6-6-6-6"/></svg>
@@ -191,6 +194,9 @@
     </button>
     <button class="btn-proxima-categoria" id="btnProximaCategoria" style="display:none;">
       Próxima categoria: <span id="nomeProximaCategoria"></span> →
+    </button>
+    <button class="btn-visualizador-canto btn-canto-anotacoes" id="btnVisualizadorAnotacoes" style="display:none;" title="Mostrar ou esconder as anotações" aria-label="Mostrar ou esconder as anotações" type="button">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span class="an-contagem" id="contagemAnotacoes"></span>
     </button>
     <button class="btn-visualizador-canto btn-canto-galeria" id="btnVisualizadorGaleria" style="display:none;" title="Ver a galeria">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -269,6 +275,8 @@
 <script src="assets/js/dados-projeto.js"></script>
 <script src="assets/js/apresentar.js"></script>
 <script src="assets/js/hub.js"></script>
+<script src="assets/js/anotacoes-comum.js"></script>
+<script src="assets/js/anotacoes-foto.js"></script>
 <script src="assets/js/main.js"></script>
 </body>
 </html>

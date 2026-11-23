@@ -228,7 +228,7 @@
           mostrarProgresso(`Preparando a imagem ${feitas + 1} de ${total}...`, feitas, total, sessao);
           try {
             const p = await prepararImagem(f.url, ladoMaximo, qualidadeJpeg, mostrarPaleta);
-            imagens.push({ id: f.id, nome: window.nomeParaCliente ? window.nomeParaCliente(f) : f.nomeExibicao, uri: p.uri, paleta: mostrarPaleta ? window.PaletaCores.paletaDominante(p.pixels, 5) : [] });
+            imagens.push({ id: f.id, nome: window.nomeParaCliente ? window.nomeParaCliente(f) : f.nomeExibicao, uri: p.uri, paleta: mostrarPaleta ? window.PaletaCores.paletaDominante(p.pixels, 5) : [], anotacoes: f.anotacoes || [] });
           } catch (e) { falhas++; ultimoMotivo = (e && (e.name && e.name !== 'Error' ? e.name + ': ' : '') + (e.message || '')) || 'erro desconhecido'; }
           feitas++;
         }

@@ -289,13 +289,17 @@ function exigirRecurso(recurso) {
 // r2Keys crus -- tanto o app quanto o cliente final recebem isso pronto
 // pra exibir, sem saber nada sobre como o armazenamento funciona por
 // dentro.
+// Anotações do arquiteto nas fotos: a imagem do balão sai como endereço temporário (igual às fotos).
+async function anotacoesComUrls(lista) {
+  return Promise.all((Array.isArray(lista) ? lista : []).map(async (a) => ({ ...a, imagemUrl: a.imagemR2Key ? await storage.urlTemporaria(a.imagemR2Key) : null })));
+}
 async function galeriaComUrls(galeriaObj) {
   const fotos = await Promise.all(galeriaObj.fotos.map(async (f) => {
     const comentarios = await Promise.all((f.comentarios || []).map(async (c) => ({
       ...c,
       desenhoUrl: c.desenhoR2Key ? await storage.urlTemporaria(c.desenhoR2Key) : null
     })));
-    return { ...f, url: await storage.urlTemporaria(f.r2Key), comentarios };
+    return { ...f, url: await storage.urlTemporaria(f.r2Key), comentarios, anotacoes: await anotacoesComUrls(f.anotacoes) };
   }));
   const categorias = await Promise.all((galeriaObj.categorias || []).map(async (c) => {
     const fotoMood = c.moodFotoId ? fotos.find((f) => f.id === c.moodFotoId) : null;
@@ -755,12 +759,40 @@ app.delete('/api/app/galeria/:projetoId/fotos/:fotoId', exigirSessaoArquiteto, a
   try {
     const g = galeria.buscarGaleriaPorProjeto(CAMINHO_DADOS, req.params.projetoId);
     if (!g || g.licencaUsuario !== req.licencaUsuario) return res.status(404).json({ erro: 'Não encontrado.' });
+    const chavesAnotacoes = galeria.chavesDeAnotacoes((g.fotos || []).find((f) => f.id === req.params.fotoId)); // imagens dos balões saem junto
     const r2Key = galeria.excluirFoto(CAMINHO_DADOS, req.params.projetoId, req.params.fotoId);
-    try { await storage.excluirArquivo(r2Key); } catch (e) { console.error('Aviso: falhou excluir do R2, mas já excluiu dos dados:', e.message); }
+    for (const k of [r2Key, ...chavesAnotacoes]) { try { await storage.excluirArquivo(k); } catch (e) { console.error('Aviso: falhou excluir do R2, mas já excluiu dos dados:', e.message); } }
     res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ erro: e.message });
   }
+});
+
+// ANOTAÇÕES nas fotos: a imagem do balão sobe ANTES (rota abaixo; confere o tipo pelos BYTES) e a lista completa vai numa gravação só.
+function tipoDeImagemPelosBytes(b) {
+  if (!b || b.length < 12) return null;
+  if (b.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return { mime: 'image/png', ext: 'png' };
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return { mime: 'image/jpeg', ext: 'jpg' };
+  if (b.slice(0, 4).toString('latin1') === 'RIFF' && b.slice(8, 12).toString('latin1') === 'WEBP') return { mime: 'image/webp', ext: 'webp' };
+  return null;
+}
+app.post('/api/app/galeria/:projetoId/fotos/:fotoId/anotacoes/imagem', exigirSessaoArquiteto, upload.single('arquivo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Nenhum arquivo enviado.' });
+    const tipo = tipoDeImagemPelosBytes(req.file.buffer);
+    if (!tipo) return res.status(400).json({ erro: 'Envie a imagem como PNG, JPG ou WebP.' });
+    galeria.exigirFotoDaLicenca(CAMINHO_DADOS, req.params.projetoId, req.params.fotoId, req.licencaUsuario); // posse + foto existe
+    const chave = `${galeria.prefixoImagensAnotacao(req.params.projetoId, req.params.fotoId)}${crypto.randomUUID()}.${tipo.ext}`;
+    await storage.salvarArquivo(chave, req.file.buffer, tipo.mime);
+    res.json({ ok: true, imagemR2Key: chave, imagemUrl: await storage.urlTemporaria(chave) });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+app.put('/api/app/galeria/:projetoId/fotos/:fotoId/anotacoes', exigirSessaoArquiteto, async (req, res) => {
+  try {
+    const r = galeria.definirAnotacoesDaFoto(CAMINHO_DADOS, req.params.projetoId, req.params.fotoId, (req.body || {}).anotacoes, req.licencaUsuario);
+    for (const k of r.chavesRemovidas) { try { await storage.excluirArquivo(k); } catch (e) { console.error('Aviso: falhou apagar imagem de anotação:', e.message); } }
+    res.json({ ok: true, anotacoes: await anotacoesComUrls(r.foto.anotacoes) });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
 });
 
 app.post('/api/app/galeria/:projetoId/marcar-lido', exigirSessaoArquiteto, (req, res) => {

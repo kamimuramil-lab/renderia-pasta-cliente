@@ -107,6 +107,21 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
 .paleta-v .cor { flex-basis: 0; min-height: 13mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .paleta-v .hex { font-size: 6.4pt; font-weight: 700; letter-spacing: .05em; }
 .paleta-v .pct { margin-top: .6mm; font-size: 5.8pt; letter-spacing: .04em; opacity: .78; }
+/* com anotações: a MESMA coluna lateral da paleta (24 mm) é dividida -- a paleta fica compacta em cima (só os códigos) e as observações ocupam o resto;
+   a foto continua do tamanho de sempre */
+.coluna-lateral { align-self: stretch; width: 24mm; flex-shrink: 0; display: flex; flex-direction: column; gap: 2mm; min-height: 0; }
+.coluna-lateral .paleta-v { width: 100%; flex: 1 1 auto; min-height: 0; align-self: auto; }
+.coluna-lateral .paleta-v.compacta { flex: 0 0 auto; }
+.coluna-lateral .paleta-v.compacta .cor { flex-grow: 0; flex-basis: 8mm; min-height: 8mm; height: 8mm; }
+.coluna-lateral .paleta-v.compacta .hex { font-size: 5.2pt; letter-spacing: .02em; }
+.coluna-lateral .paleta-v.compacta .pct { display: none; }
+.marcador { position: absolute; width: 5.2mm; height: 5.2mm; margin: -2.6mm 0 0 -2.6mm; border-radius: 50%; background: #111; color: #fff; font-size: 6.6pt; font-weight: 700; line-height: 4.4mm; text-align: center; border: .45mm solid #f2b01e; box-sizing: border-box; }
+.obs-col { flex: 1 1 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 1.6mm; }
+.obs-titulo { font-size: 5.6pt; letter-spacing: .2em; text-transform: uppercase; color: #9a8650; }
+.obs-item { display: flex; gap: 1.2mm; align-items: flex-start; }
+.obs-num { flex: 0 0 3.8mm; width: 3.8mm; height: 3.8mm; border-radius: 50%; background: #111; color: #fff; font-size: 5pt; font-weight: 700; text-align: center; line-height: 3.8mm; }
+.obs-texto { font-size: 5.6pt; line-height: 1.25; color: #333; overflow-wrap: anywhere; min-width: 0; }
+.obs-mais { font-size: 5.2pt; color: #8a8a8a; }
 .pagina-imagem .rodape-esq { position: absolute; left: 8mm; bottom: 5mm; width: 170mm; }
 .pagina-imagem .ambiente { font-size: 7.6pt; letter-spacing: .26em; text-transform: uppercase; color: #9a8650; }
 .pagina-imagem .linha-nome { margin-top: 1.2mm; font-size: 10.5pt; color: #333; overflow-wrap: anywhere; }
@@ -116,10 +131,32 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
 `;
 
   // Faixa vertical: cada cor ocupa uma fatia da altura proporcional ao quanto aparece na foto (com um mínimo pra caber o texto).
-  function paletaHtml(paleta) {
+  // ---- ANOTAÇÕES do arquiteto (nov/2026): pinos numerados na foto + coluna "Observações" ao lado. Compartilhado com o pdf-arquivo.js (o
+  // PDF desenhado no navegador do cliente): as DUAS rotas de PDF usam esta mesma normalização, pra a lista sair igual.
+  const COR_DO_ICONE = { alerta: '#f2b01e', info: '#3d8bf2', duvida: '#8b5cf6', ok: '#2eb872', ideia: '#e5632e' };
+  const ROTULO_DO_ICONE = { alerta: 'Atenção', info: 'Informação', duvida: 'Dúvida', ok: 'Confirmado', ideia: 'Sugestão' };
+  const MAX_ANOTACOES_NO_PDF = 12;     // a coluna lateral tem 24 mm de largura: acima disso o resto fica só no site (a lista avisa quantas)
+  const ORCAMENTO_CARACTERES = 620;    // soma dos textos que cabem na coluna (~19 caracteres por linha); cada texto é cortado pra caber (com "…")
+  // -> [{ n, x, y, icone, cor, rotulo, texto }] (+ .omitidas = quantas ficaram de fora). Só anotações com posição válida.
+  function normalizarAnotacoes(lista) {
+    const validas = (Array.isArray(lista) ? lista : []).filter((a) => a && Number.isFinite(Number(a.x)) && Number.isFinite(Number(a.y)));
+    const usadas = validas.slice(0, MAX_ANOTACOES_NO_PDF);
+    const porTexto = Math.max(40, Math.min(600, Math.floor(ORCAMENTO_CARACTERES / Math.max(1, usadas.length))));
+    const saida = usadas.map((a, i) => {
+      const icone = COR_DO_ICONE[a.icone] ? a.icone : 'alerta';
+      let texto = String(a.texto == null ? '' : a.texto).replace(/\s+/g, ' ').trim();
+      if (!texto) texto = a.imagemR2Key || a.imagemUrl ? '(imagem anexada: veja no site)' : '';
+      if (texto.length > porTexto) texto = texto.slice(0, porTexto - 1).trimEnd() + '…';
+      return { n: i + 1, x: Math.min(1, Math.max(0, Number(a.x))), y: Math.min(1, Math.max(0, Number(a.y))), icone, cor: COR_DO_ICONE[icone], rotulo: ROTULO_DO_ICONE[icone], texto };
+    });
+    saida.omitidas = validas.length - usadas.length;
+    return saida;
+  }
+
+  function paletaHtml(paleta, compacta) {
     const cores = (Array.isArray(paleta) ? paleta : []).map((c) => ({ ...c, hex: corSegura(c && c.hex) })).filter((c) => c.hex);
     if (!cores.length) return '';
-    return `<div class="paleta-v">${cores.map((c) => {
+    return `<div class="paleta-v${compacta ? ' compacta' : ''}">${cores.map((c) => {
       const rgb = Array.isArray(c.rgb) && c.rgb.length === 3 ? c.rgb : [parseInt(c.hex.slice(1, 3), 16), parseInt(c.hex.slice(3, 5), 16), parseInt(c.hex.slice(5, 7), 16)];
       const frac = typeof c.pct === 'number' ? Math.max(0.06, Math.min(1, c.pct)) : 0.2;
       const pct = typeof c.pct === 'number' ? `${Math.max(1, Math.round(c.pct * 100))}%` : '';
@@ -172,9 +209,15 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
         ? `<section class="pagina capa-ambiente com-foto${a.capaPronta ? ' pronta' : ''}"><img class="fundo" src="${a.capa}" alt=""><div class="veu"></div><div class="texto"><div class="rotulo">${esc(rotulo)}</div><div class="nome">${esc(a.nome)}</div><div class="fio"></div><div class="contagem">${contagem}</div></div>${carimbo}</section>`
         : `<section class="pagina capa-ambiente sem-foto"><div class="texto"><div class="rotulo">${esc(rotulo)}</div><div class="nome">${esc(a.nome)}</div><div class="fio"></div><div class="contagem">${contagem}</div></div>${carimbo}</section>`);
       a.imagens.forEach((im) => {
-        const paleta = mostrarPaleta ? paletaHtml(im.paleta) : '';
+        const anot = normalizarAnotacoes(im.anotacoes);
+        const paleta = mostrarPaleta ? paletaHtml(im.paleta, anot.length > 0) : '';
         const nome = o.mostrarNomes && im.nome ? `<div class="linha-nome"><span class="nome">${esc(im.nome)}</span></div>` : '';
-        paginas.push(`<section class="pagina pagina-imagem"><div class="area"><div class="grupo${paleta ? '' : ' sem-paleta'}"><span class="foto"><img class="principal" src="${imagemSegura(im.uri)}" alt="">${marca ? `<img class="marca" src="${marca}" alt="">` : ''}</span>${paleta}</div></div>
+        // Anotações do arquiteto: pinos numerados em cima da foto e a lista de observações (embaixo da paleta, que fica compacta).
+        const marcadores = anot.map((a) => `<span class="marcador" style="left:${(a.x * 100).toFixed(3)}%;top:${(a.y * 100).toFixed(3)}%;border-color:${a.cor}">${a.n}</span>`).join('');
+        const obs = anot.length ? `<div class="obs-col"><div class="obs-titulo">Observações</div>${anot.map((a) => `<div class="obs-item"><span class="obs-num" style="box-shadow:0 0 0 .4mm ${a.cor}">${a.n}</span><div class="obs-texto"><b>${esc(a.rotulo)}</b>${a.texto ? '<br>' + esc(a.texto) : ''}</div></div>`).join('')}${anot.omitidas ? `<div class="obs-mais">+ ${anot.omitidas} no site</div>` : ''}</div>` : '';
+        // as observações dividem com a paleta a MESMA coluna lateral (24 mm): a foto não perde espaço
+        const lateral = (paleta || obs) ? `<div class="coluna-lateral">${paleta}${obs}</div>` : '';
+        paginas.push(`<section class="pagina pagina-imagem"><div class="area"><div class="grupo${lateral ? '' : ' sem-paleta'}"><span class="foto"><img class="principal" src="${imagemSegura(im.uri)}" alt="">${marca ? `<img class="marca" src="${marca}" alt="">` : ''}${marcadores}</span>${lateral}</div></div>
         <div class="rodape-esq"><div class="ambiente">${esc(a.nome)}</div>${nome}</div>
         <div class="rodape-dir"><div class="data-geracao">PDF gerado em ${esc(dataHoraCurta(agora))}</div><div class="aviso">${esc(AVISO_AUTORAL)}</div></div></section>`);
       });
@@ -189,7 +232,7 @@ body { font-family: 'Segoe UI', Arial, Helvetica, sans-serif; color: #1c1c1c; -w
     return { html, totalImagens: total, ambientesIncluidos: ambientes.map((a) => a.nome), geradoEm: dataHoraCurta(agora) };
   }
 
-  const api = { montarHtml, paletaHtml, dataHoraCurta, dataPorExtenso, plural, AVISO_AUTORAL }; // os 3 últimos: o desenhista de PDF de verdade (pdf-arquivo.js) usa os mesmos textos
+  const api = { montarHtml, paletaHtml, normalizarAnotacoes, COR_DO_ICONE, dataHoraCurta, dataPorExtenso, plural, AVISO_AUTORAL }; // os 3 últimos: o desenhista de PDF de verdade (pdf-arquivo.js) usa os mesmos textos
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else raiz.ImagensPdf = api;
 })(typeof window !== 'undefined' ? window : this);

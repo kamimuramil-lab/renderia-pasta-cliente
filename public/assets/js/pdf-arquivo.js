@@ -274,9 +274,13 @@
   function paginaImagem(pc, m, a, im, imgs) {
     pc.retangulo(0, 0, LARG, ALT, '#ffffff');
     const cores = m.mostrarPaleta ? im.paletaOk : [];
-    const maxW = cores.length ? 253 : 281;
+    // Anotações do arquiteto: as observações dividem com a paleta a MESMA coluna lateral (24 mm) -- a foto não perde espaço. Com observações a
+    // paleta fica compacta (só os códigos, 8 mm por cor) em cima e as observações ocupam o resto da coluna (igual ao imagens-pdf.js).
+    const anot = im.anotacoesOk || [];
+    const temLateral = cores.length > 0 || anot.length > 0;
+    const maxW = temLateral ? 253 : 281;
     const [fw, fh] = pc.encaixar(imgs.foto.naturalWidth * PX_CSS, imgs.foto.naturalHeight * PX_CSS, maxW, 188);
-    const gw = fw + (cores.length ? 4 + 24 : 0);
+    const gw = fw + (temLateral ? 4 + 24 : 0);
     const gx = 8 + (281 - gw) / 2, gy = 7 + (188 - fh) / 2;
     pc.ctx.imageSmoothingEnabled = true; pc.ctx.imageSmoothingQuality = 'high';
     pc.ctx.drawImage(imgs.foto, pc.px(gx), pc.px(gy), pc.px(fw), pc.px(fh));
@@ -284,19 +288,56 @@
       const [mw, mh] = pc.encaixar(imgs.marca.naturalWidth * PX_CSS, imgs.marca.naturalHeight * PX_CSS, fw * 0.14, fh * 0.11);
       pc.ctx.drawImage(imgs.marca, pc.px(gx + fw - fw * 0.02 - mw), pc.px(gy + fh * 0.024), pc.px(mw), pc.px(mh));
     }
+    const px0 = gx + fw + 4; // coluna lateral
+    let alturaPaleta = 0;
     if (cores.length) {
-      const px0 = gx + fw + 4, alturas = alturasDaPaleta(cores, fh), hRot = alturaLinha(6.4) + .6 + alturaLinha(5.8);
-      pc.recorteArredondado(px0, gy, 24, fh, 2.4, () => {
+      const compacta = anot.length > 0;
+      alturaPaleta = compacta ? Math.min(fh * 0.4, cores.length * 8 + (cores.length - 1) * .7) : fh;
+      const alturas = compacta ? cores.map(() => (alturaPaleta - .7 * (cores.length - 1)) / cores.length) : alturasDaPaleta(cores, fh);
+      const ptHex = compacta ? 5.2 : 6.4, ptPct = 5.8, hRot = alturaLinha(ptHex) + .6 + alturaLinha(ptPct);
+      pc.recorteArredondado(px0, gy, 24, alturaPaleta, 2.4, () => {
         let y = gy;
         cores.forEach((c, i) => {
           pc.retangulo(px0, y, 24, alturas[i], c.hex);
-          const cor = m.corDoTexto(c.rgb), temPct = typeof c.pct === 'number';
-          const topo = y + alturas[i] / 2 - (temPct ? hRot : alturaLinha(6.4)) / 2;
-          pc.linha(c.hex.toUpperCase(), { pt: 6.4, peso: 700, esp: .05, cor }, px0 + 12, topo + alturaLinha(6.4) / 2, 'centro');
-          if (temPct) pc.linha(Math.max(1, Math.round(c.pct * 100)) + '%', { pt: 5.8, esp: .04, cor, alfa: .78 }, px0 + 12, topo + alturaLinha(6.4) + .6 + alturaLinha(5.8) / 2, 'centro');
+          const cor = m.corDoTexto(c.rgb), temPct = !compacta && typeof c.pct === 'number';
+          const topo = y + alturas[i] / 2 - (temPct ? hRot : alturaLinha(ptHex)) / 2;
+          pc.linha(c.hex.toUpperCase(), { pt: ptHex, peso: 700, esp: compacta ? .02 : .05, cor }, px0 + 12, topo + alturaLinha(ptHex) / 2, 'centro');
+          if (temPct) pc.linha(Math.max(1, Math.round(c.pct * 100)) + '%', { pt: ptPct, esp: .04, cor, alfa: .78 }, px0 + 12, topo + alturaLinha(ptHex) + .6 + alturaLinha(ptPct) / 2, 'centro');
           y += alturas[i] + .7;
         });
       });
+    }
+    if (anot.length) {
+      const bolinha = (cx, cy, r, cor) => {
+        const ctx = pc.ctx;
+        ctx.beginPath(); ctx.arc(pc.px(cx), pc.px(cy), pc.px(r), 0, Math.PI * 2); ctx.fillStyle = '#111'; ctx.fill();
+        ctx.lineWidth = pc.px(.45); ctx.strokeStyle = cor; ctx.stroke();
+      };
+      // pinos numerados em cima da foto
+      anot.forEach((an) => {
+        const cx = gx + an.x * fw, cy = gy + an.y * fh;
+        bolinha(cx, cy, 2.6, an.cor);
+        pc.linha(String(an.n), { pt: 6.6, peso: 700, cor: '#ffffff' }, cx, cy, 'centro');
+      });
+      // lista "Observações" na coluna lateral, embaixo da paleta
+      const hT = alturaLinha(5.6), larguraTexto = 24 - 5, fundo = gy + fh;
+      let y = gy + (cores.length ? alturaPaleta + 2 : 0);
+      pc.linha('OBSERVAÇÕES', { pt: 5.6, esp: .2, cor: '#9a8650' }, px0, y + hT / 2, 'esq');
+      y += hT + 1.6;
+      const eRot = { pt: 5.6, peso: 700, cor: '#333333' }, eTxt = { pt: 5.6, cor: '#333333' }, hL = alturaLinha(5.6, 1.25);
+      let mostradas = 0;
+      for (const an of anot) {
+        const linhas = an.texto ? pc.quebrar(an.texto, eTxt, larguraTexto) : [];
+        const altura = hL * (1 + linhas.length);
+        if (y + altura > fundo - hL) break; // não cabe mais na coluna: o resto vai pro aviso "+ N no site"
+        bolinha(px0 + 1.9, y + 1.9, 1.7, an.cor);
+        pc.linha(String(an.n), { pt: 5, peso: 700, cor: '#ffffff' }, px0 + 1.9, y + 1.9, 'centro');
+        pc.linha(an.rotulo, eRot, px0 + 5, y + hL / 2, 'esq');
+        linhas.forEach((t, i) => pc.linha(t, eTxt, px0 + 5, y + hL * (i + 1) + hL / 2, 'esq'));
+        y += altura + 1.6; mostradas += 1;
+      }
+      const faltam = anot.length - mostradas + (anot.omitidas || 0);
+      if (faltam > 0) pc.linha('+ ' + faltam + ' no site', { pt: 5.2, cor: '#8a8a8a' }, px0, Math.min(fundo - hL / 2, y + hL / 2), 'esq');
     }
     // rodapé à esquerda: ambiente (e nome da imagem); à direita: data e aviso
     const base = ALT - 5, hA = alturaLinha(7.6);
@@ -436,6 +477,7 @@
         im.paletaOk = (Array.isArray(im.paleta) ? im.paleta : []).map((p) => ({ ...p, hex: /^#[0-9a-fA-F]{6}$/.test(p && p.hex) ? p.hex.toLowerCase() : null })).filter((p) => p.hex).map((p) => ({
           ...p, rgb: Array.isArray(p.rgb) && p.rgb.length === 3 ? p.rgb : [parseInt(p.hex.slice(1, 3), 16), parseInt(p.hex.slice(3, 5), 16), parseInt(p.hex.slice(5, 7), 16)]
         }));
+        im.anotacoesOk = I.normalizarAnotacoes ? I.normalizarAnotacoes(im.anotacoes) : []; // mesma lista do PDF em HTML
         paginaImagem(pc, m, a, im, { foto: foto2, marca });
         await fechar('imagem');
       }
