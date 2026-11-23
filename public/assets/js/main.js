@@ -442,6 +442,7 @@ function renderizarFotoAtualNoVisualizador() {
     });
     posicionarMarcaDagua(foto);
     ajustarLarguraPainelInferior(foto);
+    if (window.AnotacoesFoto) window.AnotacoesFoto.mostrar(foto, estado.visualizadorPanorama); // pontos do arquiteto flutuando na cena (yaw/pitch)
   } else {
     $('painelPanoramaCliente').style.display = 'none';
     const img = $('imgFotoVisualizador');
@@ -453,8 +454,7 @@ function renderizarFotoAtualNoVisualizador() {
     img.onload = () => { img.style.visibility = 'visible'; posicionarMarcaDagua(foto); ajustarLarguraPainelInferior(foto); if (window.AnotacoesFoto) window.AnotacoesFoto.mostrar(foto); };
     img.src = foto.url;
   }
-  if (window.AnotacoesFoto && (foto.tipo === '360' || foto.__ehMood)) window.AnotacoesFoto.mostrar(foto); // 360° e capa: sem pinos (as anotações do 360° vêm depois)
-  else if (window.AnotacoesFoto) window.AnotacoesFoto.mostrar(null); // some os da foto anterior enquanto a nova carrega
+  if (window.AnotacoesFoto && foto.tipo !== '360') window.AnotacoesFoto.mostrar(foto.__ehMood ? foto : null); // capa: sem pinos; foto fixa: limpa os da anterior (os dela entram quando a imagem carrega)
 
   // CAPA do ambiente: a foto vira capa (escurecida, preenchendo a tela) com o nome grande por cima; nas outras imagens volta ao normal.
   const capa = $('capaAmbienteVisualizador');

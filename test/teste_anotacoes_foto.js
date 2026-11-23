@@ -101,7 +101,12 @@ ok('pino e balão: HTML escapado, numerados');
 const idx = ler('public', 'index.html'), main = ler('public', 'assets', 'js', 'main.js'), css = ler('public', 'assets', 'css', 'style.css');
 assert.ok(idx.includes('id="camadaAnotacoes"') && idx.includes('id="balaoAnotacao"') && idx.includes('id="btnVisualizadorAnotacoes"'), 'camada, balão e botão no visualizador');
 assert.ok(idx.indexOf('anotacoes-comum.js') < idx.indexOf('anotacoes-foto.js') && idx.indexOf('anotacoes-foto.js') < idx.indexOf('assets/js/main.js'), 'scripts na ordem certa');
-assert.ok(main.includes('window.AnotacoesFoto.mostrar(foto); };') && main.includes("window.AnotacoesFoto.mostrar(null);"), 'o visualizador mostra os pinos quando a imagem carrega e limpa ao trocar de foto');
+assert.ok(main.includes('window.AnotacoesFoto.mostrar(foto); };') && main.includes("window.AnotacoesFoto.mostrar(foto.__ehMood ? foto : null)"), 'foto fixa: pinos quando a imagem carrega, e limpa ao trocar de foto');
+assert.ok(main.includes('window.AnotacoesFoto.mostrar(foto, estado.visualizadorPanorama);'), '360°: passa o visualizador do pannellum, onde os pontos entram');
+const af = ler('public', 'assets', 'js', 'anotacoes-foto.js');
+assert.ok(af.includes("type: 'custom', cssClass: 'an-hotspot'") && af.includes('ST.viewer.addHotSpot(h)') && af.includes('ST.viewer.removeHotSpot(h.id)') && af.includes('viewer.isLoaded()') && af.includes("viewer.on('load', pronto)"), '360°: os pontos são hotSpots do pannellum (yaw/pitch), colocados quando a cena carrega');
+assert.ok(af.includes('Number.isFinite(a.yaw) && Number.isFinite(a.pitch)') && af.includes('if (ST.viewer === viewer) poePontos360();'), '360°: só pontos com direção válida, e nunca num visualizador que já foi trocado');
+assert.ok(af.includes('rp.left + rp.width / 2 - ra.left') && css.includes('.an-hotspot{ width:30px; height:30px;') && css.includes('.an-hotspot .an-pino{ position:relative;'), 'balão ancorado no pino pela posição real na tela (vale pra fixa e pro 360°); pino do 360° dentro do ponto do pannellum');
 ['.camada-anotacoes{', '.an-pino{', '.an-balao{', '.btn-canto-anotacoes{'].forEach((s) => assert.ok(css.includes(s), 'CSS ' + s));
 ok('site: pinos e balão no visualizador, botão de mostrar/esconder, scripts na ordem');
 
@@ -158,6 +163,18 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
     assert.strictEqual((await api('DELETE', '/api/app/galeria/pH/fotos/' + foto.id, 'tokA')).status, 200);
     assert.ok(!fs.existsSync(path.join(ARM, k2)), 'excluir a foto apaga a imagem do balão');
     ok('HTTP real: envio da imagem (bytes conferidos, posse), gravação da lista, recusas, o cliente recebe, imagem tirada da lista e foto excluída apagam os arquivos');
+    // 360°: a mesma rota guarda a DIREÇÃO (yaw/pitch) e o cliente recebe
+    const fd2 = arquivo(Buffer.from('RIFF....WEBPfake'), 'image/webp'); fd2.append('nomeExibicao', 'Pano'); fd2.append('tipo', '360');
+    const pano = (await api('POST', '/api/app/galeria/pH/fotos', 'tokA', fd2)).json.foto;
+    const R2 = `/api/app/galeria/pH/fotos/${pano.id}/anotacoes`;
+    let y = await api('PUT', R2, 'tokA', { anotacoes: [{ texto: 'olhe a parede', yaw: 250, pitch: -120, icone: 'info' }, { texto: 'outro', yaw: -30.5, pitch: 12.25 }] });
+    assert.strictEqual(y.status, 200); assert.deepStrictEqual(y.json.anotacoes.map((a) => [a.yaw, a.pitch, a.x]), [[180, -90, undefined], [-30.5, 12.25, undefined]], '360°: direção travada em ±180/±90, sem x/y');
+    y = await api('PUT', R2, 'tokA', { anotacoes: [{ texto: 'sem direção', x: 0.5, y: 0.5 }] });
+    assert.strictEqual(y.status, 400); assert.match(y.json.erro, /direção horizontal/, 'no 360° x/y não vale: exige yaw/pitch');
+    const doCli = await (await fetch(`${BASE}/api/cliente/${g.linkToken}/galeria`, { headers: { 'x-cliente-token': login } })).json();
+    const fp = doCli.fotos.find((f) => f.id === pano.id);
+    assert.deepStrictEqual(fp.anotacoes.map((a) => a.texto), ['olhe a parede', 'outro'], 'o cliente recebe as anotações do 360°');
+    ok('HTTP real (360°): a rota guarda yaw/pitch (travados), recusa x/y no panorama e o cliente recebe');
   } finally { try { filho.kill(); } catch (e) { /* já foi */ } lic.close(); }
   console.log('\nTudo certo: anotações nas fotos (servidor, PDF e site).');
 })().catch((e) => { console.error(e); process.exit(1); });
