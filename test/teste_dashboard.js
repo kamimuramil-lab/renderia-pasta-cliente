@@ -180,6 +180,21 @@ const portaLivre = () => new Promise((resolve, reject) => {
     console.log('== 9. Contatos do escritório (WhatsApp, e-mail, Instagram): normalizados, por conta, chegam ao cliente ==');
     r = await api('PUT', '/api/app/perfil/nome', { sessao: 'tokA', corpo: { nome: 'Escritório A', whatsapp: '(11) 91234-5678', email: '  Contato@Escritorio.COM ', instagram: 'https://www.instagram.com/escritorio.a/?hl=pt' } });
     assert.deepStrictEqual([r.status, r.json.contatos], [200, { whatsapp: '5511912345678', email: 'contato@escritorio.com', instagram: 'escritorio.a' }], 'WhatsApp com o 55, e-mail minúsculo, Instagram só o @');
+    // o perfil da conta (que o app lê quando o login entra num computador com esses campos em branco) devolve nome e contatos
+    const perfilA = await api('GET', '/api/app/perfil', { sessao: 'tokA' });
+    assert.deepStrictEqual([perfilA.status, perfilA.json.nomeEscritorio, perfilA.json.contatosEscritorio], [200, 'Escritório A', { whatsapp: '5511912345678', email: 'contato@escritorio.com', instagram: 'escritorio.a' }], 'GET /api/app/perfil traz nome e contatos da conta');
+    assert.strictEqual((await api('GET', '/api/app/perfil', { sessao: 'tokB' })).json.nomeEscritorio, '', 'a conta B não vê os dados da A');
+    // "O mais recente vale": o servidor carimba a hora só quando algo MUDA (reenviar o mesmo valor não conta)
+    const horaA1 = perfilA.json.escritorioAtualizadoEm;
+    assert.ok(String(horaA1).startsWith('20') && horaA1.includes('T'),'o perfil traz a hora da última mudança');
+    await api('PUT', '/api/app/perfil/nome', { sessao: 'tokA', corpo: { nome: 'Escritório A', whatsapp: '(11) 91234-5678' } });
+    assert.strictEqual((await api('GET', '/api/app/perfil', { sessao: 'tokA' })).json.escritorioAtualizadoEm, horaA1, 'mesmo valor não muda a hora');
+    await new Promise((r) => setTimeout(r, 15));
+    r = await api('PUT', '/api/app/perfil/nome', { sessao: 'tokA', corpo: { whatsapp: '(11) 90000-1111' } });
+    const horaA2 = (await api('GET', '/api/app/perfil', { sessao: 'tokA' })).json.escritorioAtualizadoEm;
+    assert.ok(horaA2 > horaA1 && r.json.atualizadoEm === horaA2, 'mudou o telefone: hora nova (a resposta do PUT traz a mesma hora)');
+    assert.strictEqual((await api('GET', '/api/app/perfil', { sessao: 'tokB' })).json.escritorioAtualizadoEm, '', 'a hora é por conta');
+    await api('PUT', '/api/app/perfil/nome', { sessao: 'tokA', corpo: { whatsapp: '(11) 91234-5678' } }); // volta ao valor original para o resto do teste
     r = await api('GET', `/api/cliente/${linkA1}/galeria`, { cliente: tokCli2 });
     assert.deepStrictEqual(r.json.contatosEscritorio, { whatsapp: '5511912345678', email: 'contato@escritorio.com', instagram: 'escritorio.a' }, 'o cliente recebe os contatos');
     // app antigo (só manda o nome) NÃO apaga os contatos

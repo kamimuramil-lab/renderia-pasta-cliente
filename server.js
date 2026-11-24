@@ -537,7 +537,12 @@ async function perfilComUrls(licencaUsuario) {
   return {
     icone: { existe: !!p.icone.r2Key, url: p.icone.r2Key ? await storage.urlTemporaria(p.icone.r2Key) : null },
     marca: { existe: !!p.marca.r2Key, url: p.marca.r2Key ? await storage.urlTemporaria(p.marca.r2Key) : null },
-    cores: galeria.coresEscritorioDaLicenca(galeria.lerEstado(CAMINHO_DADOS), licencaUsuario)
+    cores: galeria.coresEscritorioDaLicenca(galeria.lerEstado(CAMINHO_DADOS), licencaUsuario),
+    // nome e contatos do escritório da CONTA: o app os puxa quando o login entra num computador com esses campos em branco
+    nomeEscritorio: galeria.nomeEscritorioDaLicenca(galeria.lerEstado(CAMINHO_DADOS), licencaUsuario),
+    contatosEscritorio: galeria.contatosEscritorioDaLicenca(galeria.lerEstado(CAMINHO_DADOS), licencaUsuario),
+    // quando nome/contatos mudaram pela última vez ('' = dados de antes desta regra): o mais recente vale entre os computadores da conta
+    escritorioAtualizadoEm: galeria.dadosEscritorioAtualizadoEm(galeria.lerEstado(CAMINHO_DADOS), licencaUsuario)
   };
 }
 app.get('/api/app/perfil', exigirSessaoArquiteto, async (req, res) => {
@@ -580,7 +585,7 @@ app.put('/api/app/perfil/nome', exigirSessaoArquiteto, (req, res) => {
   try {
     const { nome, whatsapp, email, instagram } = req.body || {};
     const r = galeria.definirDadosEscritorio(CAMINHO_DADOS, req.licencaUsuario, { nome, whatsapp, email, instagram });
-    res.json({ ok: true, nomeEscritorio: r.nomeEscritorio, contatos: r.contatos });
+    res.json({ ok: true, nomeEscritorio: r.nomeEscritorio, contatos: r.contatos, atualizadoEm: r.atualizadoEm });
   } catch (e) { res.status(400).json({ erro: e.message }); }
 });
 // Cor de destaque do site do cliente (vale pra todos os projetos da conta). `destaque` vazio/nulo = volta ao visual padrão.
