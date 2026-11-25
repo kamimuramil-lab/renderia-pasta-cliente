@@ -130,19 +130,55 @@
     });
   }
 
-  // Encaixa a planta inteira na área visível (zoom 1) -- sem cortar nada.
+  // ---- enquadramento automático: ignora o branco em volta do desenho (ver planta-encaixe.js) ----
+  // Lê os pixels da imagem (reduzida) e acha onde está o desenho. Qualquer problema (navegador bloqueou a leitura por CORS, fundo que não é
+  // de uma cor só...) = null = mostra a imagem inteira, como sempre foi.
+  const LADO_LEITURA = 640;
+  function medirConteudo(img) {
+    if (!window.PlantaEncaixe || ST.semCors || !img.naturalWidth) return null;
+    try {
+      const k = Math.min(1, LADO_LEITURA / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.max(1, Math.round(img.naturalWidth * k)), h = Math.max(1, Math.round(img.naturalHeight * k));
+      const c = document.createElement('canvas');
+      c.width = w; c.height = h;
+      const ctx = c.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); // PNG transparente: o fundo conta como branco
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, w, h);
+      return window.PlantaEncaixe.calcularConteudo(ctx.getImageData(0, 0, w, h));
+    } catch (e) { return null; }
+  }
+  // Área onde o desenho está + os ícones e textos da planta (que podem estar na margem e não podem ficar fora da tela).
+  function caixaDeEncaixe() {
+    if (!ST.conteudo || !window.PlantaEncaixe) return null;
+    const pontos = fotosDaPlanta(ST.plantaId).map((f) => ({ x: f.pinPlanta.x, y: f.pinPlanta.y, m: 0.04 }));
+    const planta = plantasOrdenadas().find((p) => p.id === ST.plantaId);
+    ((planta && planta.textos) || []).forEach((t) => { if (t) pontos.push({ x: t.x, y: t.y, m: 0.05 }); });
+    return window.PlantaEncaixe.unirComPontos(ST.conteudo, pontos);
+  }
+
+  // Encaixa o DESENHO da planta na área visível (zoom 1). A imagem inteira continua inteira (nada é cortado de verdade): só o
+  // enquadramento inicial ignora a margem vazia. Sem desenho detectado = a imagem inteira, como antes.
   function ajustarAoVisor() {
     const img = pid('imgPlanta');
     if (!img.naturalWidth) return;
     const v = areaVisivel();
     if (!v.w || !v.h) return;
-    const escala = Math.min(v.w / img.naturalWidth, v.h / img.naturalHeight);
-    ST.baseW = img.naturalWidth * escala;
-    ST.baseH = img.naturalHeight * escala;
+    const caixa = caixaDeEncaixe();
+    const g = window.PlantaEncaixe
+      ? window.PlantaEncaixe.geometria(caixa, img.naturalWidth, img.naturalHeight, v.w, v.h)
+      : (() => { const e = Math.min(v.w / img.naturalWidth, v.h / img.naturalHeight); return { baseW: img.naturalWidth * e, baseH: img.naturalHeight * e, tx: 0, ty: 0 }; })();
+    ST.baseW = g.baseW;
+    ST.baseH = g.baseH;
+    ST.tx0 = g.tx; ST.ty0 = g.ty; // deslocamento que deixa o desenho no centro com zoom 1
     const palco = pid('plantaPalco');
     palco.style.width = `${ST.baseW}px`;
     palco.style.height = `${ST.baseH}px`;
     palco.style.setProperty('--pw', `${ST.baseW}px`); // largura da planta: o tamanho de cada texto é uma fração dela
+    // Só aparece a área do desenho: a margem vazia da imagem (que num celular em pé sobraria em cima e embaixo) não é mostrada.
+    // É só visual: a imagem e as posições continuam inteiras.
+    palco.style.clipPath = caixa ? `inset(${caixa.y0 * 100}% ${(1 - caixa.x1) * 100}% ${(1 - caixa.y1) * 100}% ${caixa.x0 * 100}%)` : '';
+    if (ST.z <= 1.001) { ST.tx = g.tx; ST.ty = g.ty; } // sem zoom: reenquadra no desenho (girar o celular, redimensionar...)
     aplicarTransformacao();
   }
 
@@ -156,7 +192,7 @@
     ST.z = novoZ;
     aplicarTransformacao();
   }
-  function resetarZoom() { ST.z = 1; ST.tx = 0; ST.ty = 0; aplicarTransformacao(); }
+  function resetarZoom() { ST.z = 1; ST.tx = ST.tx0 || 0; ST.ty = ST.ty0 || 0; aplicarTransformacao(); }
 
   // ---------------------------------------------------------------- desenho
   function desenharPins() {
@@ -212,7 +248,12 @@
       img.style.visibility = 'hidden';
       // desenharPins() ANTES: ele escreve o texto de progresso no cabeçalho, e isso muda a altura
       // da área visível -- o ajuste precisa vir depois, com o tamanho final.
-      img.onload = () => { img.style.visibility = 'visible'; ST.z = 1; desenharPins(); ajustarAoVisor(); };
+      img.onload = () => { img.style.visibility = 'visible'; ST.z = 1; ST.conteudo = medirConteudo(img); desenharPins(); ajustarAoVisor(); };
+      // A imagem é pedida com CORS (crossorigin) pra o enquadramento poder ler os pixels. Se o armazenamento não liberar, recarrega do jeito
+      // antigo (sem leitura dos pixels = sem enquadramento automático, mas a planta aparece igual).
+      ST.semCors = false; ST.conteudo = null;
+      img.onerror = () => { if (img.crossOrigin) { ST.semCors = true; img.removeAttribute('crossorigin'); img.src = atual.url; } };
+      img.crossOrigin = 'anonymous';
       img.src = atual.url;
     } else {
       desenharPins();

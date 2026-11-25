@@ -34,6 +34,11 @@ body { font-family: 'Inter', 'Segoe UI', Arial, Helvetica, sans-serif; font-size
 table.setor-tabela { border: .7pt solid #aeb6c0; border-radius: 0; }
 tr.titulo-setor th { background: #eef1f4; color: #2b3340; padding: 2mm 4mm 2mm 3.5mm; font-family: 'Archivo', 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 700; font-size: 12pt; letter-spacing: .1em; border-bottom: .7pt solid #aeb6c0; border-left: 1.3mm solid #7a8796; white-space: normal; }
 tr.titulo-setor th span { font-weight: 400; color: #7b8591; font-size: 9pt; letter-spacing: 0; margin-left: 4mm; text-transform: none; }
+/* dados do cliente (nome, e-mail, endereço) no título do setor: discretos, à direita, sem rótulos */
+tr.titulo-setor th.dados-cliente { text-align: right; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 400; font-size: 7.5pt; line-height: 1.5; letter-spacing: 0; text-transform: none; color: #6b7683; border-left: 0; vertical-align: middle; }
+tr.titulo-setor th.dados-cliente span { margin: 0; font-size: inherit; color: inherit; }
+tr.titulo-setor th.dados-cliente .dc-nome { font-weight: 600; color: #2b3340; letter-spacing: .03em; font-size: 8pt; }
+tr.titulo-setor th.dados-cliente .dc-sep { color: #aeb6c0; padding: 0 1mm; }
 table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; border: 1px solid #bbb; border-radius: 12px; overflow: hidden; font-size: 8.5pt; color: #1c1c1c; table-layout: auto; }
 thead { display: table-header-group; }
 th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; background: #ececec; color: #444; padding: 5px 6px; border-bottom: 1px solid #d4d4d4; white-space: nowrap; }
@@ -109,16 +114,30 @@ tr.linha-planta td.planta-cel { text-align: center; padding: 2.5mm 3mm 2mm; back
       `<div class="card-corpo"><div class="card-titulo"><span class="num-card">${esc(i.numero)}</span><span>${esc(i.item)}${marcaFoto(e)}</span></div>${amb ? `<div class="card-amb">${amb}</div>` : ''}` +
       `${infos ? `<div class="card-info">${infos}</div>` : ''}${href ? `<div class="card-link"><a href="${esc(href)}">Ver produto ↗</a></div>` : ''}</div></div>`;
   }
-  const faixaDoSetor = (setor, n, colspan) => `<tr class="titulo-setor"><th colspan="${colspan}">${esc(setor)}<span>${n} ${n === 1 ? 'item' : 'itens'}</span></th></tr>`;
-  function tabelaDeCards(setor, doSetor, plantas) {
+  // Dados do cliente no título do setor (à direita, discretos, sem rótulos): linha 1 = nome · e-mail; linha 2 = endereço. `c` = { nome, email, endereco }.
+  function htmlDadosDoCliente(c) {
+    const o = c || {};
+    const t = (v) => String(v == null ? '' : v).trim();
+    const l1 = [t(o.nome) && `<span class="dc-nome">${esc(t(o.nome))}</span>`, t(o.email) && `<span>${esc(t(o.email))}</span>`].filter(Boolean).join('<span class="dc-sep">·</span>');
+    const l2 = t(o.endereco) ? `<span>${esc(t(o.endereco))}</span>` : '';
+    return [l1, l2].filter(Boolean).map((l) => `<div>${l}</div>`).join('');
+  }
+  // `dados` = HTML dos dados do cliente ('' = faixa só com o nome do setor, como antes). Com dados, a faixa se divide em duas células.
+  const faixaDoSetor = (setor, n, colspan, dados) => {
+    const nome = `${esc(setor)}<span>${n} ${n === 1 ? 'item' : 'itens'}</span>`;
+    if (!dados) return `<tr class="titulo-setor"><th colspan="${colspan}">${nome}</th></tr>`;
+    const esq = Math.ceil(colspan / 2);
+    return `<tr class="titulo-setor"><th colspan="${esq}">${nome}</th><th colspan="${colspan - esq}" class="dados-cliente">${dados}</th></tr>`;
+  };
+  function tabelaDeCards(setor, doSetor, plantas, dados) {
     const entradas = doSetor.reduce((acc, i) => acc.concat(entradasDoItem(i)), []);
     const linhas = [];
     for (let k = 0; k < entradas.length; k += 2) linhas.push(entradas.slice(k, k + 2));
-    return `<table class="cards setor-tabela"><colgroup><col style="width:50%"><col style="width:50%"></colgroup><thead>${faixaDoSetor(setor, doSetor.length, 2)}</thead><tbody>${plantas(2)}${linhas.map((p) => `<tr>${p.map((e) => `<td class="card-td">${card(e)}</td>`).join('')}${p.length === 1 ? '<td class="card-td"></td>' : ''}</tr>`).join('')}</tbody></table>`;
+    return `<table class="cards setor-tabela"><colgroup><col style="width:50%"><col style="width:50%"></colgroup><thead>${faixaDoSetor(setor, doSetor.length, 2, dados)}</thead><tbody>${plantas(2)}${linhas.map((p) => `<tr>${p.map((e) => `<td class="card-td">${card(e)}</td>`).join('')}${p.length === 1 ? '<td class="card-td"></td>' : ''}</tr>`).join('')}</tbody></table>`;
   }
-  function tabelaDeLista(setor, doSetor, plantas) {
+  function tabelaDeLista(setor, doSetor, plantas, dados) {
     const entradas = doSetor.reduce((acc, i) => acc.concat(entradasDoItem(i)), []);
-    return `<table class="setor-tabela"><thead>${faixaDoSetor(setor, doSetor.length, 8)}<tr><th>Nº</th><th>Foto</th><th>Item</th><th>Ambiente</th><th>Empresa</th><th>Especificações</th><th>Dimensões</th><th>Qtd.</th></tr></thead><tbody>${plantas(8)}${entradas.map(linha).join('')}</tbody></table>`;
+    return `<table class="setor-tabela"><thead>${faixaDoSetor(setor, doSetor.length, 8, dados)}<tr><th>Nº</th><th>Foto</th><th>Item</th><th>Ambiente</th><th>Empresa</th><th>Especificações</th><th>Dimensões</th><th>Qtd.</th></tr></thead><tbody>${plantas(8)}${entradas.map(linha).join('')}</tbody></table>`;
   }
   // Plantas do setor (opcional): `o.plantas[setor] = [{ id, nome, url, marcas: [{ itemId, numero, x, y }] }]`; x/y são frações (0..1) da imagem.
   // Cada planta é uma linha da tabela do setor, ANTES dos itens (a planta fica EM CIMA e os itens logo abaixo). Planta sem endereço de imagem é pulada.
@@ -143,7 +162,7 @@ tr.linha-planta td.planta-cel { text-align: center; padding: 2.5mm 3mm 2mm; back
     return partes.length ? `<div class="rodape-escritorio">${partes.map(esc).join(' &nbsp;·&nbsp; ')}</div>` : '';
   }
 
-  // opcoes: { nomeProjeto, logo (url|null), itens (com fotosExtras [{id,url}]; item com várias fotos sai com uma linha/card POR FOTO), setores, modos { setor: 'cards' } (sem entrada = lista), plantas { setor: [{ nome, url, marcas }] }, setor ('' = todos), agora (Date), escritorio: { nome, whatsapp (formatado), email, instagram (com @) } } -> { html, totalItens, setores }
+  // opcoes: { nomeProjeto, logo (url|null), itens (com fotosExtras [{id,url}]; item com várias fotos sai com uma linha/card POR FOTO), setores, modos { setor: 'cards' } (sem entrada = lista), plantas { setor: [{ nome, url, marcas }] }, setor ('' = todos), agora (Date), cliente: { nome, email, endereco } (opcional; vai no título de cada setor), escritorio: { nome, whatsapp (formatado), email, instagram (com @) } } -> { html, totalItens, setores }
   function montarHtml(opcoes) {
     const o = opcoes || {};
     const itens = Array.isArray(o.itens) ? o.itens : [];
@@ -151,11 +170,12 @@ tr.linha-planta td.planta-cel { text-align: center; padding: 2.5mm 3mm 2mm; back
     itens.forEach((i) => { if (!setores.includes(i.setor)) setores.push(i.setor); });
     const incluidos = setores.filter((s) => (!o.setor || s === o.setor) && itens.some((i) => i.setor === s));
     if (!incluidos.length) throw new Error('Não há itens no memorial para gerar o PDF.');
+    const dadosCliente = htmlDadosDoCliente(o.cliente); // nome, e-mail e endereço do cliente no título de TODO setor (e na faixa que repete em cada folha)
     const blocos = incluidos.map((setor) => {
       const doSetor = itens.filter((i) => i.setor === setor);
       const cards = o.modos && o.modos[setor] === 'cards';
       const plantas = (n) => linhasDePlanta(setor, o.plantas, n);
-      return `<section class="setor">${cards ? tabelaDeCards(setor, doSetor, plantas) : tabelaDeLista(setor, doSetor, plantas)}</section>`;
+      return `<section class="setor">${cards ? tabelaDeCards(setor, doSetor, plantas, dadosCliente) : tabelaDeLista(setor, doSetor, plantas, dadosCliente)}</section>`;
     }).join('');
     const logo = o.logo ? `<img src="${esc(o.logo)}" alt="">` : '';
     const agora = o.agora instanceof Date ? o.agora : new Date();

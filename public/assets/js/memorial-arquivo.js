@@ -28,6 +28,7 @@
     link: { pt: 9, cor: '#1c1c1c' }, chip: { pt: 8.25, peso: 700, cor: '#555555' },
     th: { pt: 8.25, peso: 700, esp: .06, cor: '#444444', caixa: 'maiuscula' },
     banda: { pt: 12, peso: 700, esp: .1, cor: '#2b3340', caixa: 'maiuscula' }, bandaN: { pt: 9, cor: '#7b8591' },
+    cliNome: { pt: 8, peso: 600, esp: .03, cor: '#2b3340' }, cliSub: { pt: 7.5, cor: '#6b7683' }, cliSep: { pt: 7.5, cor: '#aeb6c0' }, // dados do cliente no título do setor
     plantaTitulo: { pt: 8.5, peso: 800, esp: .08, cor: '#333333', caixa: 'maiuscula' }, fotoN: { pt: 7.5, peso: 700, cor: '#555555' },
     cardTitulo: { pt: 11.5, peso: 800, cor: '#1c1c1c' }, cardInfo: { pt: 8.5, cor: '#1c1c1c' }, cardRotulo: { pt: 8.5, peso: 700, cor: '#555555' },
     cardNum: { pt: 9, peso: 700, cor: '#ffffff' }, pino: { pt: 9, peso: 800, cor: '#ffffff' }
@@ -253,9 +254,34 @@
     return lista.filter((i) => { const k = chave(i.url, i.lado); if (vistos.has(k)) return false; vistos.add(k); return true; });
   }
 
+  // ---------- dados do cliente no título do setor (à direita da faixa, discretos, sem rótulos) ----------
+  // linha 1 = nome · e-mail; linha 2 = endereço. Texto que não cabe termina em "…" (a faixa tem altura fixa). Só o que existe.
+  const limpo = (v) => String(v == null ? '' : v).trim();
+  const temDadosDoCliente = (c) => !!(c && (limpo(c.nome) || limpo(c.email) || limpo(c.endereco)));
+  function encurtar(pc, txt, e, maxMm) {
+    const { tam, esp } = pc.estilo(e), maxPx = pc.px(maxMm);
+    if (pc.larguraDe(txt, tam, esp) <= maxPx) return txt;
+    let k = txt.length;
+    while (k > 1 && pc.larguraDe(txt.slice(0, k).trimEnd() + '…', tam, esp) > maxPx) k--;
+    return txt.slice(0, k).trimEnd() + '…';
+  }
+  function desenharDadosDoCliente(pc, cli, xDir, yCentro, maxMm) {
+    if (!temDadosDoCliente(cli) || maxMm < 30) return;
+    const nome = limpo(cli.nome), email = limpo(cli.email), end = limpo(cli.endereco);
+    const temL1 = !!(nome || email), duas = temL1 && !!end, dy = hLinha(E.cliSub.pt, 1.45) / 2;
+    const y1 = duas ? yCentro - dy : yCentro, y2 = duas ? yCentro + dy : yCentro;
+    if (temL1) {
+      let x = xDir, restante = maxMm;
+      if (email) { const w = pc.linha(encurtar(pc, email, E.cliSub, restante), E.cliSub, x, y1, 'dir'); x -= w; restante -= w; }
+      if (nome && email) { const w = pc.linha('  ·  ', E.cliSep, x, y1, 'dir'); x -= w; restante -= w; }
+      if (nome && restante > 8) pc.linha(encurtar(pc, nome, E.cliNome, restante), E.cliNome, x, y1, 'dir');
+    }
+    if (end) pc.linha(encurtar(pc, end, E.cliSub, maxMm), E.cliSub, xDir, y2, 'dir');
+  }
+
   // ---------- gerar ----------
   // o: { nomeProjeto, logo (url|null), itens (fotosExtras [{id,url}]), setores, modos { setor: 'cards' }, plantas { setor: [{ nome, url, marcas [{ numero, x, y }] }] },
-  //      setor ('' = todos), agora, escritorio { nome, whatsapp, email, instagram } }
+  //      setor ('' = todos), agora, cliente { nome, email, endereco } (opcional; no título de cada setor), escritorio { nome, whatsapp, email, instagram } }
   // g: { progresso(texto, fracao), cancelada() } -> { blob, paginas, bytes, aviso }
   async function gerar(o, g) {
     const PA = raiz.PdfArquivo;
@@ -286,7 +312,8 @@
     const cols = COLUNAS.map((c) => ({ t: c.t, w: c.w * larguraUtil / somaCols }));
     const xCol = []; { let x = MARG + BORDA; cols.forEach((c) => { xCol.push(x); x += c.w; }); }
     const hTh = hLinha(E.th.pt, LH_TH) + 2 * PAD_Y + BORDA;
-    const hBanda = hLinha(E.banda.pt, LH_TH) + 4;      // faixa suave com o nome do setor (padding de 2 mm em cima e embaixo)
+    // faixa suave com o nome do setor (padding de 2 mm em cima e embaixo); com os dados do cliente ela ganha altura pras duas linhas
+    const hBanda = Math.max(hLinha(E.banda.pt, LH_TH) + 4, temDadosDoCliente(o.cliente) ? 11.8 : 0);
     const w0 = LARG - 2 * MARG;
     const larguraCard = (LARG - 2 * MARG) / 2 - 2 * CARD.tdPad;
 
@@ -375,7 +402,9 @@
           pc.retangulo(MARG, b.y0 + hBanda - MOLDURA, w0, MOLDURA, COR_FAIXA.linha);
           pc.retangulo(MARG, b.y0, COR_FAIXA.barraW, hBanda, COR_FAIXA.barra);
           const cyB = b.y0 + hBanda / 2, wB = pc.linha(b.setor, E.banda, MARG + COR_FAIXA.barraW + 3.5, cyB, 'esq');
-          pc.linha(b.n + (b.n === 1 ? ' item' : ' itens'), E.bandaN, MARG + COR_FAIXA.barraW + 3.5 + wB + 4, cyB, 'esq');
+          const wN = pc.linha(b.n + (b.n === 1 ? ' item' : ' itens'), E.bandaN, MARG + COR_FAIXA.barraW + 3.5 + wB + 4, cyB, 'esq');
+          const xDir = MARG + w0 - 4, fimEsq = MARG + COR_FAIXA.barraW + 3.5 + wB + 4 + wN;
+          desenharDadosDoCliente(pc, o.cliente, xDir, cyB, xDir - fimEsq - 8); // nome, e-mail e endereço do cliente, à direita da faixa (repete em toda folha)
           if (!b.cards) {
             const yTh = b.y0 + hBanda;
             pc.retangulo(MARG, yTh, w0, hTh, '#ececec');

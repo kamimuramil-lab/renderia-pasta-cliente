@@ -411,7 +411,10 @@
       const logo = galeriaAtual.marcaDagua && galeriaAtual.marcaDagua.url && galeriaAtual.marcaDagua.ativa !== false ? galeriaAtual.marcaDagua.url : null;
       const c = window.AjudaCliente ? window.AjudaCliente.contatosValidos(galeriaAtual.contatosEscritorio) : {};
       const escritorio = { nome: galeriaAtual.nomeEscritorio || '', whatsapp: c.whatsapp && window.AjudaCliente ? window.AjudaCliente.formatarWhatsapp(c.whatsapp) : '', email: c.email || '', instagram: c.instagram ? '@' + c.instagram : '' };
-      const opcoes = { nomeProjeto: galeriaAtual.nomeProjeto, logo, itens: m.itens, setores: m.setores, modos: m.modos || {}, plantas: m.plantas || {}, setor, agora: new Date(), escritorio };
+      // nome, e-mail e endereço do cliente (dos "Dados do projeto") vão no título de cada setor do PDF
+      const dc = window.DadosProjeto ? window.DadosProjeto.interpretar(hubDe(galeriaAtual).dadosProjeto) : {};
+      const cliente = { nome: dc.nome || '', email: dc.email || '', endereco: dc.endereco || '' };
+      const opcoes = { nomeProjeto: galeriaAtual.nomeProjeto, logo, itens: m.itens, setores: m.setores, modos: m.modos || {}, plantas: m.plantas || {}, setor, agora: new Date(), escritorio, cliente };
       const hoje = new Date().toLocaleDateString('pt-BR').split('/').join('-');
       const titulo = `${galeriaAtual.nomeProjeto} - Memorial de itens${setor ? ' - ' + setor : ''} - ${hoje}`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim(); // vira o nome sugerido do arquivo
       const aposEntregar = (r) => { if (r.via === 'toque') avisoDoMemorial('O PDF está pronto.', { rotulo: 'Abrir o PDF', acao: r.abrir }); else avisoDoMemorial(''); };
