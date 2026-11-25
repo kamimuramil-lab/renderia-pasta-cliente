@@ -775,6 +775,14 @@ body.visual-novo .btn-tema{ display:flex; }
 .mini-planta.ampliada .mini-planta-corpo{ cursor:zoom-out; }
 .mini-planta-corpo img{ position:absolute; inset:0; width:100%; height:100%; max-width:none; max-height:none; object-fit:contain; pointer-events:none; user-select:none; }
 .mini-planta-pins{ position:absolute; inset:0; }
+/* Legenda discreta: azul = imagem fixa, vermelho = 360°. Não influencia a largura da miniatura (width:0 + min-width:100%). */
+.mini-planta-legenda{ width:0; min-width:100%; display:flex; flex-wrap:wrap; justify-content:center; gap:3px 14px; margin-top:6px; font-size:10px; letter-spacing:.03em; color:var(--text-dim); line-height:1.2; pointer-events:none; user-select:none; }
+.mini-planta-legenda span{ display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+.mini-planta-legenda i{ width:7px; height:7px; border-radius:50%; border:1px solid rgba(255,255,255,.9); box-shadow:0 0 0 .5px rgba(0,0,0,.35); }
+.mini-planta-legenda .lg-fixa{ background:#2f7de1; }
+.mini-planta-legenda .lg-360{ background:#e5372e; }
+.mini-planta.ampliada .mini-planta-legenda{ font-size:11.5px; margin-top:8px; }
+.mini-planta.ampliada .mini-planta-legenda i{ width:9px; height:9px; }
 .mini-pin{
   position:absolute; width:11px; height:11px; padding:0; border-radius:50%; transform:translate(-50%,-50%);
   border:1.5px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.6); cursor:pointer; background:#2f7de1;

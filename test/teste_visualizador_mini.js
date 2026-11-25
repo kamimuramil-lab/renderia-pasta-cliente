@@ -72,4 +72,13 @@ assert.ok(/OK, ABRIR MESMO ASSIM/.test(html) && /execução ou orçamento/.test(
 assert.ok(/categoria-anterior/.test(main) && /Categoria anterior:/.test(main));
 console.log('OK');
 
+console.log('== Legenda da miniatura da planta: azul = imagem fixa, vermelho = 360° (mesmas cores dos ícones) ==');
+assert.ok(/id="miniPlantaLegenda"/.test(html) && /class="lg-fixa"><\/i>Imagem fixa/.test(html) && /class="lg-360"><\/i>360°/.test(html), 'legenda no HTML, dentro da miniatura');
+assert.ok(html.indexOf('id="miniPlantaLegenda"') > html.indexOf('id="miniPlantaCorpo"') && html.indexOf('id="miniPlantaLegenda"') < html.indexOf('id="btnMiniReabrir"'), 'fica logo abaixo da planta');
+const cor = (re) => (css.match(re) || [])[1];
+assert.strictEqual(cor(/\.mini-planta-legenda \.lg-fixa\{ background:(#[0-9a-f]{6})/i), cor(/\.mini-pin\{[^}]*background:(#[0-9a-f]{6})/i), 'azul da legenda = azul do ícone de imagem fixa');
+assert.strictEqual(cor(/\.mini-planta-legenda \.lg-360\{ background:(#[0-9a-f]{6})/i), cor(/\.mini-pin\.p360\{ background:(#[0-9a-f]{6})/i), 'vermelho da legenda = vermelho do ícone 360°');
+assert.ok(/\.mini-planta-legenda\{ width:0; min-width:100%/.test(css), 'a legenda não aumenta a largura da miniatura');
+console.log('OK');
+
 console.log('\nTODOS OS TESTES DO VISUALIZADOR (ESTRUTURA) PASSARAM');

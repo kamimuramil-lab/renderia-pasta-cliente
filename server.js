@@ -346,7 +346,7 @@ async function galeriaComUrls(galeriaObj) {
       fotosExtras: await Promise.all((fotosExtras || []).map(async (f) => ({ id: f.id, url: await storage.urlTemporaria(f.r2Key) })))
     }))), plantas: await plantasMemorialComUrl(m.plantas) };
   }
-  const { clienteSenhaHash, sessoesClienteAtivas, orcamentos, recursosAtivos, memorial, reunioes, ...resto } = galeriaObj;
+  const { clienteSenhaHash, clienteSenhaCifrada, sessoesClienteAtivas, orcamentos, recursosAtivos, memorial, reunioes, ...resto } = galeriaObj;
   const estadoPerfil = galeria.lerEstado(CAMINHO_DADOS);
   const nomeEscritorio = galeria.nomeEscritorioDaLicenca(estadoPerfil, galeriaObj.licencaUsuario);
   const contatosEscritorio = galeria.contatosEscritorioDaLicenca(estadoPerfil, galeriaObj.licencaUsuario);
@@ -393,7 +393,8 @@ app.get('/api/app/galeria/:projetoId', exigirSessaoArquiteto, async (req, res) =
     const g = galeria.buscarGaleriaPorProjeto(CAMINHO_DADOS, req.params.projetoId);
     if (!g) return res.status(404).json({ erro: 'Essa Pasta do Cliente ainda não foi criada.' });
     if (g.licencaUsuario !== req.licencaUsuario) return res.status(403).json({ erro: 'Esse projeto não pertence a essa licença.' });
-    res.json(await galeriaComUrls(g));
+    // Só aqui (rota do arquiteto, dono conferido acima) a senha do cliente sai em texto: o escritório vê login e senha de cada projeto.
+    res.json({ ...(await galeriaComUrls(g)), clienteSenha: galeria.senhaDoClientePeloDono(CAMINHO_DADOS, req.params.projetoId, req.licencaUsuario) });
   } catch (e) {
     res.status(500).json({ erro: e.message });
   }
