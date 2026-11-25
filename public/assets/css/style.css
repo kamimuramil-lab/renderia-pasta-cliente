@@ -1096,7 +1096,14 @@ button.dash-chip-opcao:hover{ border-color:var(--steel-500); }
 .mem-setor-titulo:hover{ color:var(--text); }
 .mem-seta{ display:inline-block; transition:transform .15s; font-size:14px; }
 .mem-setor.recolhido .mem-seta{ transform:rotate(-90deg); }
-.mem-setor.recolhido .mem-tabela, .mem-setor.recolhido .mem-cards{ display:none !important; }
+.mem-setor.recolhido .mem-setor-corpo{ display:none !important; }
+/* o setor é UM bloco (como nos PDFs): moldura única, faixa suave com o nome e, dentro, a planta e os itens */
+.mem-setor{ border:1px solid var(--line); border-radius:var(--radius-m); background:var(--bg-elev); overflow:hidden; }
+.mem-setor .mem-setor-titulo{ margin:0; padding:11px 16px; background:color-mix(in srgb, var(--steel-300) 8%, var(--bg-elev)); border-left:3px solid color-mix(in srgb, var(--steel-300) 45%, transparent); border-bottom:1px solid var(--line); color:var(--steel-300); }
+.mem-setor.recolhido .mem-setor-titulo{ border-bottom-color:transparent; }
+.mem-setor-corpo{ padding:14px 16px 16px; display:flex; flex-direction:column; gap:16px; }
+.mem-setor-corpo .mem-tabela{ border:0; border-radius:0; background:none; }
+.mem-setor-corpo .mem-tabela th:first-child, .mem-setor-corpo .mem-tabela td:first-child{ padding-left:4px; }
 @media screen and (max-width:900px){
   /* celular em pé: a foto do item ocupa a largura do cartão (antes era um quadradinho de 76 px) */
   .mem-tabela td.mem-col-foto{ padding:8px 0 4px; }
@@ -1147,22 +1154,19 @@ button.dash-chip-opcao:hover{ border-color:var(--steel-500); }
 .mem-card-linha > span:first-child{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim); }
 .mem-card-linha a{ color:var(--steel-300); font-size:13px; }
 
-/* Planta do setor (memorial): imagem com círculos numerados, sem zoom (a planta cabe na largura da tela) */
-.mem-planta-bloco{ margin:0 0 14px; }
-.mem-planta-btn{ display:inline-flex; align-items:center; gap:8px; font:inherit; font-size:13.5px; font-weight:700; padding:9px 16px; border-radius:999px; border:1px solid var(--line); background:var(--bg-elev); color:var(--text); cursor:pointer; }
-.mem-planta-btn:hover, .mem-planta-btn[aria-expanded="true"]{ border-color:var(--steel-300); }
-.mem-planta-corpo{ margin-top:12px; display:flex; flex-direction:column; gap:20px; }
-.mem-planta-corpo[hidden]{ display:none; }
+/* Planta do setor (memorial): imagem com círculos numerados, sem zoom (a planta cabe na largura da tela); é a 1ª parte do bloco do setor */
+.mem-planta-bloco{ display:flex; flex-direction:column; gap:18px; }
 .mem-planta{ margin:0; }
-.mem-planta figcaption{ font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim); font-weight:700; margin-bottom:6px; }
-.mem-planta-palco{ position:relative; container-type:inline-size; background:#fff; border:1px solid var(--line); border-radius:var(--radius-m); overflow:hidden; line-height:0; }
+.mem-planta figcaption{ display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 12px; margin-bottom:8px; }
+.mem-planta-nome{ font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim); font-weight:700; }
+.mem-planta-dica{ font-size:12px; color:var(--text-faint); }
+.mem-planta-palco{ --m:.027; position:relative; container-type:inline-size; background:#fff; border:1px solid var(--line); border-radius:var(--radius-s); overflow:hidden; line-height:0; }
 .mem-planta-palco img{ display:block; width:100%; height:auto; }
 /* textos do arquiteto em cima da planta: o tamanho é uma fração da LARGURA da planta (100cqw = largura do palco, que é o container) */
 .mem-planta-textos{ position:absolute; inset:0; pointer-events:none; }
 .mem-planta-textos .pl-texto{ font-size:calc(var(--t, .018) * 100cqw); }
-.mem-pino{ position:absolute; transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center; width:clamp(24px, 3.4cqw, 48px); height:clamp(24px, 3.4cqw, 48px); box-sizing:border-box; padding:0; border-radius:50%; background:#d6342c; color:#fff; border:2px solid #fff; box-shadow:0 1px 5px rgba(0,0,0,.55); font:inherit; font-size:clamp(12px, 1.8cqw, 24px); font-weight:800; line-height:1; cursor:pointer; }
+/* círculo numerado: tamanho = fração da largura da planta (--m, ajustado pelo arquiteto), nunca menor que 20 px (legível e fácil de tocar) */
+.mem-pino{ position:absolute; transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center; width:clamp(20px, calc(var(--m, .027) * 100cqw), 64px); height:clamp(20px, calc(var(--m, .027) * 100cqw), 64px); box-sizing:border-box; padding:0; border-radius:50%; background:#d6342c; color:#fff; border:2px solid #fff; box-shadow:0 1px 5px rgba(0,0,0,.55); font:inherit; font-size:clamp(10px, calc(var(--m, .027) * 100cqw * .5), 30px); font-weight:800; line-height:1; cursor:pointer; }
 .mem-pino:hover, .mem-pino:focus-visible{ transform:translate(-50%,-50%) scale(1.15); z-index:2; }
-.mem-planta-dica{ font-size:12.5px; color:var(--text-dim); margin:0; }
-.mem-setor.recolhido .mem-planta-bloco{ display:none; }
 @keyframes memDestaque{ 0%, 60%{ background:color-mix(in srgb, var(--steel-300) 30%, transparent); } 100%{ background:transparent; } }
 tr.mem-destaque td, .mem-card.mem-destaque{ animation:memDestaque 2.1s ease; }

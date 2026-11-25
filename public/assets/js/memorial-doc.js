@@ -30,10 +30,10 @@ body { font-family: 'Inter', 'Segoe UI', Arial, Helvetica, sans-serif; font-size
 .projeto { font-family: 'Archivo', 'Inter', 'Segoe UI', Arial, sans-serif; font-size: 26pt; font-weight: 800; line-height: 1.1; margin: 1mm 0 2mm; overflow-wrap: anywhere; letter-spacing: -.01em; }
 .data { font-size: 8.5pt; color: #777; }
 .setor { margin-bottom: 6mm; }
-/* cada setor é UM bloco: moldura única + faixa escura com o nome do setor (a faixa é a 1ª linha do cabeçalho da tabela, então repete em toda folha de continuação) */
-table.setor-tabela { border: 1.6pt solid #1c1c1c; border-radius: 0; }
-tr.titulo-setor th { background: #1c1c1c; color: #fff; padding: 2.5mm 4mm; font-family: 'Archivo', 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 800; font-size: 15pt; letter-spacing: .08em; border-bottom: 0; white-space: normal; }
-tr.titulo-setor th span { font-weight: 400; color: #bdbdbd; font-size: 9.5pt; letter-spacing: 0; margin-left: 4mm; text-transform: none; }
+/* cada setor é UM bloco: moldura fina + faixa suave com o nome do setor (a faixa é a 1ª linha do cabeçalho da tabela, então repete em toda folha de continuação) */
+table.setor-tabela { border: .7pt solid #aeb6c0; border-radius: 0; }
+tr.titulo-setor th { background: #eef1f4; color: #2b3340; padding: 2mm 4mm 2mm 3.5mm; font-family: 'Archivo', 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 700; font-size: 12pt; letter-spacing: .1em; border-bottom: .7pt solid #aeb6c0; border-left: 1.3mm solid #7a8796; white-space: normal; }
+tr.titulo-setor th span { font-weight: 400; color: #7b8591; font-size: 9pt; letter-spacing: 0; margin-left: 4mm; text-transform: none; }
 table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; border: 1px solid #bbb; border-radius: 12px; overflow: hidden; font-size: 8.5pt; color: #1c1c1c; table-layout: auto; }
 thead { display: table-header-group; }
 th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; background: #ececec; color: #444; padding: 5px 6px; border-bottom: 1px solid #d4d4d4; white-space: nowrap; }
@@ -65,11 +65,13 @@ table.cards td.card-td { width: 50%; border: 0; padding: 2mm 2mm 4mm; height: 1p
 .card-link a { color: #1c1c1c; text-decoration: none; }
 /* PLANTA do setor: a 1ª linha da tabela do setor (altura máx. 110 mm), com um círculo numerado (o Nº do item) em cada posição marcada; os itens vêm logo abaixo */
 .setor + .setor { break-before: page; page-break-before: always; }
-tr.linha-planta td.planta-cel { text-align: center; padding: 2.5mm 3mm 2mm; background: #fafafa; border-bottom: 1.2pt solid #1c1c1c; }
+tr.linha-planta td.planta-cel { text-align: center; padding: 2.5mm 3mm 2mm; background: #fafafa; border-bottom: .7pt solid #cfd5db; }
 .planta-titulo { text-align: left; margin: 0 0 1.5mm; font-weight: 800; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .08em; color: #333; line-height: 1.3; }
 .planta-palco { position: relative; display: inline-block; line-height: 0; border: 1px solid #c9c9c9; background: #fff; }
 .planta-palco img { display: block; max-width: 268mm; max-height: 110mm; width: auto; height: auto; }
-.pino { position: absolute; transform: translate(-50%, -50%); width: 7mm; height: 7mm; border-radius: 50%; background: #d6342c; color: #fff; border: .6mm solid #fff; box-shadow: 0 0 1.2mm rgba(0,0,0,.55); font-size: 9pt; font-weight: 800; line-height: 5.8mm; text-align: center; }
+/* círculos numerados: o tamanho é uma FRAÇÃO da largura da planta (--m, ajustada pelo arquiteto; 100cqw = largura da camada, que tem o tamanho da imagem) */
+.planta-pinos { position: absolute; inset: 0; container-type: size; pointer-events: none; }
+.pino { position: absolute; transform: translate(-50%, -50%); box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: calc(var(--m, .027) * 100cqw); height: calc(var(--m, .027) * 100cqw); border-radius: 50%; background: #d6342c; color: #fff; border: calc(var(--m, .027) * 100cqw * .085) solid #fff; box-shadow: 0 0 1.2mm rgba(0,0,0,.55); font-size: calc(var(--m, .027) * 100cqw * .5); font-weight: 800; line-height: 1; }
 .planta-nota { margin-top: 2mm; font-size: 8pt; color: #777; text-align: left; line-height: 1.3; }
 /* TEXTOS escritos em cima da planta: camada do tamanho da imagem; o texto vale uma FRAÇÃO da largura dela (100cqw = largura da camada) */
 .planta-textos { position: absolute; inset: 0; container-type: size; overflow: hidden; pointer-events: none; }
@@ -121,6 +123,7 @@ tr.linha-planta td.planta-cel { text-align: center; padding: 2.5mm 3mm 2mm; back
   // Plantas do setor (opcional): `o.plantas[setor] = [{ id, nome, url, marcas: [{ itemId, numero, x, y }] }]`; x/y são frações (0..1) da imagem.
   // Cada planta é uma linha da tabela do setor, ANTES dos itens (a planta fica EM CIMA e os itens logo abaixo). Planta sem endereço de imagem é pulada.
   const frac = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0; };
+  const tamanhoDosPinos = (p) => { const n = Number(p && p.tamanhoMarcas); return Number.isFinite(n) && n > 0 ? n : 0.027; }; // servidor antigo não manda: padrão
   function linhasDePlanta(setor, plantas, colspan) {
     const lista = plantas && Array.isArray(plantas[setor]) ? plantas[setor] : [];
     const validas = lista.filter((p) => p && p.url);
@@ -128,7 +131,7 @@ tr.linha-planta td.planta-cel { text-align: center; padding: 2.5mm 3mm 2mm; back
       const pinos = (Array.isArray(p.marcas) ? p.marcas : []).map((m) => `<span class="pino" style="left:${(frac(m.x) * 100).toFixed(3)}%; top:${(frac(m.y) * 100).toFixed(3)}%;">${esc(m.numero)}</span>`).join('');
       const PT = window.PlantaTextos; // carregado depois deste arquivo na página: lido só agora (sem ele, a planta sai sem textos em vez de quebrar)
       const textos = PT && PT.html ? PT.html(p.textos) : ''; // textos escritos em cima da planta (mesmo desenho do app); os círculos ficam por cima
-      return `<tr class="linha-planta"><td class="planta-cel" colspan="${colspan}"><div class="planta-titulo">${esc(setor)} — ${validas.length > 1 ? `Planta ${k + 1}` : 'Planta'}</div><div class="planta-palco"><img src="${esc(p.url)}" alt="">${textos ? `<div class="planta-textos">${textos}</div>` : ''}${pinos}</div></td></tr>`;
+      return `<tr class="linha-planta"><td class="planta-cel" colspan="${colspan}"><div class="planta-titulo">${esc(setor)} — ${validas.length > 1 ? `Planta ${k + 1}` : 'Planta'}</div><div class="planta-palco"><img src="${esc(p.url)}" alt="">${textos ? `<div class="planta-textos">${textos}</div>` : ''}${pinos ? `<div class="planta-pinos" style="--m:${tamanhoDosPinos(p)};">${pinos}</div>` : ''}</div></td></tr>`;
     }).join('');
   }
 

@@ -1041,6 +1041,13 @@ app.put('/api/app/galeria/:projetoId/memorial/plantas/:plantaId/textos', exigirS
     res.json({ ok: true, planta: { id: planta.id, textos: planta.textos } });
   } catch (e) { res.status(400).json({ erro: e.message }); }
 });
+// Tamanho dos círculos numerados da planta (um valor só, fração da largura da planta).
+app.put('/api/app/galeria/:projetoId/memorial/plantas/:plantaId/tamanho-marcas', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
+  try {
+    const planta = memLib.definirTamanhoMarcasDaPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.plantaId, (req.body || {}).tamanho, req.licencaUsuario);
+    res.json({ ok: true, planta: { id: planta.id, tamanhoMarcas: planta.tamanhoMarcas } });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
 app.delete('/api/app/galeria/:projetoId/memorial/plantas/:plantaId', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
   try {
     const chave = memLib.excluirPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.plantaId, req.licencaUsuario);

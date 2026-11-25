@@ -115,7 +115,7 @@ const contar = (s, re) => (s.match(re) || []).length;
   const base2 = { nomeProjeto: 'P', itens, setores: ['Louças', 'Móveis'], modos: {}, setor: 'Louças', agora: new Date(2026, 11, 1) };
   // impressão
   let h = MemorialDoc.montarHtml({ ...base2, plantas: comTextos }).html;
-  const camada = h.match(/<div class="planta-textos">([\s\S]*?)<\/div><span class="pino"/);
+  const camada = h.match(/<div class="planta-textos">([\s\S]*?)<\/div><div class="planta-pinos"/);
   assert.ok(camada, 'camada de textos dentro da planta, antes dos círculos (os círculos ficam por cima)');
   assert.strictEqual(contar(camada[1], /class="pl-texto /g), 2, 'o texto em branco não sai');
   assert.ok(camada[1].includes('>COZINHA<') && camada[1].includes('Banheiro &lt;b&gt;&amp;&lt;/b&gt;') && !camada[1].includes('<b>'), 'texto escapado');
@@ -126,6 +126,15 @@ const contar = (s, re) => (s.match(re) || []).length;
   assert.ok(!MemorialDoc.montarHtml({ ...base2, plantas: comTextos }).html.includes('class="planta-textos"'), 'sem o módulo dos textos a planta sai sem eles, sem quebrar');
   global.window.PlantaTextos = require(js('planta-textos.js'));
   ok('impressão: camada de textos sob os círculos, escapada, com fundo/contorno/negrito, escala pela largura da imagem');
+
+  // tamanho dos círculos (fração da largura da planta, escolhida pelo arquiteto) e faixa suave do setor
+  const comTam = (v) => ({ 'Louças': [{ ...comTextos['Louças'][0], tamanhoMarcas: v }] });
+  assert.ok(MemorialDoc.montarHtml({ ...base2, plantas: comTam(0.04) }).html.includes('<div class="planta-pinos" style="--m:0.04;">'), 'o tamanho do arquiteto vai pra camada dos círculos');
+  for (const v of [undefined, null, 0, -1, 'abc']) assert.ok(MemorialDoc.montarHtml({ ...base2, plantas: comTam(v) }).html.includes('style="--m:0.027;"'), 'servidor antigo/valor ruim: tamanho padrão ' + v);
+  assert.ok(h.includes('width: calc(var(--m, .027) * 100cqw)') && h.includes('font-size: calc(var(--m, .027) * 100cqw * .5)') && !h.includes('width: 7mm; height: 7mm'), 'o círculo escala com a largura da imagem (não é mais 7 mm fixos)');
+  assert.ok(h.includes('tr.titulo-setor th { background: #eef1f4;') && !/tr\.titulo-setor th \{ background: #1c1c1c/.test(h), 'faixa do setor suave (não mais a faixa preta)');
+  assert.ok(h.includes('table.setor-tabela { border: .7pt solid #aeb6c0;'), 'moldura fina do setor');
+  ok('impressão: tamanho dos círculos pela planta (padrão se faltar), faixa do setor suave');
 
   // celular (canvas): contexto de teste que anota o que foi desenhado
   const chamadas = [];
@@ -168,6 +177,8 @@ const contar = (s, re) => (s.match(re) || []).length;
   const arq = fs.readFileSync(js('memorial-arquivo.js'), 'utf8');
   assert.ok(arq.includes("t: 'seg'") && arq.includes('entradasDoItem') && arq.includes('imgs.clear()'), 'celular: cada setor é um bloco (faixa + moldura), uma entrada por foto, e as fotos de cada folha são soltas depois de desenhar');
   assert.ok(arq.includes('falhasPlantas') && arq.includes('Não consegui carregar a imagem desta planta'), 'celular: planta que não baixa vira caixa com aviso (não derruba o PDF)');
+  assert.ok(arq.includes('const dPino = tamPino * dw') && arq.includes('Number(b.planta.tamanhoMarcas) > 0') && !arq.includes('3.5 * S, 0, Math.PI * 2'), 'celular: o círculo tem diâmetro = fração da largura da planta (não mais 7 mm fixos)');
+  assert.ok(arq.includes("fundo: '#eef1f4'") && arq.includes("cor: '#2b3340'") && !arq.includes("pc.retangulo(MARG, b.y0, w0, hBanda, '#1c1c1c')"), 'celular: faixa do setor suave');
   assert.ok(!arq.includes("t: 'planta'") && !arq.includes("'frag'"), 'sem os blocos antigos (planta em folha própria, fragmento de tabela)');
   ok('ligações: hub passa modos/plantas; celular solta as fotos folha por folha e avisa das que falharam');
 }

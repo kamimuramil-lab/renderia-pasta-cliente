@@ -368,6 +368,37 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
     assert.strictEqual((await textar('mpl_inexistente', [])).status, 400);
     assert.strictEqual((await api('GET', P, { sessao: 'tokA' })).json.plantas['Louças'][0].textos.length, 2, 'nada mudou');
     ok('outra conta recebe erro, sem o recurso dá 403, planta inexistente é recusada');
+
+    console.log('== 12. Tamanho dos círculos numerados da planta ==');
+    const tamanhar = (plantaId, tamanho, sessao) => api('PUT', `${P}/plantas/${plantaId}/tamanho-marcas`, { sessao: sessao || 'tokA', corpo: { tamanho } });
+    // 12.1 sem nada gravado: valor padrão (planta antiga e nova), com os limites avisados no info
+    lista = (await api('GET', P, { sessao: 'tokA' })).json;
+    assert.strictEqual(lista.plantas['Louças'][0].tamanhoMarcas, 0.027, 'padrão menor que o antigo 3,4%');
+    assert.deepStrictEqual(lista.limites.tamanhoMarcas, { min: 0.012, max: 0.06, padrao: 0.027 });
+    // 12.2 validação antes de gravar
+    for (const v of ['abc', null, '', true, {}, NaN]) { r = await tamanhar(pl.id, v); assert.strictEqual(r.status, 400, String(v)); assert.match(r.json.erro, /inválido/); }
+    assert.strictEqual((await api('GET', P, { sessao: 'tokA' })).json.plantas['Louças'][0].tamanhoMarcas, 0.027, 'recusa não grava nada');
+    // 12.3 gravar: o valor é guardado e limitado ao intervalo
+    r = await tamanhar(pl.id, 0.04); assert.strictEqual(r.status, 200); assert.strictEqual(r.json.planta.tamanhoMarcas, 0.04);
+    assert.strictEqual((await tamanhar(pl.id, 5)).json.planta.tamanhoMarcas, 0.06, 'passou do máximo: vira o máximo');
+    assert.strictEqual((await tamanhar(pl.id, '0.0001')).json.planta.tamanhoMarcas, 0.012, 'abaixo do mínimo: vira o mínimo');
+    await tamanhar(pl.id, 0.04);
+    // 12.4 leitura: arquiteto e cliente recebem; cada planta tem o seu; círculos e textos não mexem nele
+    lista = (await api('GET', P, { sessao: 'tokA' })).json;
+    assert.strictEqual(lista.plantas['Louças'][0].tamanhoMarcas, 0.04); assert.strictEqual(lista.plantas['Louças'][1].tamanhoMarcas, 0.027, 'a outra planta continua no padrão');
+    await marcar(pl.id, [{ itemId: L1.id, x: 0.2, y: 0.3 }]); await textar(pl.id, [t1]);
+    assert.strictEqual((await api('GET', P, { sessao: 'tokA' })).json.plantas['Louças'][0].tamanhoMarcas, 0.04, 'gravar círculos e textos não mexe no tamanho');
+    await textar(pl.id, [t1, t2]);
+    r = await api('GET', `/api/cliente/${link}/galeria`, { cliente: tokCli });
+    assert.strictEqual(r.json.memorial.plantas['Louças'][0].tamanhoMarcas, 0.04, 'o cliente recebe o tamanho');
+    assert.strictEqual(r.json.memorial.plantas['Louças'][1].tamanhoMarcas, 0.027);
+    ok('tamanho dos círculos: padrão, validação, limites, por planta, arquiteto e cliente recebem');
+    // 12.5 posse e recurso
+    assert.strictEqual((await tamanhar(pl.id, 0.03, 'tokB')).status, 400);
+    for (const sessao of ['tokASemMem', 'tokOld']) assert.strictEqual((await tamanhar(pl.id, 0.03, sessao)).status, 403);
+    assert.strictEqual((await tamanhar('mpl_inexistente', 0.03)).status, 400);
+    assert.strictEqual((await api('GET', P, { sessao: 'tokA' })).json.plantas['Louças'][0].tamanhoMarcas, 0.04, 'nada mudou');
+    ok('tamanho: outra conta recebe erro, sem o recurso dá 403, planta inexistente é recusada');
   } finally {
     filho.kill();
     licenca.close();

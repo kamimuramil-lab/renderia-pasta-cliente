@@ -27,7 +27,7 @@
     td: { pt: 8.5, cor: '#1c1c1c' }, num: { pt: 8.5, peso: 700, cor: '#666666' }, item: { pt: 8.5, peso: 700, cor: '#1c1c1c' },
     link: { pt: 9, cor: '#1c1c1c' }, chip: { pt: 8.25, peso: 700, cor: '#555555' },
     th: { pt: 8.25, peso: 700, esp: .06, cor: '#444444', caixa: 'maiuscula' },
-    banda: { pt: 15, peso: 800, esp: .08, cor: '#ffffff', caixa: 'maiuscula' }, bandaN: { pt: 9.5, cor: '#bdbdbd' },
+    banda: { pt: 12, peso: 700, esp: .1, cor: '#2b3340', caixa: 'maiuscula' }, bandaN: { pt: 9, cor: '#7b8591' },
     plantaTitulo: { pt: 8.5, peso: 800, esp: .08, cor: '#333333', caixa: 'maiuscula' }, fotoN: { pt: 7.5, peso: 700, cor: '#555555' },
     cardTitulo: { pt: 11.5, peso: 800, cor: '#1c1c1c' }, cardInfo: { pt: 8.5, cor: '#1c1c1c' }, cardRotulo: { pt: 8.5, peso: 700, cor: '#555555' },
     cardNum: { pt: 9, peso: 700, cor: '#ffffff' }, pino: { pt: 9, peso: 800, cor: '#ffffff' }
@@ -35,7 +35,9 @@
   // medidas dos cards (mm), iguais às do CSS do memorial-doc.js
   const CARD = { imgH: 80, padX: 4, padTopo: 2.5, padBaixo: 3, raio: 3, tdPad: 2, tdPadBaixo: 4, circulo: 6.5 };
   const PLANTA = { h: 110, padTopo: 2.5, padBaixo: 2, padX: 3, tituloGap: 1.5 }; // caixa da planta: 110 mm de altura, a imagem entra inteira dentro dela
-  const MOLDURA = 1.6 * 25.4 / 72;                  // moldura única do setor (1,6 pt)
+  const MOLDURA = .7 * 25.4 / 72;                   // moldura única do setor (0,7 pt, cinza-azulado: separa sem pesar)
+  const COR_FAIXA = { fundo: '#eef1f4', linha: '#aeb6c0', barra: '#7a8796', barraW: 1.3 };
+  const TAMANHO_PINO_PADRAO = .027;                  // fração da largura da planta (o arquiteto ajusta por planta; servidor antigo não manda)
   // maior lado (px) com que cada tipo de imagem é guardada: foto de 20 mm precisa de pouco; card (130 mm) e planta (110 mm de altura), de mais
   const LADO = { lista: 520, card: 1000, planta: 2600 };
   const PT = 25.4 / 72;
@@ -214,7 +216,7 @@
   function desenharPlanta(pc, ctx, S, x, y, w, b, img) {
     const h = hPlantaLinha();
     pc.retangulo(x, y, w, h, '#fafafa');
-    pc.retangulo(x, y + h - 1.2 * 25.4 / 72, w, 1.2 * 25.4 / 72, '#1c1c1c');
+    pc.retangulo(x, y + h - MOLDURA, w, MOLDURA, '#cfd5db');
     pc.linha(b.setor + ' — ' + b.rotulo, E.plantaTitulo, x + PLANTA.padX, y + PLANTA.padTopo + hTituloPlanta() / 2, 'esq');
     const topo = y + PLANTA.padTopo + hTituloPlanta() + PLANTA.tituloGap, caixaW = w - 2 * PLANTA.padX - 2 * BORDA;
     if (!img) {
@@ -226,12 +228,15 @@
     ctx.drawImage(img, x0 * S, y0 * S, dw * S, dh * S);
     ctx.save(); ctx.strokeStyle = '#c9c9c9'; ctx.lineWidth = BORDA * S; ctx.strokeRect(x0 * S - BORDA * S / 2, y0 * S - BORDA * S / 2, dw * S + BORDA * S, dh * S + BORDA * S); ctx.restore();
     desenharTextosDaPlanta(ctx, S, x0, y0, dw, dh, b.planta.textos); // os textos ficam por baixo dos círculos numerados
+    // círculos numerados: o diâmetro é uma FRAÇÃO da largura da imagem desenhada (a mesma regra do site e do PDF do computador); borda branca = 8,5% do diâmetro, número = 50%
+    const tamPino = Number(b.planta.tamanhoMarcas) > 0 ? Number(b.planta.tamanhoMarcas) : TAMANHO_PINO_PADRAO;
+    const dPino = tamPino * dw, rPino = dPino / 2, estiloPino = { pt: dPino * 0.5 * 72 / 25.4, peso: 800, cor: '#ffffff' };
     (Array.isArray(b.planta.marcas) ? b.planta.marcas : []).forEach((mk) => {
       const cx = x0 + fracao(mk.x) * dw, cy = y0 + fracao(mk.y) * dh;
       ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.55)'; ctx.shadowBlur = 1.2 * S; ctx.fillStyle = '#ffffff';
-      ctx.beginPath(); ctx.arc(cx * S, cy * S, 3.5 * S, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-      ctx.save(); ctx.fillStyle = '#d6342c'; ctx.beginPath(); ctx.arc(cx * S, cy * S, 2.9 * S, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-      pc.linha(String(mk.numero == null ? '' : mk.numero), E.pino, cx, cy, 'centro');
+      ctx.beginPath(); ctx.arc(cx * S, cy * S, rPino * S, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      ctx.save(); ctx.fillStyle = '#d6342c'; ctx.beginPath(); ctx.arc(cx * S, cy * S, rPino * (1 - 0.17) * S, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      pc.linha(String(mk.numero == null ? '' : mk.numero), estiloPino, cx, cy, 'centro');
     });
   }
 
@@ -281,7 +286,7 @@
     const cols = COLUNAS.map((c) => ({ t: c.t, w: c.w * larguraUtil / somaCols }));
     const xCol = []; { let x = MARG + BORDA; cols.forEach((c) => { xCol.push(x); x += c.w; }); }
     const hTh = hLinha(E.th.pt, LH_TH) + 2 * PAD_Y + BORDA;
-    const hBanda = hLinha(E.banda.pt, LH_TH) + 6;      // faixa escura com o nome do setor (padding de 3 mm em cima e embaixo)
+    const hBanda = hLinha(E.banda.pt, LH_TH) + 4;      // faixa suave com o nome do setor (padding de 2 mm em cima e embaixo)
     const w0 = LARG - 2 * MARG;
     const larguraCard = (LARG - 2 * MARG) / 2 - 2 * CARD.tdPad;
 
@@ -365,10 +370,12 @@
           pc.retangulo(MARG, MARG + hCab + 4, LARG - 2 * MARG, 2 * PX, '#1c1c1c');
         } else if (b.t === 'seg') {
           const h0 = b.y1 - b.y0;
-          // faixa escura com o nome do setor (repete em toda folha de continuação)
-          pc.retangulo(MARG, b.y0, w0, hBanda, '#1c1c1c');
-          const cyB = b.y0 + hBanda / 2, wB = pc.linha(b.setor, E.banda, MARG + 4, cyB, 'esq');
-          pc.linha(b.n + (b.n === 1 ? ' item' : ' itens'), E.bandaN, MARG + 4 + wB + 4, cyB, 'esq');
+          // faixa suave com o nome do setor (repete em toda folha de continuação): fundo claro, barra lateral e linha fina embaixo
+          pc.retangulo(MARG, b.y0, w0, hBanda, COR_FAIXA.fundo);
+          pc.retangulo(MARG, b.y0 + hBanda - MOLDURA, w0, MOLDURA, COR_FAIXA.linha);
+          pc.retangulo(MARG, b.y0, COR_FAIXA.barraW, hBanda, COR_FAIXA.barra);
+          const cyB = b.y0 + hBanda / 2, wB = pc.linha(b.setor, E.banda, MARG + COR_FAIXA.barraW + 3.5, cyB, 'esq');
+          pc.linha(b.n + (b.n === 1 ? ' item' : ' itens'), E.bandaN, MARG + COR_FAIXA.barraW + 3.5 + wB + 4, cyB, 'esq');
           if (!b.cards) {
             const yTh = b.y0 + hBanda;
             pc.retangulo(MARG, yTh, w0, hTh, '#ececec');
@@ -406,7 +413,7 @@
             if (!ultima) pc.retangulo(MARG, l.y + m.h - BORDA, w0, BORDA, '#d4d4d4');
           });
           // moldura única do setor
-          ctx.save(); ctx.strokeStyle = '#1c1c1c'; ctx.lineWidth = MOLDURA * S; ctx.strokeRect((MARG + MOLDURA / 2) * S, (b.y0 + MOLDURA / 2) * S, (w0 - MOLDURA) * S, (h0 - MOLDURA) * S); ctx.restore();
+          ctx.save(); ctx.strokeStyle = COR_FAIXA.linha; ctx.lineWidth = MOLDURA * S; ctx.strokeRect((MARG + MOLDURA / 2) * S, (b.y0 + MOLDURA / 2) * S, (w0 - MOLDURA) * S, (h0 - MOLDURA) * S); ctx.restore();
         }
       });
       // rodapé de toda folha: dados do escritório (centro) e "n / N" (direita)
