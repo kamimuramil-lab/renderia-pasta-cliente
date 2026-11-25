@@ -326,6 +326,48 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
     assert.strictEqual(r.status, 400); assert.match(r.json.erro, /máximo de 8/);
     assert.strictEqual(arquivosDePlanta().length, 8, 'a recusa não deixou arquivo');
     ok('chavesDoProjeto inclui as plantas; excluir apaga o arquivo; limite de 8 por setor');
+
+    console.log('== 11. Textos escritos em cima da planta do setor (etapa D) ==');
+    const textar = (plantaId, textos, sessao) => api('PUT', `${P}/plantas/${plantaId}/textos`, { sessao: sessao || 'tokA', corpo: { textos } });
+    const T = (extra) => Object.assign({ texto: 'COZINHA', x: 0.3, y: 0.4, tamanho: 0.02, cor: '#112233', fundo: null, contorno: null, negrito: true }, extra || {});
+    // 11.1 validação (a MESMA da planta da apresentação), antes de gravar qualquer coisa
+    for (const [textos, msg] of [
+      ['x', /inválida/], [[null], /formato inválido/], [[T({ texto: '   ' })], /vazio/], [[T({ texto: 'a'.repeat(201) })], /200 caracteres/],
+      [[T({ x: 'a' })], /posição x inválido/], [[T({ tamanho: '' })], /tamanho inválido/], [[T({ cor: 'vermelho' })], /Cor da letra inválida/],
+      [[T({ fundo: '#12' })], /Cor do fundo inválida/], [[T({ contorno: 'azul' })], /Cor do contorno inválida/],
+      [[T({ id: 'repetido' }), T({ id: 'repetido', texto: 'SALA' })], /repetidos/], [Array.from({ length: 81 }, () => T()), /até 80/]
+    ]) { r = await textar(pl.id, textos); assert.strictEqual(r.status, 400, JSON.stringify(textos).slice(0, 50)); assert.match(r.json.erro, msg); }
+    assert.deepStrictEqual((await api('GET', P, { sessao: 'tokA' })).json.plantas['Louças'][0].textos, [], 'recusa não grava nada');
+    // 11.2 gravar: lista completa substitui, números são limitados, ids são mantidos/criados
+    r = await textar(pl.id, [T({ id: 'txt_a1' }), T({ texto: 'SALA\nDE ESTAR', x: 1.7, y: -2, tamanho: 0.5, cor: '#ABCDEF', fundo: '#FFFFFF', fundoOpacidade: 0.5, contorno: '#000000', negrito: false })]);
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.json.planta.textos.length, 2);
+    const t1 = r.json.planta.textos[0], t2 = r.json.planta.textos[1];
+    assert.strictEqual(t1.id, 'txt_a1'); assert.match(t2.id, /^txt_/);
+    assert.deepStrictEqual([t2.x, t2.y, t2.tamanho], [1, 0, 0.1], 'posição 0..1 e tamanho 0,006..0,1');
+    assert.deepStrictEqual([t2.cor, t2.fundo, t2.fundoOpacidade, t2.contorno, t2.negrito, t2.texto], ['#abcdef', '#ffffff', 0.5, '#000000', false, 'SALA\nDE ESTAR']);
+    r = await textar(pl.id, [t1]); assert.strictEqual(r.json.planta.textos.length, 1, 'a lista nova substitui a anterior');
+    await textar(pl.id, [t1, t2]);
+    ok('textos: valida igual à planta da apresentação, limita números, mantém ids, lista nova substitui');
+    // 11.3 leitura: arquiteto e cliente recebem; mexer nos círculos não apaga os textos (e vice-versa)
+    lista = (await api('GET', P, { sessao: 'tokA' })).json;
+    assert.strictEqual(lista.plantas['Louças'][0].textos.length, 2); assert.deepStrictEqual(lista.plantas['Louças'][1].textos, [], 'planta sem texto: lista vazia');
+    assert.strictEqual(lista.limites.textosPorPlanta, 80);
+    await marcar(pl.id, [{ itemId: L1.id, x: 0.2, y: 0.3 }]);
+    assert.strictEqual((await api('GET', P, { sessao: 'tokA' })).json.plantas['Louças'][0].textos.length, 2, 'gravar círculos não mexe nos textos');
+    await textar(pl.id, [t1]);
+    assert.strictEqual((await api('GET', P, { sessao: 'tokA' })).json.plantas['Louças'][0].marcas.length, 1, 'gravar textos não mexe nos círculos');
+    await textar(pl.id, [t1, t2]);
+    r = await api('GET', `/api/cliente/${link}/galeria`, { cliente: tokCli });
+    const textosCli = r.json.memorial.plantas['Louças'][0].textos;
+    assert.deepStrictEqual(textosCli.map((t) => t.texto), ['COZINHA', 'SALA\nDE ESTAR'], 'o cliente recebe os textos');
+    assert.ok(!/r2Key/.test(JSON.stringify(textosCli)));
+    ok('arquiteto e cliente recebem os textos; textos e círculos são independentes');
+    // 11.4 posse e recurso
+    assert.strictEqual((await textar(pl.id, [], 'tokB')).status, 400);
+    for (const sessao of ['tokASemMem', 'tokOld']) assert.strictEqual((await textar(pl.id, [], sessao)).status, 403);
+    assert.strictEqual((await textar('mpl_inexistente', [])).status, 400);
+    assert.strictEqual((await api('GET', P, { sessao: 'tokA' })).json.plantas['Louças'][0].textos.length, 2, 'nada mudou');
+    ok('outra conta recebe erro, sem o recurso dá 403, planta inexistente é recusada');
   } finally {
     filho.kill();
     licenca.close();

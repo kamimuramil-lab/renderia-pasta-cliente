@@ -24,14 +24,16 @@ body { font-family: 'Inter', 'Segoe UI', Arial, Helvetica, sans-serif; font-size
 @media print { .folha { width: auto; padding: 0; margin: 0; } .rodape-escritorio { display: none; } html.sem-margem .rodape-escritorio { display: block; margin-top: 8mm; } }
 @media screen { .rodape-escritorio { margin-top: 8mm; padding-top: 3mm; border-top: 1px solid #ddd; } }
 .rodape-escritorio { text-align: center; font-size: 8pt; color: #666; line-height: 1.4; }
-.cabecalho { display: flex; align-items: center; gap: 16px; margin-bottom: 6mm; border-bottom: 2px solid #1c1c1c; padding-bottom: 4mm; }
+.cabecalho { display: flex; align-items: center; gap: 16px; margin-bottom: 3mm; border-bottom: 2px solid #1c1c1c; padding-bottom: 2.5mm; }
 .cabecalho img { max-height: 16mm; max-width: 50mm; object-fit: contain; }
 .titulo { font-size: 15pt; letter-spacing: .14em; font-weight: 300; }
-.projeto { font-family: 'Archivo', 'Inter', 'Segoe UI', Arial, sans-serif; font-size: 30pt; font-weight: 800; line-height: 1.1; margin: 2mm 0 4mm; overflow-wrap: anywhere; letter-spacing: -.01em; }
+.projeto { font-family: 'Archivo', 'Inter', 'Segoe UI', Arial, sans-serif; font-size: 26pt; font-weight: 800; line-height: 1.1; margin: 1mm 0 2mm; overflow-wrap: anywhere; letter-spacing: -.01em; }
 .data { font-size: 8.5pt; color: #777; }
 .setor { margin-bottom: 6mm; }
-.setor h2 { font-family: 'Archivo', 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #1c1c1c; margin: 0 0 10px; }
-.setor h2 span { font-weight: 700; color: #888; margin-left: 6px; }
+/* cada setor é UM bloco: moldura única + faixa escura com o nome do setor (a faixa é a 1ª linha do cabeçalho da tabela, então repete em toda folha de continuação) */
+table.setor-tabela { border: 1.6pt solid #1c1c1c; border-radius: 0; }
+tr.titulo-setor th { background: #1c1c1c; color: #fff; padding: 2.5mm 4mm; font-family: 'Archivo', 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 800; font-size: 15pt; letter-spacing: .08em; border-bottom: 0; white-space: normal; }
+tr.titulo-setor th span { font-weight: 400; color: #bdbdbd; font-size: 9.5pt; letter-spacing: 0; margin-left: 4mm; text-transform: none; }
 table { width: 100%; border-collapse: separate; border-spacing: 0; background: #fff; border: 1px solid #bbb; border-radius: 12px; overflow: hidden; font-size: 8.5pt; color: #1c1c1c; table-layout: auto; }
 thead { display: table-header-group; }
 th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; background: #ececec; color: #444; padding: 5px 6px; border-bottom: 1px solid #d4d4d4; white-space: nowrap; }
@@ -46,16 +48,13 @@ td.texto { white-space: pre-line; min-width: 150px; }
 .foto { display: block; width: 20mm; height: 20mm; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; background: #fff; }
 .foto img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .sem { color: #888; }
-.foto-extras { display: flex; flex-wrap: wrap; gap: 1mm; margin-top: 1.5mm; }
-.foto-extras img { width: 8mm; height: 8mm; object-fit: cover; border: 1px solid #ccc; border-radius: 1mm; background: #fff; display: block; }
+.foto-n { display: inline-block; margin-left: 6px; font-size: 10px; font-weight: 700; color: #555; background: #e9e9e9; border-radius: 999px; padding: 0 7px; white-space: nowrap; vertical-align: middle; }
 /* modo CARDS: duas colunas, imagem grande com os dados embaixo (linhas da tabela não se partem entre folhas) */
-table.cards { border: 0; border-radius: 0; overflow: visible; background: none; table-layout: fixed; }
+table.cards { border-radius: 0; overflow: visible; background: none; table-layout: fixed; }
 table.cards td.card-td { width: 50%; border: 0; padding: 2mm 2mm 4mm; height: 1px; }
 .card { border: 1px solid #bbb; border-radius: 3mm; overflow: hidden; background: #fff; height: 100%; }
 .card-img { height: 80mm; background: #f3f3f3; display: flex; align-items: center; justify-content: center; color: #888; font-size: 9pt; }
 .card-img img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-.card-extras { display: flex; gap: 1.5mm; padding: 1.5mm 4mm 0; }
-.card-extras img { width: 15mm; height: 15mm; object-fit: cover; border: 1px solid #ccc; border-radius: 1.5mm; background: #fff; display: block; }
 .card-corpo { padding: 2.5mm 4mm 3mm; }
 .card-titulo { display: flex; align-items: center; gap: 2mm; font-size: 11.5pt; font-weight: 800; line-height: 1.25; }
 .card-titulo .num-card { flex: 0 0 auto; width: 6.5mm; height: 6.5mm; line-height: 6.5mm; border-radius: 50%; background: #1c1c1c; color: #fff; text-align: center; font-size: 9pt; font-weight: 700; }
@@ -64,55 +63,72 @@ table.cards td.card-td { width: 50%; border: 0; padding: 2mm 2mm 4mm; height: 1p
 .card-info b { color: #555; font-weight: 700; }
 .card-link { margin-top: 1mm; font-size: 9pt; line-height: 1.4; }
 .card-link a { color: #1c1c1c; text-decoration: none; }
-/* PLANTA do setor: uma folha por planta (depois da lista do setor), com um círculo numerado (o Nº do item) em cada posição marcada */
-.planta-pagina { break-before: page; page-break-before: always; text-align: center; }
-.planta-pagina + .setor { break-before: page; page-break-before: always; }
-.setor h2 { break-after: avoid; page-break-after: avoid; }
-.planta-titulo { text-align: left; margin: 0 0 3mm; padding-bottom: 1.5mm; border-bottom: 2px solid #1c1c1c; font-family: 'Archivo', 'Inter', 'Segoe UI', Arial, sans-serif; font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
-.planta-titulo small { font-weight: 700; color: #888; font-size: 11px; letter-spacing: 0; margin-left: 3mm; text-transform: none; }
+/* PLANTA do setor: a 1ª linha da tabela do setor (altura máx. 110 mm), com um círculo numerado (o Nº do item) em cada posição marcada; os itens vêm logo abaixo */
+.setor + .setor { break-before: page; page-break-before: always; }
+tr.linha-planta td.planta-cel { text-align: center; padding: 2.5mm 3mm 2mm; background: #fafafa; border-bottom: 1.2pt solid #1c1c1c; }
+.planta-titulo { text-align: left; margin: 0 0 1.5mm; font-weight: 800; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .08em; color: #333; line-height: 1.3; }
 .planta-palco { position: relative; display: inline-block; line-height: 0; border: 1px solid #c9c9c9; background: #fff; }
-.planta-palco img { display: block; max-width: 275mm; max-height: 148mm; width: auto; height: auto; }
+.planta-palco img { display: block; max-width: 268mm; max-height: 110mm; width: auto; height: auto; }
 .pino { position: absolute; transform: translate(-50%, -50%); width: 7mm; height: 7mm; border-radius: 50%; background: #d6342c; color: #fff; border: .6mm solid #fff; box-shadow: 0 0 1.2mm rgba(0,0,0,.55); font-size: 9pt; font-weight: 800; line-height: 5.8mm; text-align: center; }
 .planta-nota { margin-top: 2mm; font-size: 8pt; color: #777; text-align: left; line-height: 1.3; }
+/* TEXTOS escritos em cima da planta: camada do tamanho da imagem; o texto vale uma FRAÇÃO da largura dela (100cqw = largura da camada) */
+.planta-textos { position: absolute; inset: 0; container-type: size; overflow: hidden; pointer-events: none; }
+.planta-textos .pl-texto { position: absolute; transform: translate(-50%, -50%); font-size: calc(var(--t, .018) * 100cqw); line-height: 1.15; white-space: pre; text-align: center; padding: .1em .35em; border-radius: .3em; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; }
 `;
 
   // Navegadores SEM suporte às caixas de margem do @page (Safari/iPhone, Chrome antigo) não mostrariam o rodapé do escritório nem a contagem de
   // páginas: neles o rodapé vai em linha, no fim do documento (a marca "sem-margem" liga isso só no papel). Chrome/Edge 131+ usam a margem.
   const SCRIPT_MARGEM = '<script>(function(){var m=/(?:Chrome|Edg)[/]([0-9]+)/.exec(navigator.userAgent||"");if(!(m&&+m[1]>=131))document.documentElement.className+=" sem-margem";})();</' + 'script>';
 
-  function linha(i) {
+  // Um item com várias fotos vira VÁRIAS entradas (uma por foto: capa primeiro), todas com os mesmos dados do item. Sem foto = uma entrada sem imagem.
+  function entradasDoItem(i) {
+    const urls = [i.fotoUrl].concat((i.fotosExtras || []).map((f) => f && f.url)).filter(Boolean);
+    if (!urls.length) return [{ i, url: null, k: 0, n: 1 }];
+    return urls.map((url, k) => ({ i, url, k, n: urls.length }));
+  }
+  const marcaFoto = (e) => (e.n > 1 ? `<span class="foto-n">foto ${e.k + 1}/${e.n}</span>` : '');
+
+  function linha(e) {
+    const i = e.i;
     const href = i.link ? hrefSeguro(i.link) : null;
-    const extras = (i.fotosExtras || []).filter((f) => f && f.url);
-    const foto = (i.fotoUrl ? `<span class="foto"><img src="${esc(i.fotoUrl)}" alt="${esc(i.item)}"></span>` : '<span class="sem">—</span>') +
-      (extras.length ? `<div class="foto-extras">${extras.map((f) => `<img src="${esc(f.url)}" alt="">`).join('')}</div>` : '');
+    const foto = e.url ? `<span class="foto"><img src="${esc(e.url)}" alt="${esc(i.item)}"></span>` : '<span class="sem">—</span>';
     const amb = (i.ambientes || []).map((a) => `<span class="amb">${esc(a)}</span>`).join('') || '—';
-    return `<tr><td class="num">${esc(i.numero)}</td><td>${foto}</td><td class="item"><b>${esc(i.item)}</b>${href ? `<br><a href="${esc(href)}">Ver produto ↗</a>` : ''}</td><td>${amb}</td><td>${esc(i.empresa) || '—'}</td><td class="texto">${esc(i.especificacoes) || '—'}</td><td class="texto">${esc(i.dimensoes) || '—'}</td><td>${esc(i.quantidade) || '—'}</td></tr>`;
+    return `<tr><td class="num">${esc(i.numero)}</td><td>${foto}</td><td class="item"><b>${esc(i.item)}</b>${marcaFoto(e)}${href ? `<br><a href="${esc(href)}">Ver produto ↗</a>` : ''}</td><td>${amb}</td><td>${esc(i.empresa) || '—'}</td><td class="texto">${esc(i.especificacoes) || '—'}</td><td class="texto">${esc(i.dimensoes) || '—'}</td><td>${esc(i.quantidade) || '—'}</td></tr>`;
   }
 
-  // Um card (modo CARDS): imagem grande da capa, faixa com as fotos extras e os dados embaixo.
-  function card(i) {
+  // Um card (modo CARDS): imagem grande de UMA foto do item e os dados embaixo (item com várias fotos = um card por foto).
+  function card(e) {
+    const i = e.i;
     const href = i.link ? hrefSeguro(i.link) : null;
-    const extras = (i.fotosExtras || []).filter((f) => f && f.url);
     const amb = (i.ambientes || []).map((a) => `<span class="amb">${esc(a)}</span>`).join('');
     const info = (rotulo, valor) => (String(valor == null ? '' : valor).trim() ? `<div><b>${rotulo}:</b> ${esc(valor)}</div>` : '');
     const infos = info('Empresa', i.empresa) + info('Especificações', i.especificacoes) + info('Dimensões', i.dimensoes) + info('Qtd.', i.quantidade);
-    return `<div class="card"><div class="card-img">${i.fotoUrl ? `<img src="${esc(i.fotoUrl)}" alt="${esc(i.item)}">` : 'sem foto'}</div>${extras.length ? `<div class="card-extras">${extras.map((f) => `<img src="${esc(f.url)}" alt="">`).join('')}</div>` : ''}` +
-      `<div class="card-corpo"><div class="card-titulo"><span class="num-card">${esc(i.numero)}</span><span>${esc(i.item)}</span></div>${amb ? `<div class="card-amb">${amb}</div>` : ''}` +
+    return `<div class="card"><div class="card-img">${e.url ? `<img src="${esc(e.url)}" alt="${esc(i.item)}">` : 'sem foto'}</div>` +
+      `<div class="card-corpo"><div class="card-titulo"><span class="num-card">${esc(i.numero)}</span><span>${esc(i.item)}${marcaFoto(e)}</span></div>${amb ? `<div class="card-amb">${amb}</div>` : ''}` +
       `${infos ? `<div class="card-info">${infos}</div>` : ''}${href ? `<div class="card-link"><a href="${esc(href)}">Ver produto ↗</a></div>` : ''}</div></div>`;
   }
-  function tabelaDeCards(doSetor) {
+  const faixaDoSetor = (setor, n, colspan) => `<tr class="titulo-setor"><th colspan="${colspan}">${esc(setor)}<span>${n} ${n === 1 ? 'item' : 'itens'}</span></th></tr>`;
+  function tabelaDeCards(setor, doSetor, plantas) {
+    const entradas = doSetor.reduce((acc, i) => acc.concat(entradasDoItem(i)), []);
     const linhas = [];
-    for (let k = 0; k < doSetor.length; k += 2) linhas.push(doSetor.slice(k, k + 2));
-    return `<table class="cards"><colgroup><col style="width:50%"><col style="width:50%"></colgroup><tbody>${linhas.map((p) => `<tr>${p.map((i) => `<td class="card-td">${card(i)}</td>`).join('')}${p.length === 1 ? '<td class="card-td"></td>' : ''}</tr>`).join('')}</tbody></table>`;
+    for (let k = 0; k < entradas.length; k += 2) linhas.push(entradas.slice(k, k + 2));
+    return `<table class="cards setor-tabela"><colgroup><col style="width:50%"><col style="width:50%"></colgroup><thead>${faixaDoSetor(setor, doSetor.length, 2)}</thead><tbody>${plantas(2)}${linhas.map((p) => `<tr>${p.map((e) => `<td class="card-td">${card(e)}</td>`).join('')}${p.length === 1 ? '<td class="card-td"></td>' : ''}</tr>`).join('')}</tbody></table>`;
+  }
+  function tabelaDeLista(setor, doSetor, plantas) {
+    const entradas = doSetor.reduce((acc, i) => acc.concat(entradasDoItem(i)), []);
+    return `<table class="setor-tabela"><thead>${faixaDoSetor(setor, doSetor.length, 8)}<tr><th>Nº</th><th>Foto</th><th>Item</th><th>Ambiente</th><th>Empresa</th><th>Especificações</th><th>Dimensões</th><th>Qtd.</th></tr></thead><tbody>${plantas(8)}${entradas.map(linha).join('')}</tbody></table>`;
   }
   // Plantas do setor (opcional): `o.plantas[setor] = [{ id, nome, url, marcas: [{ itemId, numero, x, y }] }]`; x/y são frações (0..1) da imagem.
-  // Uma folha por planta, DEPOIS da lista do setor (assim a primeira folha não fica só com o cabeçalho). Planta sem endereço de imagem é pulada.
+  // Cada planta é uma linha da tabela do setor, ANTES dos itens (a planta fica EM CIMA e os itens logo abaixo). Planta sem endereço de imagem é pulada.
   const frac = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0; };
-  function paginasDePlanta(setor, plantas) {
+  function linhasDePlanta(setor, plantas, colspan) {
     const lista = plantas && Array.isArray(plantas[setor]) ? plantas[setor] : [];
-    return lista.filter((p) => p && p.url).map((p) => {
+    const validas = lista.filter((p) => p && p.url);
+    return validas.map((p, k) => {
       const pinos = (Array.isArray(p.marcas) ? p.marcas : []).map((m) => `<span class="pino" style="left:${(frac(m.x) * 100).toFixed(3)}%; top:${(frac(m.y) * 100).toFixed(3)}%;">${esc(m.numero)}</span>`).join('');
-      return `<section class="planta-pagina"><div class="planta-titulo">${esc(setor)} — ${esc(p.nome || 'Planta')}<small>Planta</small></div><div class="planta-palco"><img src="${esc(p.url)}" alt="">${pinos}</div><div class="planta-nota">Cada número é o do item na lista deste setor, nas folhas anteriores.</div></section>`;
+      const PT = window.PlantaTextos; // carregado depois deste arquivo na página: lido só agora (sem ele, a planta sai sem textos em vez de quebrar)
+      const textos = PT && PT.html ? PT.html(p.textos) : ''; // textos escritos em cima da planta (mesmo desenho do app); os círculos ficam por cima
+      return `<tr class="linha-planta"><td class="planta-cel" colspan="${colspan}"><div class="planta-titulo">${esc(setor)} — ${validas.length > 1 ? `Planta ${k + 1}` : 'Planta'}</div><div class="planta-palco"><img src="${esc(p.url)}" alt="">${textos ? `<div class="planta-textos">${textos}</div>` : ''}${pinos}</div></td></tr>`;
     }).join('');
   }
 
@@ -124,7 +140,7 @@ table.cards td.card-td { width: 50%; border: 0; padding: 2mm 2mm 4mm; height: 1p
     return partes.length ? `<div class="rodape-escritorio">${partes.map(esc).join(' &nbsp;·&nbsp; ')}</div>` : '';
   }
 
-  // opcoes: { nomeProjeto, logo (url|null), itens (com fotosExtras [{id,url}]), setores, modos { setor: 'cards' } (sem entrada = lista), plantas { setor: [{ nome, url, marcas }] }, setor ('' = todos), agora (Date), escritorio: { nome, whatsapp (formatado), email, instagram (com @) } } -> { html, totalItens, setores }
+  // opcoes: { nomeProjeto, logo (url|null), itens (com fotosExtras [{id,url}]; item com várias fotos sai com uma linha/card POR FOTO), setores, modos { setor: 'cards' } (sem entrada = lista), plantas { setor: [{ nome, url, marcas }] }, setor ('' = todos), agora (Date), escritorio: { nome, whatsapp (formatado), email, instagram (com @) } } -> { html, totalItens, setores }
   function montarHtml(opcoes) {
     const o = opcoes || {};
     const itens = Array.isArray(o.itens) ? o.itens : [];
@@ -135,7 +151,8 @@ table.cards td.card-td { width: 50%; border: 0; padding: 2mm 2mm 4mm; height: 1p
     const blocos = incluidos.map((setor) => {
       const doSetor = itens.filter((i) => i.setor === setor);
       const cards = o.modos && o.modos[setor] === 'cards';
-      return `<section class="setor"><h2>${esc(setor)} <span>${doSetor.length}</span></h2>${cards ? tabelaDeCards(doSetor) : `<table><thead><tr><th>Nº</th><th>Foto</th><th>Item</th><th>Ambiente</th><th>Empresa</th><th>Especificações</th><th>Dimensões</th><th>Qtd.</th></tr></thead><tbody>${doSetor.map(linha).join('')}</tbody></table>`}</section>${paginasDePlanta(setor, o.plantas)}`;
+      const plantas = (n) => linhasDePlanta(setor, o.plantas, n);
+      return `<section class="setor">${cards ? tabelaDeCards(setor, doSetor, plantas) : tabelaDeLista(setor, doSetor, plantas)}</section>`;
     }).join('');
     const logo = o.logo ? `<img src="${esc(o.logo)}" alt="">` : '';
     const agora = o.agora instanceof Date ? o.agora : new Date();

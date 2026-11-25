@@ -1034,6 +1034,13 @@ app.put('/api/app/galeria/:projetoId/memorial/plantas/:plantaId/marcas', exigirS
     res.json({ ok: true, planta: { id: planta.id, marcas: planta.marcas } });
   } catch (e) { res.status(400).json({ erro: e.message }); }
 });
+// Textos em cima da planta do setor (a lista completa substitui a anterior). Devolve só o que foi guardado (já validado).
+app.put('/api/app/galeria/:projetoId/memorial/plantas/:plantaId/textos', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
+  try {
+    const planta = memLib.definirTextosDaPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.plantaId, (req.body || {}).textos, req.licencaUsuario);
+    res.json({ ok: true, planta: { id: planta.id, textos: planta.textos } });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
 app.delete('/api/app/galeria/:projetoId/memorial/plantas/:plantaId', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
   try {
     const chave = memLib.excluirPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.plantaId, req.licencaUsuario);

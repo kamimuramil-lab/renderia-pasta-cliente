@@ -1157,6 +1157,9 @@ button.dash-chip-opcao:hover{ border-color:var(--steel-500); }
 .mem-planta figcaption{ font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim); font-weight:700; margin-bottom:6px; }
 .mem-planta-palco{ position:relative; container-type:inline-size; background:#fff; border:1px solid var(--line); border-radius:var(--radius-m); overflow:hidden; line-height:0; }
 .mem-planta-palco img{ display:block; width:100%; height:auto; }
+/* textos do arquiteto em cima da planta: o tamanho é uma fração da LARGURA da planta (100cqw = largura do palco, que é o container) */
+.mem-planta-textos{ position:absolute; inset:0; pointer-events:none; }
+.mem-planta-textos .pl-texto{ font-size:calc(var(--t, .018) * 100cqw); }
 .mem-pino{ position:absolute; transform:translate(-50%,-50%); display:flex; align-items:center; justify-content:center; width:clamp(24px, 3.4cqw, 48px); height:clamp(24px, 3.4cqw, 48px); box-sizing:border-box; padding:0; border-radius:50%; background:#d6342c; color:#fff; border:2px solid #fff; box-shadow:0 1px 5px rgba(0,0,0,.55); font:inherit; font-size:clamp(12px, 1.8cqw, 24px); font-weight:800; line-height:1; cursor:pointer; }
 .mem-pino:hover, .mem-pino:focus-visible{ transform:translate(-50%,-50%) scale(1.15); z-index:2; }
 .mem-planta-dica{ font-size:12.5px; color:var(--text-dim); margin:0; }

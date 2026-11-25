@@ -284,13 +284,19 @@
   const plantasMemAbertas = new Set(); // setores com a planta aberta (vale enquanto a página está aberta)
   const SVG_MAPA = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>';
   function plantasDoSetorMemorial(m, setor) { const l = m && m.plantas && m.plantas[setor]; return Array.isArray(l) ? l.filter((p) => p && p.url) : []; }
+  // Textos que o arquiteto escreveu em cima da planta (nome dos ambientes...): o mesmo desenho do app (planta-textos.js), sem clique; os círculos ficam por cima.
+  function textosDaPlanta(p) {
+    const PT = window.PlantaTextos;
+    const html = PT && PT.html ? PT.html(p.textos) : '';
+    return html ? `<div class="mem-planta-textos">${html}</div>` : '';
+  }
   function blocoPlantaMemorial(plantas, setor) {
     if (!plantas.length) return '';
     const aberta = plantasMemAbertas.has(setor);
     const num = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0; };
     const pino = (mk) => `<button type="button" class="mem-pino" data-mem-pino="${esc(mk.itemId)}" style="left:${(num(mk.x) * 100).toFixed(3)}%; top:${(num(mk.y) * 100).toFixed(3)}%;" aria-label="Item ${esc(mk.numero)} -- ver na lista" title="Item ${esc(mk.numero)}"><b>${esc(mk.numero)}</b></button>`;
     return `<div class="mem-planta-bloco"><button type="button" class="mem-planta-btn" data-mem-planta-btn aria-expanded="${aberta ? 'true' : 'false'}">${SVG_MAPA}<span>${aberta ? 'Esconder' : 'Ver'} ${plantas.length > 1 ? 'plantas' : 'planta'} do setor</span></button>
-      <div class="mem-planta-corpo"${aberta ? '' : ' hidden'}>${plantas.map((p) => `<figure class="mem-planta"><figcaption>${esc(p.nome)}</figcaption><div class="mem-planta-palco"><img src="${esc(p.url)}" alt="${esc(p.nome)}" loading="lazy">${(p.marcas || []).map(pino).join('')}</div></figure>`).join('')}
+      <div class="mem-planta-corpo"${aberta ? '' : ' hidden'}>${plantas.map((p, k) => `<figure class="mem-planta"><figcaption>${esc(setor)} — ${plantas.length > 1 ? `Planta ${k + 1}` : 'Planta'}</figcaption><div class="mem-planta-palco"><img src="${esc(p.url)}" alt="Planta" loading="lazy">${textosDaPlanta(p)}${(p.marcas || []).map(pino).join('')}</div></figure>`).join('')}
         <p class="mem-planta-dica">Cada número é o do item na lista. Toque no número para ir até o item.</p></div></div>`;
   }
   function irParaItemMemorial(itemId) {
