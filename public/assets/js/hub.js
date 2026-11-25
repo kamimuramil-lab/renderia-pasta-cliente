@@ -215,10 +215,11 @@
 
   function linhaMemorial(i) {
     const href = i.link ? hrefSeguro(i.link) : null;
-    const foto = i.fotoUrl ? `<button class="mem-foto" data-mem-foto="${esc(i.fotoUrl)}" title="Ampliar"><img src="${esc(i.fotoUrl)}" alt="${esc(i.item)}" loading="lazy"></button>` : '<span class="mem-sem-foto">—</span>';
+    const fotos = fotosDoItem(i);
+    const foto = i.fotoUrl ? `<button class="mem-foto" data-mem-item="${esc(i.id)}" data-mem-idx="0" title="Ampliar"><img src="${esc(i.fotoUrl)}" alt="${esc(i.item)}" loading="lazy"></button>${miniaturasExtras(i, fotos)}` : '<span class="mem-sem-foto">—</span>';
     const selo = ''; // o memorial não mostra status
     const amb = (i.ambientes || []).map((a) => `<span class="mem-amb">${esc(a)}</span>`).join('') || '—';
-    return `<tr>
+    return `<tr data-mem-id="${esc(i.id)}">
       <td data-rotulo="Nº">${esc(i.numero)}</td>
       <td data-rotulo="Foto" class="mem-col-foto">${foto}</td>
       <td data-rotulo="Item" class="mem-col-item"><b>${esc(i.item)}</b>${htmlTag('memorial', i.id)}${selo}${href ? `<br><a href="${esc(href)}" target="_blank" rel="noopener noreferrer">Ver produto ↗</a>` : ''}</td>
@@ -230,15 +231,74 @@
     </tr>`;
   }
 
-  function ampliarFotoMemorial(url) {
+  // Todas as fotos do item (a capa primeiro, depois as extras).
+  function fotosDoItem(i) { return [i.fotoUrl, ...((i.fotosExtras || []).map((f) => f.url))].filter(Boolean); }
+  // Miniaturas das fotos extras (a capa é a imagem principal): tocar abre a foto ampliada naquela posição.
+  function miniaturasExtras(i, fotos) {
+    const extras = fotos.slice(1);
+    return extras.length ? `<div class="mem-miniaturas">${extras.map((u, k) => `<button type="button" class="mem-mini" data-mem-item="${esc(i.id)}" data-mem-idx="${k + 1}" title="Ampliar"><img src="${esc(u)}" alt="" loading="lazy"></button>`).join('')}</div>` : '';
+  }
+  // Foto ampliada: com mais de uma foto no item, setas (‹ ›, teclado e toque) passam de uma pra outra.
+  function ampliarFotoMemorial(urls, inicio) {
+    const lista = (Array.isArray(urls) ? urls : [urls]).filter(Boolean);
+    if (!lista.length) return;
+    let pos = Math.min(Math.max(0, inicio || 0), lista.length - 1);
     const fundo = document.createElement('div');
     fundo.className = 'mem-ampliada';
-    fundo.innerHTML = `<img src="${esc(url)}" alt="">`;
+    const desenhar = () => {
+      fundo.innerHTML = `<img src="${esc(lista[pos])}" alt="">${lista.length > 1 ? `<button type="button" class="mem-seta-foto ant" aria-label="Foto anterior">‹</button><button type="button" class="mem-seta-foto prox" aria-label="Próxima foto">›</button><span class="mem-contador-foto">${pos + 1} / ${lista.length}</span>` : ''}`;
+    };
+    const ir = (d) => { pos = (pos + d + lista.length) % lista.length; desenhar(); };
     const fechar = () => { fundo.remove(); document.removeEventListener('keydown', aoTecla); };
-    const aoTecla = (e) => { if (e.key === 'Escape') fechar(); };
-    fundo.addEventListener('click', fechar);
+    const aoTecla = (e) => { if (e.key === 'Escape') fechar(); else if (lista.length > 1 && e.key === 'ArrowLeft') ir(-1); else if (lista.length > 1 && e.key === 'ArrowRight') ir(1); };
+    fundo.addEventListener('click', (e) => {
+      const seta = e.target.closest('.mem-seta-foto');
+      if (seta) { e.stopPropagation(); ir(seta.classList.contains('ant') ? -1 : 1); return; }
+      fechar();
+    });
     document.addEventListener('keydown', aoTecla);
+    desenhar();
     document.body.appendChild(fundo);
+  }
+
+  // Modo CARDS: imagem grande com os dados embaixo (como na tela do celular).
+  function cardMemorial(i) {
+    const href = i.link ? hrefSeguro(i.link) : null;
+    const fotos = fotosDoItem(i);
+    const amb = (i.ambientes || []).map((a) => `<span class="mem-amb">${esc(a)}</span>`).join('');
+    const linhaInfo = (rotulo, valor) => (valor ? `<div class="mem-card-linha"><span>${rotulo}</span><span class="mem-texto">${esc(valor)}</span></div>` : '');
+    return `<article class="mem-card" data-mem-id="${esc(i.id)}">
+      <div class="mem-card-img">${fotos.length ? `<button type="button" class="mem-card-foto" data-mem-item="${esc(i.id)}" data-mem-idx="0" title="Ampliar"><img src="${esc(fotos[0])}" alt="${esc(i.item)}" loading="lazy"></button>` : '<span class="mem-sem-foto">sem foto</span>'}</div>
+      ${miniaturasExtras(i, fotos)}
+      <div class="mem-card-corpo">
+        <div class="mem-card-titulo"><span class="mem-card-num">${esc(i.numero)}</span><b>${esc(i.item)}</b>${htmlTag('memorial', i.id)}</div>
+        ${amb ? `<div class="mem-card-amb">${amb}</div>` : ''}
+        ${linhaInfo('Empresa', i.empresa)}${linhaInfo('Especificações', i.especificacoes)}${linhaInfo('Dimensões', i.dimensoes)}${linhaInfo('Qtd.', i.quantidade)}
+        ${href ? `<div class="mem-card-linha"><a href="${esc(href)}" target="_blank" rel="noopener noreferrer">Ver produto ↗</a></div>` : ''}
+      </div>
+    </article>`;
+  }
+
+  // Planta do setor: imagem com um círculo numerado por item (o número é o do item na lista). Sem zoom: a planta cabe na largura da tela.
+  // Tocar no círculo leva até o item e o destaca por um instante. Fica recolhida até o cliente pedir ("Ver planta").
+  const plantasMemAbertas = new Set(); // setores com a planta aberta (vale enquanto a página está aberta)
+  const SVG_MAPA = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>';
+  function plantasDoSetorMemorial(m, setor) { const l = m && m.plantas && m.plantas[setor]; return Array.isArray(l) ? l.filter((p) => p && p.url) : []; }
+  function blocoPlantaMemorial(plantas, setor) {
+    if (!plantas.length) return '';
+    const aberta = plantasMemAbertas.has(setor);
+    const num = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0; };
+    const pino = (mk) => `<button type="button" class="mem-pino" data-mem-pino="${esc(mk.itemId)}" style="left:${(num(mk.x) * 100).toFixed(3)}%; top:${(num(mk.y) * 100).toFixed(3)}%;" aria-label="Item ${esc(mk.numero)} -- ver na lista" title="Item ${esc(mk.numero)}"><b>${esc(mk.numero)}</b></button>`;
+    return `<div class="mem-planta-bloco"><button type="button" class="mem-planta-btn" data-mem-planta-btn aria-expanded="${aberta ? 'true' : 'false'}">${SVG_MAPA}<span>${aberta ? 'Esconder' : 'Ver'} ${plantas.length > 1 ? 'plantas' : 'planta'} do setor</span></button>
+      <div class="mem-planta-corpo"${aberta ? '' : ' hidden'}>${plantas.map((p) => `<figure class="mem-planta"><figcaption>${esc(p.nome)}</figcaption><div class="mem-planta-palco"><img src="${esc(p.url)}" alt="${esc(p.nome)}" loading="lazy">${(p.marcas || []).map(pino).join('')}</div></figure>`).join('')}
+        <p class="mem-planta-dica">Cada número é o do item na lista. Toque no número para ir até o item.</p></div></div>`;
+  }
+  function irParaItemMemorial(itemId) {
+    const alvo = [...document.querySelectorAll('[data-mem-id]')].find((e) => e.dataset.memId === itemId);
+    if (!alvo) return;
+    alvo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    alvo.classList.remove('mem-destaque'); void alvo.offsetWidth; alvo.classList.add('mem-destaque'); // reinicia a animação se tocar de novo
+    setTimeout(() => alvo.classList.remove('mem-destaque'), 2200);
   }
 
   const setoresRecolhidos = new Set(); // setores do memorial recolhidos (vale enquanto a página está aberta)
@@ -259,8 +319,11 @@
       if (!doSetor.length) return '';
       const fechado = setoresRecolhidos.has(setor);
       return `<section class="hub-grupo mem-setor${fechado ? ' recolhido' : ''}" data-setor="${esc(setor)}"><h2 class="mem-setor-titulo" data-recolher="${esc(setor)}" role="button" tabindex="0" aria-expanded="${fechado ? 'false' : 'true'}" title="Tocar para recolher ou abrir este setor"><span class="mem-seta" aria-hidden="true">▾</span>${esc(setor)} <span class="mem-contagem">${doSetor.length}</span></h2>
-        <table class="mem-tabela"><thead><tr><th>Nº</th><th>Foto</th><th>Item</th><th>Ambiente</th><th>Empresa</th><th>Especificações</th><th>Dimensões</th><th>Qtd.</th></tr></thead>
-        <tbody>${doSetor.map(linhaMemorial).join('')}</tbody></table></section>`;
+        ${blocoPlantaMemorial(plantasDoSetorMemorial(m, setor), setor)}
+        ${(m.modos || {})[setor] === 'cards'
+          ? `<div class="mem-cards">${doSetor.map(cardMemorial).join('')}</div>`
+          : `<table class="mem-tabela"><thead><tr><th>Nº</th><th>Foto</th><th>Item</th><th>Ambiente</th><th>Empresa</th><th>Especificações</th><th>Dimensões</th><th>Qtd.</th></tr></thead>
+        <tbody>${doSetor.map(linhaMemorial).join('')}</tbody></table>`}</section>`;
     }).join('');
     const opcoesSetor = setores.filter((s) => m.itens.some((i) => i.setor === s)).map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join('');
     el('hubConteudo').innerHTML = `<div class="hub-corpo">
@@ -268,11 +331,23 @@
         <div class="mem-acoes"><select id="selSetorMemorialCliente" aria-label="Setor"><option value="">Todos os setores</option>${opcoesSetor}</select><button class="hub-doc-abrir" id="btnPdfMemorialCliente" type="button">Gerar PDF</button></div></div>
       <div class="mem-msg-pdf" id="memMsgPdf" role="status"></div>
       <div class="hub-aviso"><b>ATENÇÃO</b><br>Valide cada item com o fornecedor e com a arquitetura antes da compra: medidas, modelos e acabamentos podem variar conforme a marca/modelo adquirido ou a etapa de instalação.</div>${blocos}</div>`;
-    el('hubConteudo').querySelectorAll('[data-mem-foto]').forEach((b) => b.addEventListener('click', () => ampliarFotoMemorial(b.dataset.memFoto)));
+    el('hubConteudo').querySelectorAll('[data-mem-item]').forEach((b) => b.addEventListener('click', () => {
+      const item = m.itens.find((x) => x.id === b.dataset.memItem);
+      if (item) ampliarFotoMemorial(fotosDoItem(item), Number(b.dataset.memIdx) || 0);
+    }));
     el('hubConteudo').querySelectorAll('[data-recolher]').forEach((t) => {
       t.addEventListener('click', () => alternarSetor(t));
       t.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternarSetor(t); } });
     });
+    el('hubConteudo').querySelectorAll('[data-mem-planta-btn]').forEach((b) => b.addEventListener('click', () => {
+      const secao = b.closest('.mem-setor'); const corpo = b.parentElement.querySelector('.mem-planta-corpo');
+      const abrir = corpo.hasAttribute('hidden');
+      corpo.toggleAttribute('hidden', !abrir);
+      b.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+      b.querySelector('span').textContent = (abrir ? 'Esconder ' : 'Ver ') + (corpo.querySelectorAll('.mem-planta').length > 1 ? 'plantas' : 'planta') + ' do setor';
+      if (abrir) plantasMemAbertas.add(secao.dataset.setor); else plantasMemAbertas.delete(secao.dataset.setor);
+    }));
+    el('hubConteudo').querySelectorAll('[data-mem-pino]').forEach((b) => b.addEventListener('click', () => irParaItemMemorial(b.dataset.memPino)));
     el('btnPdfMemorialCliente').addEventListener('click', gerarPdfMemorialCliente);
     el('selSetorMemorialCliente').addEventListener('change', aplicarFiltroSetorMemorial);
   }
@@ -307,7 +382,7 @@
       const logo = galeriaAtual.marcaDagua && galeriaAtual.marcaDagua.url && galeriaAtual.marcaDagua.ativa !== false ? galeriaAtual.marcaDagua.url : null;
       const c = window.AjudaCliente ? window.AjudaCliente.contatosValidos(galeriaAtual.contatosEscritorio) : {};
       const escritorio = { nome: galeriaAtual.nomeEscritorio || '', whatsapp: c.whatsapp && window.AjudaCliente ? window.AjudaCliente.formatarWhatsapp(c.whatsapp) : '', email: c.email || '', instagram: c.instagram ? '@' + c.instagram : '' };
-      const opcoes = { nomeProjeto: galeriaAtual.nomeProjeto, logo, itens: m.itens, setores: m.setores, setor, agora: new Date(), escritorio };
+      const opcoes = { nomeProjeto: galeriaAtual.nomeProjeto, logo, itens: m.itens, setores: m.setores, modos: m.modos || {}, plantas: m.plantas || {}, setor, agora: new Date(), escritorio };
       const hoje = new Date().toLocaleDateString('pt-BR').split('/').join('-');
       const titulo = `${galeriaAtual.nomeProjeto} - Memorial de itens${setor ? ' - ' + setor : ''} - ${hoje}`.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim(); // vira o nome sugerido do arquivo
       const aposEntregar = (r) => { if (r.via === 'toque') avisoDoMemorial('O PDF está pronto.', { rotulo: 'Abrir o PDF', acao: r.abrir }); else avisoDoMemorial(''); };

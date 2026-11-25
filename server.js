@@ -335,10 +335,15 @@ async function galeriaComUrls(galeriaObj) {
   // da Pasta Cliente, e quem recebe a Pasta Cliente não pode alcançar os valores. O app lê os orçamentos por rotas próprias.
   // Memorial de itens: só aparece pro cliente quando o dono tem o recurso "memorial" E a página do projeto (o cartão mora no hub).
   // Nunca leva o valor nem as chaves do armazenamento (só a URL temporária da foto do produto).
-  let memorialCliente = { itens: [], setores: memLib.SETORES };
+  let memorialCliente = { itens: [], setores: memLib.SETORES, plantas: {} };
   if (novoVisual && recursosVivos.memorial === true) {
     const m = memLib.paraCliente(galeriaObj);
-    memorialCliente = { ...m, itens: await Promise.all(m.itens.map(async ({ fotoR2Key, ...i }) => ({ ...i, fotoUrl: fotoR2Key ? await storage.urlTemporaria(fotoR2Key) : null }))) };
+    // O cliente recebe só URLs temporárias (nunca as chaves do armazenamento): a capa em `fotoUrl` e as extras em `fotosExtras[].url`.
+    memorialCliente = { ...m, itens: await Promise.all(m.itens.map(async ({ fotoR2Key, fotosExtras, ...i }) => ({
+      ...i,
+      fotoUrl: fotoR2Key ? await storage.urlTemporaria(fotoR2Key) : null,
+      fotosExtras: await Promise.all((fotosExtras || []).map(async (f) => ({ id: f.id, url: await storage.urlTemporaria(f.r2Key) })))
+    }))), plantas: await plantasMemorialComUrl(m.plantas) };
   }
   const { clienteSenhaHash, sessoesClienteAtivas, orcamentos, recursosAtivos, memorial, reunioes, ...resto } = galeriaObj;
   const estadoPerfil = galeria.lerEstado(CAMINHO_DADOS);
@@ -895,13 +900,25 @@ app.post('/api/app/galeria/:projetoId/orcamentos/marcar-lido', exigirSessaoArqui
 // A foto vem do app já reduzida (~800 px, WebP); aqui só se confere tipo/tamanho/limite, grava e troca a antiga.
 // Posse conferida em lib/memorial.js (exigirGaleriaDaLicenca).
 // --------------------------------------------------------------------
-const comUrlDaFoto = async (item) => ({ ...item, fotoUrl: item.fotoR2Key ? await storage.urlTemporaria(item.fotoR2Key) : null });
+// Pro arquiteto: capa em `fotoUrl`; cada extra vira { id, url } (a chave do armazenamento não sai daqui).
+const comUrlDaFoto = async (item) => ({
+  ...item,
+  fotoUrl: item.fotoR2Key ? await storage.urlTemporaria(item.fotoR2Key) : null,
+  fotosExtras: await Promise.all((Array.isArray(item.fotosExtras) ? item.fotosExtras : []).map(async (f) => ({ id: f.id, url: await storage.urlTemporaria(f.r2Key) })))
+});
 const apagarDoArmazenamento = async (chave) => { if (chave) { try { await storage.excluirArquivo(chave); } catch (e) { console.error('Aviso: falhou excluir do armazenamento:', e.message); } } };
+// Planta do memorial pro app/cliente: troca a chave do armazenamento pela URL temporária (a chave nunca sai daqui).
+const plantaMemorialComUrl = async ({ r2Key, ...resto }) => ({ ...resto, url: await storage.urlTemporaria(r2Key) });
+const plantasMemorialComUrl = async (plantas) => {
+  const r = {};
+  for (const [setor, lista] of Object.entries(plantas || {})) r[setor] = await Promise.all((lista || []).map(plantaMemorialComUrl));
+  return r;
+};
 
 app.get('/api/app/galeria/:projetoId/memorial', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
   try {
     const r = memLib.lerParaArquiteto(CAMINHO_DADOS, req.params.projetoId, req.licencaUsuario);
-    res.json({ ok: true, ...r, itens: await Promise.all(r.itens.map(comUrlDaFoto)) });
+    res.json({ ok: true, ...r, itens: await Promise.all(r.itens.map(comUrlDaFoto)), plantas: await plantasMemorialComUrl(r.plantas) });
   } catch (e) { res.status(400).json({ erro: e.message }); }
 });
 // Ambientes do memorial: lista da CONTA (vale pra todos os projetos e computadores do mesmo login). Devolve { ambientes, usos, padrao }.
@@ -935,8 +952,8 @@ app.put('/api/app/galeria/:projetoId/memorial/itens/:itemId', exigirSessaoArquit
 });
 app.delete('/api/app/galeria/:projetoId/memorial/itens/:itemId', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
   try {
-    const chave = memLib.excluirItem(CAMINHO_DADOS, req.params.projetoId, req.params.itemId, req.licencaUsuario);
-    await apagarDoArmazenamento(chave);
+    const chaves = memLib.excluirItemComFotos(CAMINHO_DADOS, req.params.projetoId, req.params.itemId, req.licencaUsuario);
+    for (const c of chaves) await apagarDoArmazenamento(c); // capa + fotos extras
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ erro: e.message }); }
 });
@@ -957,6 +974,77 @@ app.post('/api/app/galeria/:projetoId/memorial/itens/:itemId/foto', exigirSessao
     await apagarDoArmazenamento(chave);
     res.status(400).json({ erro: e.message });
   }
+});
+// Fotos EXTRAS do item (além da capa). A primeira foto de um item sem capa vira a capa; as seguintes entram na lista (até o limite por item).
+app.post('/api/app/galeria/:projetoId/memorial/itens/:itemId/fotos', exigirSessaoArquiteto, exigirRecurso('memorial'), upload.single('arquivo'), async (req, res) => {
+  let chave = null;
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Nenhum arquivo enviado.' });
+    const extensao = memLib.TIPOS_FOTO[req.file.mimetype];
+    if (!extensao) return res.status(400).json({ erro: 'Envie a foto como WebP, JPG ou PNG.' });
+    if (req.file.size > memLib.LIMITE_BYTES_FOTO) return res.status(400).json({ erro: 'A foto do produto está grande demais (o app reduz sozinho; tente outra imagem).' });
+    memLib.conferirPodeReceberFotoExtra(CAMINHO_DADOS, req.params.projetoId, req.params.itemId, req.licencaUsuario); // limites/posse ANTES de gravar
+    chave = `${req.params.projetoId}/memorial-${crypto.randomUUID()}.${extensao}`;
+    await storage.salvarArquivo(chave, req.file.buffer, req.file.mimetype);
+    const { item, fotoId } = memLib.adicionarFotoExtra(CAMINHO_DADOS, req.params.projetoId, req.params.itemId, chave, req.licencaUsuario);
+    res.json({ ok: true, fotoId, item: await comUrlDaFoto(item) });
+  } catch (e) {
+    await apagarDoArmazenamento(chave);
+    res.status(400).json({ erro: e.message });
+  }
+});
+app.delete('/api/app/galeria/:projetoId/memorial/itens/:itemId/fotos/:fotoId', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
+  try {
+    const { item, r2KeyAntiga } = memLib.removerFotoExtra(CAMINHO_DADOS, req.params.projetoId, req.params.itemId, req.params.fotoId, req.licencaUsuario);
+    await apagarDoArmazenamento(r2KeyAntiga);
+    res.json({ ok: true, item: await comUrlDaFoto(item) });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+app.post('/api/app/galeria/:projetoId/memorial/itens/:itemId/fotos/:fotoId/capa', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
+  try { res.json({ ok: true, item: await comUrlDaFoto(memLib.tornarCapa(CAMINHO_DADOS, req.params.projetoId, req.params.itemId, req.params.fotoId, req.licencaUsuario)) }); }
+  catch (e) { res.status(400).json({ erro: e.message }); }
+});
+// PLANTAS do setor (etapa 2 do memorial): a imagem vai como a planta da apresentação (sem converter: linhas finas e texto),
+// e os círculos numerados são uma lista só ({ itemId, x, y } em fração da imagem) que o app manda inteira depois de arrastar.
+app.post('/api/app/galeria/:projetoId/memorial/plantas', exigirSessaoArquiteto, exigirRecurso('memorial'), upload.single('arquivo'), async (req, res) => {
+  let chave = null;
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Nenhum arquivo enviado.' });
+    const extensao = memLib.TIPOS_FOTO[req.file.mimetype];
+    if (!extensao) return res.status(400).json({ erro: 'Envie a planta como PNG, JPG ou WebP.' });
+    if (req.file.size > memLib.LIMITE_BYTES_PLANTA) return res.status(400).json({ erro: 'A imagem da planta está grande demais (o app reduz sozinho; tente uma imagem menor).' });
+    const setor = (req.body || {}).setor;
+    memLib.conferirPodeReceberPlanta(CAMINHO_DADOS, req.params.projetoId, setor, req.licencaUsuario); // posse/limites ANTES de gravar (sem arquivo órfão)
+    chave = `${req.params.projetoId}/memorial-planta-${crypto.randomUUID()}.${extensao}`;
+    await storage.salvarArquivo(chave, req.file.buffer, req.file.mimetype);
+    const planta = memLib.adicionarPlanta(CAMINHO_DADOS, req.params.projetoId, setor, { nome: (req.body || {}).nome, r2Key: chave }, req.licencaUsuario);
+    res.json({ ok: true, setor, planta: await plantaMemorialComUrl(planta) });
+  } catch (e) {
+    await apagarDoArmazenamento(chave);
+    res.status(400).json({ erro: e.message });
+  }
+});
+app.put('/api/app/galeria/:projetoId/memorial/plantas/:plantaId', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
+  try { res.json({ ok: true, planta: await plantaMemorialComUrl(memLib.renomearPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.plantaId, (req.body || {}).nome, req.licencaUsuario)) }); }
+  catch (e) { res.status(400).json({ erro: e.message }); }
+});
+app.put('/api/app/galeria/:projetoId/memorial/plantas/:plantaId/marcas', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
+  try {
+    const planta = memLib.definirMarcasDaPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.plantaId, (req.body || {}).marcas, req.licencaUsuario);
+    res.json({ ok: true, planta: { id: planta.id, marcas: planta.marcas } });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+app.delete('/api/app/galeria/:projetoId/memorial/plantas/:plantaId', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
+  try {
+    const chave = memLib.excluirPlanta(CAMINHO_DADOS, req.params.projetoId, req.params.plantaId, req.licencaUsuario);
+    await apagarDoArmazenamento(chave);
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ erro: e.message }); }
+});
+// Modo de exibição do setor: 'lista' ou 'cards'. Devolve { modos } (todos os setores).
+app.post('/api/app/galeria/:projetoId/memorial/setores/modo', exigirSessaoArquiteto, exigirRecurso('memorial'), (req, res) => {
+  try { res.json({ ok: true, modos: memLib.definirModoSetor(CAMINHO_DADOS, req.params.projetoId, (req.body || {}).nome, (req.body || {}).modo, req.licencaUsuario) }); }
+  catch (e) { res.status(400).json({ erro: e.message }); }
 });
 app.delete('/api/app/galeria/:projetoId/memorial/itens/:itemId/foto', exigirSessaoArquiteto, exigirRecurso('memorial'), async (req, res) => {
   try {

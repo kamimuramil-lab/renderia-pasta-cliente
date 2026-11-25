@@ -12,6 +12,7 @@ const { spawn } = require('child_process');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'teste-memorial-'));
 const ARM = path.join(TMP, 'arm');
 const ok = (m) => console.log('OK  ' + m);
+const memLimite = require('../lib/memorial').LIMITE_BYTES_PLANTA;
 const portaLivre = () => new Promise((resolve, reject) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => resolve(p)); }); s.on('error', reject); });
 const TUDO = { paginaProjeto: true, orcamentos: true, memorial: true };
 const SO_MEMORIAL = { paginaProjeto: false, orcamentos: false, memorial: true };
@@ -92,7 +93,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
     let lista = (await api('GET', P, { sessao: 'tokA' })).json;
     assert.deepStrictEqual(lista.itens.map((i) => i.item), ['Varal', 'Torneira', 'Tanque', 'Item antigo'], 'ordem: setores na ordem da lista, depois Nº');
     assert.strictEqual(lista.setores.length, 12); assert.strictEqual(lista.ambientes.length, 27);
-    assert.deepStrictEqual([lista.limites.itens, lista.limites.fotos, lista.limites.fotosUsadas], [400, 150, 0]);
+    assert.deepStrictEqual([lista.limites.itens, lista.limites.fotos, lista.limites.fotosUsadas], [400, 400, 0]);
     // trocar de setor sem dizer o Nº manda pro fim do setor novo; editar com dado inválido não grava nada
     r = await api('PUT', `${P}/itens/${c.id}`, { sessao: 'tokA', corpo: { setor: 'Metais' } });
     assert.deepStrictEqual([r.json.item.setor, r.json.item.numero], ['Metais', 4]);
@@ -105,7 +106,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 
     console.log('== 3. Foto do produto: tipo, tamanho, troca, exclusão e limite ==');
     assert.strictEqual((await enviarFoto('tokA', 'projM', a.id, Buffer.from('texto'), 'text/plain')).status, 400);
-    assert.strictEqual((await enviarFoto('tokA', 'projM', a.id, Buffer.alloc(401 * 1024, 1), 'image/webp')).status, 400);
+    assert.strictEqual((await enviarFoto('tokA', 'projM', a.id, Buffer.alloc(601 * 1024, 1), 'image/webp')).status, 400);
     assert.strictEqual(arquivosNoArmazenamento().length, 0, 'recusadas não deixam arquivo órfão');
     r = await enviarFoto('tokA', 'projM', a.id, PNG, 'image/png');
     assert.strictEqual(r.status, 200); assert.ok(r.json.item.fotoUrl && r.json.item.fotoUrl.startsWith('/_local/'));
@@ -120,17 +121,63 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
     await enviarFoto('tokA', 'projM', a.id, PNG, 'image/png');
     assert.strictEqual((await api('DELETE', `${P}/itens/${a.id}`, { sessao: 'tokA' })).status, 200);
     assert.strictEqual(arquivosNoArmazenamento().length, 0, 'excluir o item apaga a foto do armazenamento');
-    // limite de 150 fotos por projeto (separado das fotos da galeria)
+    // fotos EXTRAS do item: a 1ª vira capa, as outras entram na lista; limite de 6 por item; tornar capa; remover; capa removida promove a próxima
+    const enviarExtra = (tok, proj, itemId, buf, mime) => { const f = new FormData(); f.append('arquivo', new Blob([buf], { type: mime }), 'x'); return fetch(BASE + '/api/app/galeria/' + proj + '/memorial/itens/' + itemId + '/fotos', { method: 'POST', headers: { 'x-sessao-token': tok }, body: f }).then(async (r) => ({ status: r.status, json: await r.json().catch(() => ({})) })); };
+    const e1 = (await novo({ setor: 'Decorativos', item: 'Item com várias fotos' })).json.item;
+    r = await enviarExtra('tokA', 'projM', e1.id, PNG, 'image/png');
+    assert.strictEqual(r.status, 200); assert.ok(r.json.item.fotoUrl, 'a primeira foto virou a capa'); assert.strictEqual(r.json.item.fotosExtras.length, 0); assert.strictEqual(r.json.fotoId, null);
+    for (let k = 0; k < 5; k++) { r = await enviarExtra('tokA', 'projM', e1.id, PNG, 'image/png'); assert.strictEqual(r.status, 200, 'extra ' + k); }
+    assert.strictEqual(r.json.item.fotosExtras.length, 5);
+    assert.ok(r.json.item.fotosExtras.every((f) => f.id && f.url.startsWith('/_local/') && f.r2Key === undefined), 'extras com URL e sem chave do armazenamento');
+    r = await enviarExtra('tokA', 'projM', e1.id, PNG, 'image/png');
+    assert.strictEqual(r.status, 400); assert.match(r.json.erro, /até 6 fotos/);
+    assert.strictEqual(arquivosNoArmazenamento().length, 6, 'a 7ª não deixou arquivo órfão');
+    let it = (await api('GET', P, { sessao: 'tokA' })).json.itens.find((i) => i.id === e1.id);
+    const capaAntes = it.fotoUrl; const extra0 = it.fotosExtras[0];
+    r = await api('POST', P + '/itens/' + e1.id + '/fotos/' + extra0.id + '/capa', { sessao: 'tokA' });
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.json.item.fotoUrl, extra0.url, 'a extra virou capa'); assert.strictEqual(r.json.item.fotosExtras[0].url, capaAntes, 'a capa antiga ocupou o lugar da extra'); assert.strictEqual(r.json.item.fotosExtras.length, 5);
+    r = await api('DELETE', P + '/itens/' + e1.id + '/fotos/' + r.json.item.fotosExtras[1].id, { sessao: 'tokA' });
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.json.item.fotosExtras.length, 4); assert.strictEqual(arquivosNoArmazenamento().length, 5, 'remover a extra apaga o arquivo');
+    assert.strictEqual((await api('DELETE', P + '/itens/' + e1.id + '/fotos/inexistente', { sessao: 'tokA' })).status, 400);
+    const proxima = r.json.item.fotosExtras[0].url;
+    r = await api('DELETE', P + '/itens/' + e1.id + '/foto', { sessao: 'tokA' });
+    assert.strictEqual(r.json.item.fotoUrl, proxima, 'tirar a capa promove a primeira extra'); assert.strictEqual(r.json.item.fotosExtras.length, 3); assert.strictEqual(arquivosNoArmazenamento().length, 4);
+    assert.strictEqual((await enviarExtra('tokB', 'projM', e1.id, PNG, 'image/png')).status, 400, 'outra conta não envia extra');
+    assert.strictEqual((await api('DELETE', P + '/itens/' + e1.id, { sessao: 'tokA' })).status, 200);
+    assert.strictEqual(arquivosNoArmazenamento().length, 0, 'excluir o item apaga a capa e todas as extras');
+    ok('fotos extras: 1ª vira capa, até 6 por item, tornar capa, remover, capa removida promove a próxima, sem órfão, outra conta barrada');
+
+    // modo do setor (lista/cards): padrão lista, acompanha o renome, cliente recebe
+    const lerModos = async () => (await api('GET', P, { sessao: 'tokA' })).json.modos;
+    assert.strictEqual((await lerModos()).Decorativos, 'lista');
+    r = await api('POST', P + '/setores/modo', { sessao: 'tokA', corpo: { nome: 'Decorativos', modo: 'cards' } });
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.json.modos.Decorativos, 'cards');
+    assert.strictEqual((await api('POST', P + '/setores/modo', { sessao: 'tokA', corpo: { nome: 'Decorativos', modo: 'tabela' } })).status, 400);
+    assert.strictEqual((await api('POST', P + '/setores/modo', { sessao: 'tokA', corpo: { nome: 'Inexistente', modo: 'cards' } })).status, 400);
+    assert.strictEqual((await api('POST', P + '/setores/modo', { sessao: 'tokB', corpo: { nome: 'Decorativos', modo: 'lista' } })).status, 400, 'outra conta não muda o modo');
+    await api('POST', P + '/setores/renomear', { sessao: 'tokA', corpo: { de: 'Decorativos', para: 'Objetos' } });
+    assert.strictEqual((await lerModos()).Objetos, 'cards', 'o modo acompanha o nome novo');
+    await api('POST', P + '/setores/renomear', { sessao: 'tokA', corpo: { de: 'Objetos', para: 'Decorativos' } });
+    r = await api('POST', P + '/setores/modo', { sessao: 'tokA', corpo: { nome: 'Decorativos', modo: 'lista' } });
+    assert.strictEqual(r.json.modos.Decorativos, 'lista');
+    ok('modo do setor: padrão lista, validação, posse, acompanha o renome');
+
+    // limite de 400 fotos por projeto (capa + extras, separado das fotos da galeria): 68 itens, 6 fotos cada até completar 400
     const ids = [];
-    for (let i = 0; i < 151; i++) ids.push((await novo({ setor: 'Decorativos', item: 'Quadro ' + i })).json.item.id);
-    for (let i = 0; i < 150; i++) assert.strictEqual((await enviarFoto('tokA', 'projM', ids[i], PNG, 'image/png')).status, 200, 'foto ' + i);
-    r = await enviarFoto('tokA', 'projM', ids[150], PNG, 'image/png');
-    assert.strictEqual(r.status, 400); assert.match(r.json.erro, /máximo de 150/);
-    assert.strictEqual(arquivosNoArmazenamento().length, 150, 'a 151ª foto não deixou arquivo órfão');
-    assert.strictEqual((await enviarFoto('tokA', 'projM', ids[0], PNG, 'image/png')).status, 200, 'trocar uma foto existente continua valendo no limite');
-    assert.strictEqual((await api('GET', P, { sessao: 'tokA' })).json.limites.fotosUsadas, 150);
-    ok('tipo/tamanho recusados sem órfão; trocar/remover/excluir apagam o arquivo; limite de 150');
-    for (const id of ids) await api('DELETE', `${P}/itens/${id}`, { sessao: 'tokA' }); // limpa
+    for (let i = 0; i < 68; i++) ids.push((await novo({ setor: 'Decorativos', item: 'Quadro ' + i })).json.item.id);
+    let enviadas = 0;
+    for (let i = 0; i < 66; i++) for (let k = 0; k < 6; k++) { assert.strictEqual((await enviarExtra('tokA', 'projM', ids[i], PNG, 'image/png')).status, 200, 'foto ' + enviadas); enviadas++; }
+    for (let k = 0; k < 4; k++) { assert.strictEqual((await enviarExtra('tokA', 'projM', ids[66], PNG, 'image/png')).status, 200); enviadas++; }
+    assert.strictEqual(enviadas, 400);
+    r = await enviarExtra('tokA', 'projM', ids[67], PNG, 'image/png');
+    assert.strictEqual(r.status, 400); assert.match(r.json.erro, /máximo de 400/);
+    r = await enviarFoto('tokA', 'projM', ids[67], PNG, 'image/png');
+    assert.strictEqual(r.status, 400); assert.match(r.json.erro, /máximo de 400/);
+    assert.strictEqual(arquivosNoArmazenamento().length, 400, 'a 401ª foto não deixou arquivo órfão');
+    assert.strictEqual((await enviarFoto('tokA', 'projM', ids[0], PNG, 'image/png')).status, 200, 'trocar uma capa existente continua valendo no limite');
+    assert.strictEqual((await api('GET', P, { sessao: 'tokA' })).json.limites.fotosUsadas, 400);
+    ok('tipo/tamanho recusados sem órfão; trocar/remover/excluir apagam o arquivo; limite de 400 fotos (capa + extras)');
+    for (const id of ids) await api('DELETE', P + '/itens/' + id, { sessao: 'tokA' }); // limpa
 
     console.log('== 4. Posse: outra conta não enxerga nem mexe ==');
     assert.strictEqual((await api('GET', P, { sessao: 'tokB' })).status, 400);
@@ -167,6 +214,118 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
     await api('GET', '/api/app/galeria/projM', { sessao: 'tokA' });
     assert.strictEqual((await api('GET', `/api/cliente/${link}/galeria`, { cliente: tokCli })).json.memorial.itens.length, 2, 'religar traz tudo de volta');
     ok('rebaixar esconde, religar volta; nada se perde');
+
+    console.log('== 10. Plantas do setor com círculos numerados (etapa 2) ==');
+    const enviarPlanta = async (sessao, setor, buffer, tipo, nome) => {
+      const f = new FormData(); f.append('setor', setor); if (nome) f.append('nome', nome); f.append('arquivo', new Blob([buffer], { type: tipo }), 'planta');
+      const resp = await fetch(`${BASE}${P}/plantas`, { method: 'POST', headers: { 'x-sessao-token': sessao }, body: f });
+      let json = null; try { json = await resp.json(); } catch (e) { /* sem corpo */ }
+      return { status: resp.status, json };
+    };
+    const arquivosDePlanta = () => { try { return fs.readdirSync(path.join(ARM, 'projM')).filter((n) => n.startsWith('memorial-planta-')); } catch (e) { return []; } };
+    const L1 = (await novo({ setor: 'Louças', item: 'Vaso sanitário' })).json.item;
+    const L2 = (await novo({ setor: 'Louças', item: 'Cuba de apoio' })).json.item;
+    const L3 = (await novo({ setor: 'Louças', item: 'Bidê antigo', status: 'ANTIGA' })).json.item;
+    const M1 = (await novo({ setor: 'Metais', item: 'Torneira de teste' })).json.item;
+    assert.deepStrictEqual([L1.numero, L2.numero, L3.numero], [1, 2, 3]);
+
+    // 10.1 envio e validações (nada de arquivo órfão quando recusa)
+    assert.strictEqual((await enviarPlanta('tokA', 'Inventado', PNG, 'image/png')).status, 400);
+    assert.strictEqual((await enviarPlanta('tokA', 'Louças', Buffer.from('GIF89a'), 'image/gif')).status, 400);
+    assert.strictEqual((await enviarPlanta('tokA', 'Louças', Buffer.alloc(memLimite + 1, 1), 'image/png')).status, 400);
+    assert.strictEqual(arquivosDePlanta().length, 0, 'recusas não deixam arquivo no armazenamento');
+    r = await enviarPlanta('tokA', 'Louças', PNG, 'image/png', 'Térreo');
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.json.planta.nome, 'Térreo');
+    assert.ok(r.json.planta.url.startsWith('/_local/') && !('r2Key' in r.json.planta) && Array.isArray(r.json.planta.marcas) && r.json.planta.marcas.length === 0);
+    const pl = r.json.planta; assert.strictEqual(arquivosDePlanta().length, 1);
+    const semNome = (await enviarPlanta('tokA', 'Louças', PNG, 'image/png')).json.planta;
+    assert.strictEqual(semNome.nome, 'Planta 2', 'sem nome: "Planta N"');
+    ok('upload (PNG), nome padrão, recusas (setor, tipo, tamanho) sem deixar arquivo órfão');
+
+    // 10.2 círculos: validação, limites das frações, vários por item
+    const marcar = (plantaId, marcas, sessao) => api('PUT', `${P}/plantas/${plantaId}/marcas`, { sessao: sessao || 'tokA', corpo: { marcas } });
+    for (const [marcas, msg] of [
+      ['x', /inválida/], [[null], /inválido/], [[{ itemId: 'mem_nao_existe', x: 0.5, y: 0.5 }], /não existe/],
+      [[{ itemId: M1.id, x: 0.5, y: 0.5 }], /mesmo setor/], [[{ itemId: L1.id, x: 'a', y: 0.5 }], /inválida/], [Array.from({ length: 81 }, () => ({ itemId: L1.id, x: 0.1, y: 0.1 })), /até 80/]
+    ]) { r = await marcar(pl.id, marcas); assert.strictEqual(r.status, 400, JSON.stringify(marcas).slice(0, 40)); assert.match(r.json.erro, msg); }
+    r = await marcar(pl.id, [{ itemId: L1.id, x: 0.2, y: 0.3 }, { itemId: L1.id, x: 0.8, y: 0.9 }, { itemId: L2.id, x: 1.5, y: -1 }, { itemId: L3.id, x: 0.5, y: 0.5 }]);
+    assert.strictEqual(r.status, 200); assert.strictEqual(r.json.planta.marcas.length, 4);
+    assert.deepStrictEqual([r.json.planta.marcas[2].x, r.json.planta.marcas[2].y], [1, 0], 'fora da imagem é limitado a 0..1');
+    assert.ok(r.json.planta.marcas.every((m) => /^mk_[a-z0-9]+$/.test(m.id)) && new Set(r.json.planta.marcas.map((m) => m.id)).size === 4, 'ids próprios e distintos');
+    const idsMarcas = r.json.planta.marcas.map((m) => m.id);
+    r = await marcar(pl.id, [{ id: idsMarcas[0], itemId: L1.id, x: 0.25, y: 0.35 }]); // lista completa substitui; id válido é mantido
+    assert.strictEqual(r.json.planta.marcas.length, 1); assert.strictEqual(r.json.planta.marcas[0].id, idsMarcas[0]);
+    await marcar(pl.id, [{ itemId: L1.id, x: 0.2, y: 0.3 }, { itemId: L1.id, x: 0.8, y: 0.9 }, { itemId: L2.id, x: 0.5, y: 0.5 }, { itemId: L3.id, x: 0.6, y: 0.6 }]);
+    ok('círculos: valida item/setor/posição, limita 0..1, aceita vários do mesmo item, lista nova substitui');
+
+    // 10.3 leitura: arquiteto (tudo) e cliente (só itens que ele vê, com o Nº atual, sem chaves)
+    lista = (await api('GET', P, { sessao: 'tokA' })).json;
+    assert.strictEqual(lista.plantas['Louças'].length, 2); assert.deepStrictEqual(lista.plantas['Metais'], []);
+    assert.strictEqual(lista.plantas['Louças'][0].marcas.length, 4, 'o arquiteto vê todos os círculos (inclusive o do item ANTIGA)');
+    assert.ok(!JSON.stringify(lista.plantas).includes('r2Key'));
+    assert.deepStrictEqual([lista.limites.plantasPorSetor, lista.limites.plantasPorProjeto, lista.limites.marcasPorPlanta], [8, 30, 80]);
+    r = await api('GET', `/api/cliente/${link}/galeria`, { cliente: tokCli });
+    const plCli = r.json.memorial.plantas['Louças'];
+    assert.strictEqual(plCli.length, 2); assert.strictEqual(plCli[0].nome, 'Térreo');
+    assert.strictEqual(plCli[0].marcas.length, 3, 'o círculo do item ANTIGA some pro cliente');
+    assert.deepStrictEqual(plCli[0].marcas.map((m) => m.numero), [1, 1, 2], 'o círculo leva o Nº do item');
+    assert.ok(plCli[0].url.startsWith('/_local/'));
+    assert.ok(!/r2Key|memorial-planta-[^"]*"\s*:/.test(JSON.stringify(r.json.memorial.plantas)), 'sem chaves do armazenamento');
+    await api('PUT', `${P}/itens/${L2.id}`, { sessao: 'tokA', corpo: { numero: 7 } });
+    r = await api('GET', `/api/cliente/${link}/galeria`, { cliente: tokCli });
+    assert.deepStrictEqual(r.json.memorial.plantas['Louças'][0].marcas.map((m) => m.numero), [1, 1, 7], 'mudou o Nº do item: o círculo acompanha');
+    await api('PUT', `${P}/itens/${L2.id}`, { sessao: 'tokA', corpo: { numero: 2 } });
+    ok('arquiteto vê tudo; cliente vê só itens vigentes, com o Nº atual e sem chaves');
+
+    // 10.4 posse e recurso: outra conta / sem o recurso não mexe em nada
+    assert.strictEqual((await enviarPlanta('tokB', 'Louças', PNG, 'image/png')).status, 400);
+    assert.strictEqual((await marcar(pl.id, [], 'tokB')).status, 400);
+    assert.strictEqual((await api('PUT', `${P}/plantas/${pl.id}`, { sessao: 'tokB', corpo: { nome: 'invadida' } })).status, 400);
+    assert.strictEqual((await api('DELETE', `${P}/plantas/${pl.id}`, { sessao: 'tokB' })).status, 400);
+    for (const sessao of ['tokASemMem', 'tokOld']) {
+      assert.strictEqual((await enviarPlanta(sessao, 'Louças', PNG, 'image/png')).status, 403);
+      assert.strictEqual((await marcar(pl.id, [], sessao)).status, 403);
+      assert.strictEqual((await api('DELETE', `${P}/plantas/${pl.id}`, { sessao })).status, 403);
+    }
+    assert.strictEqual((await api('GET', P, { sessao: 'tokA' })).json.plantas['Louças'][0].marcas.length, 4, 'nada mudou');
+    ok('outra conta recebe erro, quem não tem o recurso recebe 403, e nada muda');
+
+    // 10.5 renomear a planta; item que muda de setor ou é excluído perde os círculos
+    r = await api('PUT', `${P}/plantas/${pl.id}`, { sessao: 'tokA', corpo: { nome: 'Pavimento térreo' } });
+    assert.strictEqual(r.json.planta.nome, 'Pavimento térreo');
+    assert.strictEqual((await api('PUT', `${P}/plantas/${pl.id}`, { sessao: 'tokA', corpo: { nome: '  ' } })).status, 400);
+    await api('PUT', `${P}/itens/${L3.id}`, { sessao: 'tokA', corpo: { setor: 'Metais' } });
+    assert.strictEqual((await api('GET', P, { sessao: 'tokA' })).json.plantas['Louças'][0].marcas.length, 3, 'item mudou de setor: o círculo dele saiu');
+    const L4 = (await novo({ setor: 'Louças', item: 'Chuveiro de teste' })).json.item;
+    await marcar(pl.id, [{ itemId: L1.id, x: 0.2, y: 0.3 }, { itemId: L4.id, x: 0.4, y: 0.4 }]);
+    assert.strictEqual((await api('DELETE', `${P}/itens/${L4.id}`, { sessao: 'tokA' })).status, 200);
+    assert.deepStrictEqual((await api('GET', P, { sessao: 'tokA' })).json.plantas['Louças'][0].marcas.map((m) => m.itemId), [L1.id], 'item excluído: o círculo saiu');
+    ok('renomear planta; item que muda de setor ou é excluído perde o círculo');
+
+    // 10.6 setor: renomear leva as plantas; excluir recusa enquanto houver planta
+    await api('POST', P + '/setores/renomear', { sessao: 'tokA', corpo: { de: 'Louças', para: 'Louças e Metais' } });
+    lista = (await api('GET', P, { sessao: 'tokA' })).json;
+    assert.strictEqual(lista.plantas['Louças e Metais'].length, 2); assert.ok(!lista.plantas['Louças']);
+    assert.strictEqual(lista.plantas['Louças e Metais'][0].marcas.length, 1);
+    await api('POST', P + '/setores/renomear', { sessao: 'tokA', corpo: { de: 'Louças e Metais', para: 'Louças' } });
+    await api('POST', P + '/setores', { sessao: 'tokA', corpo: { nome: 'Setor das plantas' } });
+    const sPl = (await enviarPlanta('tokA', 'Setor das plantas', PNG, 'image/png')).json.planta;
+    r = await api('POST', P + '/setores/excluir', { sessao: 'tokA', corpo: { nome: 'Setor das plantas' } });
+    assert.strictEqual(r.status, 400); assert.match(r.json.erro, /1 planta/);
+    ok('o setor renomeado leva as plantas; setor com planta não é excluído');
+
+    // 10.7 chaves do projeto (exclusão total) incluem as plantas; limites; excluir planta apaga o arquivo
+    const galeriaLib = require('../lib/galeria');
+    const emDisco = galeriaLib.chavesDoProjeto(path.join(TMP, 'dados-galerias.json'), 'projM', 'arqA');
+    assert.strictEqual(emDisco.chaves.filter((k) => /memorial-planta-/.test(k)).length, 3, 'chavesDoProjeto lista as 3 plantas');
+    assert.strictEqual((await api('DELETE', `${P}/plantas/${sPl.id}`, { sessao: 'tokA' })).status, 200);
+    assert.strictEqual(arquivosDePlanta().length, 2, 'excluir a planta apaga o arquivo');
+    assert.strictEqual((await api('POST', P + '/setores/excluir', { sessao: 'tokA', corpo: { nome: 'Setor das plantas' } })).status, 200, 'sem planta, o setor sai');
+    for (let k = 0; k < 6; k++) assert.strictEqual((await enviarPlanta('tokA', 'Louças', PNG, 'image/png')).status, 200);
+    r = await enviarPlanta('tokA', 'Louças', PNG, 'image/png');
+    assert.strictEqual(r.status, 400); assert.match(r.json.erro, /máximo de 8/);
+    assert.strictEqual(arquivosDePlanta().length, 8, 'a recusa não deixou arquivo');
+    ok('chavesDoProjeto inclui as plantas; excluir apaga o arquivo; limite de 8 por setor');
   } finally {
     filho.kill();
     licenca.close();
