@@ -1153,6 +1153,10 @@ button.dash-chip-opcao:hover{ border-color:var(--steel-500); }
 .mem-card-linha{ display:flex; flex-direction:column; font-size:13.5px; line-height:1.45; }
 .mem-card-linha > span:first-child{ font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-dim); }
 .mem-card-linha a{ color:var(--steel-300); font-size:13px; }
+/* linha fina entre um dado e o seguinte (Empresa / Especificações / Dimensões / Qtd.), pra ver onde um termina e o outro começa */
+.mem-card-linha + .mem-card-linha{ border-top:1px solid var(--line); padding-top:7px; }
+/* nome do item ao passar o mouse (ou focar) no círculo da planta: fica fora do palco porque o palco corta o que passa da borda */
+.mem-dica-pino{ position:fixed; z-index:9999; left:0; top:0; max-width:min(280px, 80vw); padding:6px 10px; border-radius:6px; background:var(--text); color:var(--bg); font-size:12.5px; font-weight:600; line-height:1.3; box-shadow:0 2px 8px rgba(0,0,0,.35); pointer-events:none; display:none; }
 
 /* Planta do setor (memorial): imagem com círculos numerados, sem zoom (a planta cabe na largura da tela); é a 1ª parte do bloco do setor */
 .mem-planta-bloco{ display:flex; flex-direction:column; gap:18px; }

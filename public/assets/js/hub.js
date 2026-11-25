@@ -289,13 +289,43 @@
     return html ? `<div class="mem-planta-textos">${html}</div>` : '';
   }
   const TAMANHO_PINO_PADRAO = 0.027; // fração da largura da planta (o arquiteto ajusta por planta; servidor antigo não manda o valor)
-  function blocoPlantaMemorial(plantas, setor) {
+  function blocoPlantaMemorial(plantas, setor, itens) {
     if (!plantas.length) return '';
     const num = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0; };
-    const pino = (mk) => `<button type="button" class="mem-pino" data-mem-pino="${esc(mk.itemId)}" style="left:${(num(mk.x) * 100).toFixed(3)}%; top:${(num(mk.y) * 100).toFixed(3)}%;" aria-label="Item ${esc(mk.numero)} -- ver na lista" title="Item ${esc(mk.numero)}"><b>${esc(mk.numero)}</b></button>`;
+    const nomeDo = (id) => { const it = (itens || []).find((x) => x.id === id); return it && it.item ? String(it.item) : ''; };
+    // o nome do item aparece numa dica própria (data-nome) ao passar o mouse; o aria-label leva o nome pra quem usa leitor de tela
+    const pino = (mk) => { const nome = nomeDo(mk.itemId); return `<button type="button" class="mem-pino" data-mem-pino="${esc(mk.itemId)}" data-nome="${esc(nome)}" style="left:${(num(mk.x) * 100).toFixed(3)}%; top:${(num(mk.y) * 100).toFixed(3)}%;" aria-label="Item ${esc(mk.numero)}${nome ? ' — ' + esc(nome) : ''} -- ver na lista"><b>${esc(mk.numero)}</b></button>`; };
     const tam = (p) => { const n = Number(p.tamanhoMarcas); return Number.isFinite(n) && n > 0 ? n : TAMANHO_PINO_PADRAO; };
     return `<div class="mem-planta-bloco">${plantas.map((p, k) => `<figure class="mem-planta"><figcaption><span class="mem-planta-nome">${esc(setor)} — ${plantas.length > 1 ? `Planta ${k + 1}` : 'Planta'}</span><span class="mem-planta-dica">Toque no número para ir até o item</span></figcaption><div class="mem-planta-palco" style="--m:${tam(p)};"><img src="${esc(p.url)}" alt="Planta" loading="lazy">${textosDaPlanta(p)}${(p.marcas || []).map(pino).join('')}</div></figure>`).join('')}</div>`;
   }
+  // Dica com o nome do item ao passar o mouse (ou focar pelo teclado) no círculo numerado da planta. Uma só caixa, criada na 1ª vez, solta no <body>.
+  let dicaPino = null;
+  function esconderDicaPino() { if (dicaPino) dicaPino.style.display = 'none'; }
+  function mostrarDicaPino(pino) {
+    const nome = pino.dataset.nome;
+    if (!nome) return;
+    if (!dicaPino) { dicaPino = document.createElement('div'); dicaPino.className = 'mem-dica-pino'; dicaPino.setAttribute('role', 'tooltip'); document.body.appendChild(dicaPino); }
+    dicaPino.textContent = nome;
+    dicaPino.style.visibility = 'hidden'; dicaPino.style.display = 'block'; // medir antes de mostrar
+    const r = pino.getBoundingClientRect(), w = dicaPino.offsetWidth, h = dicaPino.offsetHeight;
+    let x = r.left + r.width / 2 - w / 2;
+    x = Math.max(6, Math.min(x, window.innerWidth - w - 6));
+    let y = r.top - h - 8;
+    if (y < 6) y = r.bottom + 8; // sem espaço em cima: vai embaixo
+    dicaPino.style.left = `${Math.round(x)}px`; dicaPino.style.top = `${Math.round(y)}px`;
+    dicaPino.style.visibility = 'visible';
+  }
+  function ligarDicaDosPinos(raiz) {
+    raiz.querySelectorAll('.mem-pino').forEach((b) => {
+      b.addEventListener('mouseenter', () => mostrarDicaPino(b));
+      b.addEventListener('focus', () => mostrarDicaPino(b));
+      b.addEventListener('mouseleave', esconderDicaPino);
+      b.addEventListener('blur', esconderDicaPino);
+      b.addEventListener('click', esconderDicaPino); // ao tocar/clicar a página rola até o item: a dica não pode ficar pra trás
+    });
+  }
+  window.addEventListener('scroll', () => esconderDicaPino(), { passive: true, capture: true });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') esconderDicaPino(); });
   function irParaItemMemorial(itemId) {
     const alvo = [...document.querySelectorAll('[data-mem-id]')].find((e) => e.dataset.memId === itemId);
     if (!alvo) return;
@@ -322,7 +352,7 @@
       if (!doSetor.length) return '';
       const fechado = setoresRecolhidos.has(setor);
       return `<section class="hub-grupo mem-setor${fechado ? ' recolhido' : ''}" data-setor="${esc(setor)}"><h2 class="mem-setor-titulo" data-recolher="${esc(setor)}" role="button" tabindex="0" aria-expanded="${fechado ? 'false' : 'true'}" title="Tocar para recolher ou abrir este setor"><span class="mem-seta" aria-hidden="true">▾</span>${esc(setor)} <span class="mem-contagem">${doSetor.length}</span></h2>
-        <div class="mem-setor-corpo">${blocoPlantaMemorial(plantasDoSetorMemorial(m, setor), setor)}
+        <div class="mem-setor-corpo">${blocoPlantaMemorial(plantasDoSetorMemorial(m, setor), setor, m.itens)}
         ${(m.modos || {})[setor] === 'cards'
           ? `<div class="mem-cards">${doSetor.map(cardMemorial).join('')}</div>`
           : `<table class="mem-tabela"><thead><tr><th>Nº</th><th>Foto</th><th>Item</th><th>Ambiente</th><th>Empresa</th><th>Especificações</th><th>Dimensões</th><th>Qtd.</th></tr></thead>
@@ -343,6 +373,7 @@
       t.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); alternarSetor(t); } });
     });
     el('hubConteudo').querySelectorAll('[data-mem-pino]').forEach((b) => b.addEventListener('click', () => irParaItemMemorial(b.dataset.memPino)));
+    esconderDicaPino(); ligarDicaDosPinos(el('hubConteudo'));
     el('btnPdfMemorialCliente').addEventListener('click', gerarPdfMemorialCliente);
     el('selSetorMemorialCliente').addEventListener('change', aplicarFiltroSetorMemorial);
   }
