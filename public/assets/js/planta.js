@@ -69,9 +69,11 @@
     const insignia = status === 'aprovada' ? '<span class="pin-insignia aprovada">✓</span>'
       : status === 'alteracao' ? '<span class="pin-insignia alteracao">!</span>' : '';
     // data-x/data-y = fração (0..1) da planta; a posição em pixels sai de posicionarPins().
-    // IMPORTANTE: o <img> da prévia PRECISA de crossorigin="anonymous". O visualizador 360 baixa o MESMO arquivo
-    // por XHR (que exige CORS); sem esse atributo o navegador guarda a cópia SEM cabeçalho CORS ao passar o mouse
-    // no ícone, e o 360 depois falha com "The file ... could not be accessed" (status 0). Bug real de nov/2026.
+    // IMPORTANTE: a prévia NUNCA vira <img src=URL-da-foto> direto. O visualizador 360 baixa o MESMO arquivo por XHR (exige CORS) e o
+    // navegador guarda a cópia SEM cabeçalho CORS se a foto entrar no cache por uma <img> comum: o 360 falhava com "The file ... could not
+    // be accessed" (bug real de nov/2026). Ao contrário, uma <img crossorigin> pode falhar quando a mesma foto já está no cache SEM CORS
+    // (aberta no visualizador) e quebrava a prévia (ícone de imagem quebrada). Por isso a prévia é baixada por fetch com cache:'no-store'
+    // (não lê nem grava o cache do navegador, então não conflita com nada) e vira um blob local -- ver previaDaFoto().
     // A prévia (data-src) só é baixada quando o mouse/foco chega no ícone -- baixar a imagem de todos
     // os ícones ao abrir a planta seria pesado (principalmente no celular).
     return `<button class="pin-planta ${eh360 ? 'pin-360' : 'pin-fixa'} status-${status}" data-foto-id="${f.id}"
@@ -79,7 +81,7 @@
         title="${escapeHtml(nome)} -- ${TEXTO_STATUS[status]}" aria-label="${escapeHtml(nome)}">
         <span class="pin-corpo">${eh360 ? SVG_PIN360 : SVG_CAMERA}</span>${insignia}
         <span class="pin-rotulo">
-          ${f.url ? `<img class="pin-rotulo-img" data-src="${escapeHtml(f.url)}" alt="" draggable="false" crossorigin="anonymous">` : ''}
+          ${f.url ? `<img class="pin-rotulo-img" data-src="${escapeHtml(f.url)}" alt="" draggable="false">` : ''}
           <span>${escapeHtml(nome)}</span>
         </span>
       </button>`;
@@ -210,7 +212,14 @@
     caixa.querySelectorAll('.pin-planta').forEach((el) => {
       const carregarPrevia = () => {
         const img = el.querySelector('.pin-rotulo-img');
-        if (img && !img.getAttribute('src')) img.setAttribute('src', img.dataset.src);
+        if (!img || img.getAttribute('src') || img.dataset.carregando) return;
+        img.dataset.carregando = '1';
+        previaDaFoto(el.dataset.fotoId, img.dataset.src).then((url) => {
+          delete img.dataset.carregando;
+          if (!url) return; // não deu: a dica fica só com o nome (sem ícone de imagem quebrada) e o próximo passar do mouse tenta de novo
+          img.onerror = () => img.removeAttribute('src');
+          img.setAttribute('src', url);
+        });
       };
       el.addEventListener('mouseenter', carregarPrevia);
       el.addEventListener('focus', carregarPrevia);
@@ -220,6 +229,46 @@
     const validas = estado.galeria.fotos.filter((f) => !f.arquivada);
     const aprovadas = validas.filter((f) => f.aprovada).length;
     pid('plantaTextoProgresso').textContent = validas.length ? `${aprovadas} de ${validas.length} imagens aprovadas` : '';
+  }
+
+  // ---------------------------------------------------------------- prévia do ícone (dica ao passar o mouse)
+  // Baixa a foto por fetch sem cache do navegador e devolve um endereço local (blob). Os links do armazenamento valem 1 hora: com a página
+  // aberta há mais tempo o link vence; aí pede a galeria de novo (links novos, no máximo 1 vez a cada 30 s) e tenta mais uma vez.
+  const PREVIAS = new Map(); // fotoId -> Promise<blob url | null>
+  let ultimaRenovacaoUrls = 0;
+  async function baixarComoBlob(url) {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const b = await r.blob();
+    if (!b.size) throw new Error('vazio');
+    return URL.createObjectURL(b);
+  }
+  async function urlRenovadaDaFoto(fotoId) {
+    if (Date.now() - ultimaRenovacaoUrls > 30000 && typeof chamarAPI === 'function' && typeof LINK_TOKEN !== 'undefined') {
+      ultimaRenovacaoUrls = Date.now();
+      try {
+        const g = await chamarAPI('/api/cliente/' + LINK_TOKEN + '/galeria');
+        const novas = new Map((g.fotos || []).map((n) => [n.id, n.url]));
+        const atualizar = (lista) => (lista || []).forEach((o) => { if (o && novas.has(o.id) && novas.get(o.id)) o.url = novas.get(o.id); });
+        atualizar(estado.galeria && estado.galeria.fotos);
+        ((estado && estado.categoriasOrdenadas) || []).forEach((c) => atualizar(c.fotos));
+      } catch (e) { /* sem rede / sessão vencida: segue sem renovar */ }
+    }
+    const f = ((estado.galeria && estado.galeria.fotos) || []).find((x) => x.id === fotoId);
+    return (f && f.url) || null;
+  }
+  function previaDaFoto(fotoId, urlInicial) {
+    if (PREVIAS.has(fotoId)) return PREVIAS.get(fotoId);
+    const p = (async () => {
+      try { return await baixarComoBlob(urlInicial); } catch (e) { /* link vencido ou falha: renova e tenta de novo */ }
+      try {
+        const nova = await urlRenovadaDaFoto(fotoId);
+        return nova && nova !== urlInicial ? await baixarComoBlob(nova) : null;
+      } catch (e) { return null; }
+    })();
+    PREVIAS.set(fotoId, p);
+    p.then((r) => { if (!r) PREVIAS.delete(fotoId); }); // falhou: deixa tentar de novo no próximo passar do mouse
+    return p;
   }
 
   function renderizar() {
