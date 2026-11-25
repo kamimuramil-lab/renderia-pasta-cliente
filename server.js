@@ -339,7 +339,8 @@ async function galeriaComUrls(galeriaObj) {
   if (novoVisual && recursosVivos.memorial === true) {
     const m = memLib.paraCliente(galeriaObj);
     // O cliente recebe só URLs temporárias (nunca as chaves do armazenamento): a capa em `fotoUrl` e as extras em `fotosExtras[].url`.
-    memorialCliente = { ...m, itens: await Promise.all(m.itens.map(async ({ fotoR2Key, fotosExtras, ...i }) => ({
+    // `disponivel`: o dono tem o recurso (mesmo com 0 itens). A página usa isso pra mostrar o cartão "Em breve" em vez de esconder.
+    memorialCliente = { ...m, disponivel: true, itens: await Promise.all(m.itens.map(async ({ fotoR2Key, fotosExtras, ...i }) => ({
       ...i,
       fotoUrl: fotoR2Key ? await storage.urlTemporaria(fotoR2Key) : null,
       fotosExtras: await Promise.all((fotosExtras || []).map(async (f) => ({ id: f.id, url: await storage.urlTemporaria(f.r2Key) })))

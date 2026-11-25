@@ -117,14 +117,17 @@
     if (n360) partes.push(`${n360} em 360°`);
     cartoes.push(cartao({ id: 'criativo', icone: ICONES.criativo, titulo: 'Projeto criativo', ativo: validas.length > 0, acao: 'criativo', novidade: contagemNovidades('criativo'),
       detalhe: validas.length ? `${partes.join(' · ')} · ${aprov} aprovada${aprov === 1 ? '' : 's'}` : 'Em breve' }));
-    ['executivo', 'visitas'].forEach((id) => {
+    // Linha de baixo, nesta ordem: Fotos, Projeto executivo e Memorial de itens.
+    ['visitas', 'executivo'].forEach((id) => {
       const n = documentosDaSecao(g, id).filter((d) => d.status !== 'ANTIGA').length;
       const total = documentosDaSecao(g, id).length;
       cartoes.push(cartao({ id, icone: ICONES[id], titulo: TITULOS[id], ativo: total > 0, acao: 'secao:' + id, novidade: contagemNovidades(id), detalhe: total ? plural(n, 'documento', 'documentos') : 'Em breve' }));
     });
-    // Memorial de itens: só entra quando o servidor mandou o recurso (memorial vem vazio pra quem não tem; aí o cartão nem aparece).
-    const nMem = memorialDe(g).itens.length;
-    if (nMem > 0) cartoes.push(cartao({ id: 'memorial', icone: ICONES.memorial, titulo: 'Memorial de itens', ativo: true, acao: 'secao:memorial', novidade: contagemNovidades('memorial'), detalhe: plural(nMem, 'item', 'itens') }));
+    // Memorial de itens: o servidor só manda `disponivel` quando o dono tem o recurso; sem ele o cartão nem aparece.
+    // Com o recurso e nenhum item ainda, aparece apagado "Em breve" (igual ao Projeto executivo).
+    const mem = memorialDe(g);
+    const nMem = mem.itens.length;
+    if (nMem > 0 || mem.disponivel === true) cartoes.push(cartao({ id: 'memorial', icone: ICONES.memorial, titulo: 'Memorial de itens', ativo: nMem > 0, acao: 'secao:memorial', novidade: contagemNovidades('memorial'), detalhe: nMem > 0 ? plural(nMem, 'item', 'itens') : 'Em breve' }));
 
     el('hubConteudo').innerHTML = `${capaHtml(g)}
       <div class="hub-corpo">
