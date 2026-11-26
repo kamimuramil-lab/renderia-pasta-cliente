@@ -32,7 +32,7 @@ const acesso = orc.definirAcesso(CAMINHO, 'projO', { usuario: '  orc-cliente ', 
 assert.strictEqual(acesso.usuario, 'orc-cliente');
 assert.ok(/^[0-9a-f]{32}$/.test(acesso.linkToken) && acesso.linkToken !== g0.linkToken, 'link do orçamento é outro, e diferente do da Pasta Cliente');
 const lido = orc.lerParaArquiteto(CAMINHO, 'projO', DONO);
-assert.deepStrictEqual(lido.acesso, { linkToken: acesso.linkToken, usuario: 'orc-cliente', senha: 'senha-orc' }); // o DONO vê a senha atual (cópia cifrada)
+assert.deepStrictEqual(lido.acesso, { exigirLogin: true, linkToken: acesso.linkToken, usuario: 'orc-cliente', senha: 'senha-orc' }); // o DONO vê a senha atual (cópia cifrada)
 assert.ok(!JSON.stringify(lido).includes('senhaHash') && !JSON.stringify(lido).includes('sessoesAtivas'), 'o app nunca recebe hash nem sessões');
 const tokSessao = orc.loginCliente(CAMINHO, acesso.linkToken, 'orc-cliente', 'senha-orc');
 assert.ok(orc.validarTokenCliente(CAMINHO, acesso.linkToken, tokSessao));

@@ -27,6 +27,8 @@ async function chamarAPI(caminho, opcoes = {}) {
     headers: Object.assign({}, opcoes.headers || {}, estado.tokenClienteAtual ? { 'x-cliente-token': estado.tokenClienteAtual } : {})
   }));
   const dados = await resp.json().catch(() => ({}));
+  // Estava aberta sem login e o escritório religou: recarrega pra mostrar a tela de entrar.
+  if (resp.status === 401 && estado.semLogin) { estado.semLogin = false; window.location.reload(); }
   if (!resp.ok) { const e = new Error(dados.erro || 'Erro ao falar com o servidor.'); e.indisponivel = !!dados.indisponivel; throw e; }
   return dados;
 }
@@ -164,6 +166,7 @@ function contarImagens(cat) { return cat.fotos.length; } // a foto usada como ca
 
 function mostrarGaleria(galeria) {
   estado.galeria = galeria;
+  estado.semLogin = !!galeria.semLogin;
   aplicarModoEscritorio(galeria);
   document.body.classList.toggle('visual-novo', !!galeria.novoVisual); // servidor antigo não manda = visual de sempre
   if (window.TemaCores) window.TemaCores.aplicar(galeria.coresEscritorio); // cor de destaque da conta (sem cor = o visual de sempre)
@@ -737,8 +740,21 @@ async function aplicarIconePersonalizadoNaTelaDeLogin() {
     if (info.indisponivel) mostrarIndisponivel(info.aviso);
     if (info.iconeUrl) $('imgLogoLogin').src = info.iconeUrl;
     if (info.nomeProjeto) $('tituloLogin').textContent = `Galeria de ${info.nomeProjeto}`;
+    return info;
   } catch (e) { /* sem internet ou link inválido -- mantém a marca padrão RENDERIA */ }
+  return null;
 }
-aplicarIconePersonalizadoNaTelaDeLogin();
 
-tentarEntrarComTokenSalvo();
+// Login desligado pelo escritório: o link abre direto, sem usuário nem senha (quem decide e confere é o servidor).
+async function entrarSemLogin() {
+  estado.tokenClienteAtual = null;
+  try { entrarNoProjeto(await chamarAPI(`/api/cliente/${LINK_TOKEN}/galeria`)); }
+  catch (e) { if (e.indisponivel) mostrarIndisponivel(e.message); }
+}
+
+(async function iniciarEntrada() {
+  const informacoes = aplicarIconePersonalizadoNaTelaDeLogin();
+  if (await tentarEntrarComTokenSalvo()) return;
+  const info = await informacoes;
+  if (info && info.semLogin && !info.indisponivel) await entrarSemLogin();
+})();

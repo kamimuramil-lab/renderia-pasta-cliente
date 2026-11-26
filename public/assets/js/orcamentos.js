@@ -14,6 +14,7 @@
 
   let token = null;
   let dados = null;
+  let semLogin = false; // o escritório desligou o login deste link
   // Mensagens do escritório que este aparelho já viu (por orçamento): o botão de comentários avisa quando chega resposta nova.
   const CHAVE_VISTOS = `renderia_orc_vistos_${LINK}`;
   const lerVistos = () => { try { return JSON.parse(localStorage.getItem(CHAVE_VISTOS) || '{}'); } catch (e) { return {}; } };
@@ -53,7 +54,7 @@
       headers: Object.assign({}, opcoes.headers || {}, token ? { 'x-orcamento-token': token } : {})
     }));
     const json = await resp.json().catch(() => ({}));
-    if (resp.status === 401 && token) { sairParaLogin('Sua sessão expirou. Entre de novo.'); throw new Error(json.erro || 'Faça login de novo.'); }
+    if (resp.status === 401 && (token || semLogin)) { const motivo = semLogin ? 'Agora é preciso entrar com usuário e senha.' : 'Sua sessão expirou. Entre de novo.'; semLogin = false; sairParaLogin(motivo); throw new Error(json.erro || 'Faça login de novo.'); }
     if (!resp.ok) throw new Error(json.erro || 'Erro ao falar com o servidor.');
     return json;
   }
@@ -356,11 +357,12 @@
       }
       if (!r.ok) { document.body.innerHTML = '<div style="padding:60px 24px; text-align:center; color:#9a9ea5; font-family:sans-serif;">Link não encontrado -- confira se você copiou o endereço completo que recebeu.</div>'; return; }
       const info = await r.json();
+      semLogin = info.semLogin === true;
       $('tituloLogin').textContent = `Orçamentos — ${info.nomeProjeto}`;
       if (window.TemaCores) window.TemaCores.aplicar(info.cores); // cor de destaque do escritório (sem cor = o visual de sempre)
       if (info.iconeUrl) { $('imgLogoLogin').src = info.iconeUrl; $('imgLogoOrc').src = info.iconeUrl; }
     } catch (e) { /* a tela de login continua com o título genérico */ }
     try { token = localStorage.getItem(CHAVE_TOKEN); } catch (e) { token = null; }
-    if (token) { try { await carregar(); } catch (e) { sairParaLogin(); } }
+    if (token || semLogin) { try { await carregar(); } catch (e) { sairParaLogin(); } }
   })();
 })();

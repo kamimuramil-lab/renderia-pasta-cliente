@@ -17,4 +17,6 @@ assert.deepStrictEqual(ver('tipo'), [['Interiores', 'tipo:interiores', 'a'], ['S
 assert.deepStrictEqual(ver('nenhum'), [['', '', 'abc']]);
 assert.ok(html.includes('id="fAgrupar"') && html.includes('<option value="status" selected>Status</option>'), 'o padrão continua sendo por status');
 assert.ok(js.includes("gruposDoDashboard(lista, $('fAgrupar').value, catalogo)"), 'o desenho usa o agrupamento escolhido');
+assert.ok(html.includes('id="btnAtualizarDash"') && js.includes("$('btnAtualizarDash').addEventListener"), 'botão Atualizar');
+assert.ok(js.includes("window.addEventListener('focus', atualizarAoVoltar)") && js.includes("|| editando || Date.now() - carregadoEm < 15000"), 'atualiza ao voltar, sem atropelar a edição');
 console.log('TODOS OS TESTES DO AGRUPAR DO DASHBOARD PASSARAM');

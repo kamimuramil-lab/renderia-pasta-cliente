@@ -18,7 +18,7 @@ galeria.criarOuAtualizarGaleria(CAMINHO, { projetoId: 'p1', licencaUsuario: DONO
 
 console.log('== 1. Criar o acesso: o dono vê a senha; o arquivo não guarda em texto ==');
 const ac = orc.definirAcesso(CAMINHO, 'p1', { usuario: 'orc-fulano', senha: 'SenhaOrc42' }, DONO);
-assert.deepStrictEqual(Object.keys(ac).sort(), ['linkToken', 'usuario'], 'a resposta do PUT não devolve senha');
+assert.deepStrictEqual(Object.keys(ac).sort(), ['exigirLogin', 'linkToken', 'usuario'], 'a resposta do PUT não devolve senha');
 assert.strictEqual(orc.lerParaArquiteto(CAMINHO, 'p1', DONO).acesso.senha, 'SenhaOrc42');
 assert.ok(!fs.readFileSync(CAMINHO, 'utf8').includes('SenhaOrc42'), 'a senha não está em texto puro no arquivo de dados');
 console.log('OK');

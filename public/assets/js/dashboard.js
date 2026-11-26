@@ -87,8 +87,10 @@
   $('btnSair').addEventListener('click', async () => { try { await chamar(`/api/dashboard/${LINK}/sair`, enviar('POST')); } catch (e) { /* sai mesmo assim */ } sairParaLogin(); });
 
   // ---------- dados e filtros ----------
+  let carregadoEm = 0;
   async function carregar() {
     const r = await chamar(`/api/dashboard/${LINK}/projetos`);
+    carregadoEm = Date.now();
     projetos = r.projetos;
     if (r.catalogo) catalogo = r.catalogo;
     iconeConta = r.iconeUrl || null;
@@ -334,6 +336,19 @@
   const liberarCartoes = () => document.querySelectorAll('.dash-card.abrindo').forEach((c) => c.classList.remove('abrindo'));
   window.addEventListener('pageshow', liberarCartoes);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) liberarCartoes(); });
+
+  // ---------- Atualizar: o que muda no RENDERIA aparece aqui sem recarregar a página ----------
+  // Botão, e sozinho quando a pessoa volta pra esta aba (no máximo 1x a cada 15 s; nunca com a janela de etiquetas aberta).
+  $('btnAtualizarDash').addEventListener('click', async () => {
+    const botao = $('btnAtualizarDash'); botao.disabled = true;
+    try { await carregar(); avisar('Atualizado.'); } catch (e) { avisar(e.message, true); } finally { botao.disabled = false; }
+  });
+  function atualizarAoVoltar() {
+    if (document.hidden || $('telaDash').style.display === 'none' || editando || Date.now() - carregadoEm < 15000) return;
+    carregar().catch(() => { /* sem rede: fica o que já está na tela */ });
+  }
+  document.addEventListener('visibilitychange', atualizarAoVoltar);
+  window.addEventListener('focus', atualizarAoVoltar); // alternar entre o RENDERIA e o navegador não troca de aba
 
   // ---------- entrada: sessão lembrada ----------
   (async function iniciar() {

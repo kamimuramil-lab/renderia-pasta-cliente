@@ -377,9 +377,9 @@ app.get('/api/contagem-fotos/:licencaUsuario', (req, res) => {
 
 app.post('/api/app/galeria', limitarPorIP, exigirSessaoArquiteto, (req, res) => {
   try {
-    const { projetoId, nomeProjeto, clienteUsuario, clienteSenha } = req.body || {};
+    const { projetoId, nomeProjeto, clienteUsuario, clienteSenha, exigirLogin } = req.body || {};
     const g = galeria.criarOuAtualizarGaleria(CAMINHO_DADOS, {
-      projetoId, licencaUsuario: req.licencaUsuario, nomeProjeto, clienteUsuario, clienteSenha
+      projetoId, licencaUsuario: req.licencaUsuario, nomeProjeto, clienteUsuario, clienteSenha, exigirLogin
     });
     galeria.sincronizarRecursos(CAMINHO_DADOS, projetoId, req.licencaUsuario, req.recursos); // galeria nova já nasce com a cópia dos recursos do dono
     res.json({ ok: true, linkToken: g.linkToken });
@@ -394,7 +394,8 @@ app.get('/api/app/galeria/:projetoId', exigirSessaoArquiteto, async (req, res) =
     if (!g) return res.status(404).json({ erro: 'Essa Pasta do Cliente ainda não foi criada.' });
     if (g.licencaUsuario !== req.licencaUsuario) return res.status(403).json({ erro: 'Esse projeto não pertence a essa licença.' });
     // Só aqui (rota do arquiteto, dono conferido acima) a senha do cliente sai em texto: o escritório vê login e senha de cada projeto.
-    res.json({ ...(await galeriaComUrls(g)), clienteSenha: galeria.senhaDoClientePeloDono(CAMINHO_DADOS, req.params.projetoId, req.licencaUsuario) });
+    // `loginOpcional` diz ao app que este servidor sabe ligar/desligar o login; `exigirLogin` = como está agora
+    res.json({ ...(await galeriaComUrls(g)), exigirLogin: g.exigirLogin !== false, loginOpcional: true, clienteSenha: galeria.senhaDoClientePeloDono(CAMINHO_DADOS, req.params.projetoId, req.licencaUsuario) });
   } catch (e) {
     res.status(500).json({ erro: e.message });
   }
@@ -1128,7 +1129,7 @@ app.get('/api/orcamentos/:linkToken/info-publica', async (req, res) => {
     if (pers.iconeExibir && pers.iconeR2Key) iconeUrl = await storage.urlTemporaria(pers.iconeR2Key);
   } catch (e) { /* sem ícone: a página usa o padrão */ }
   const cores = galeria.coresEscritorioDaLicenca(galeria.lerEstado(CAMINHO_DADOS), g.licencaUsuario);
-  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl, cores });
+  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl, cores, semLogin: orcLib.entraSemLogin(CAMINHO_DADOS, req.params.linkToken) });
 });
 
 app.post('/api/orcamentos/:linkToken/login', limitarPorIP, async (req, res) => {
@@ -1157,7 +1158,7 @@ async function exigirSessaoOrcamento(req, res, next) {
     return res.status(403).json({ erro: 'Esta pasta de orçamentos não está disponível no momento.' });
   }
   const token = req.headers['x-orcamento-token'];
-  if (!token || !orcLib.validarTokenCliente(CAMINHO_DADOS, req.params.linkToken, token)) {
+  if (!orcLib.entraSemLogin(CAMINHO_DADOS, req.params.linkToken) && !(token && orcLib.validarTokenCliente(CAMINHO_DADOS, req.params.linkToken, token))) {
     return res.status(401).json({ erro: 'Faça login de novo.' });
   }
   next();
@@ -1194,7 +1195,7 @@ app.get('/api/cliente/:linkToken/info-publica', async (req, res) => {
   // `novoVisual`: o dono tem o recurso "Página do projeto" -> a página (inclusive o login) usa o tema claro/escuro novo.
   const cores = galeria.coresEscritorioDaLicenca(galeria.lerEstado(CAMINHO_DADOS), g.licencaUsuario); // cor de destaque da conta: a tela de login já nasce com ela
   const indisponivel = await galeriaIndisponivel(g); // assinatura do escritório vencida: a tela de login avisa e não deixa entrar
-  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl, novoVisual: (await recursosDoDono(g)).paginaProjeto === true, cores, indisponivel, ...(indisponivel ? { aviso: MSG_PASTA_INDISPONIVEL } : {}) });
+  res.json({ nomeProjeto: g.nomeProjeto, iconeUrl, semLogin: g.exigirLogin === false, novoVisual: (await recursosDoDono(g)).paginaProjeto === true, cores, indisponivel, ...(indisponivel ? { aviso: MSG_PASTA_INDISPONIVEL } : {}) });
 });
 
 app.post('/api/cliente/:linkToken/login', limitarPorIP, async (req, res) => {
@@ -1221,8 +1222,11 @@ async function exigirSessaoCliente(req, res, next) {
   } catch (e) { return res.status(500).json({ erro: 'Erro conferindo a licença do escritório.' }); }
   const token = req.headers['x-cliente-token'];
   const sessao = token ? galeria.sessaoCliente(CAMINHO_DADOS, req.params.linkToken, token) : null;
-  if (!sessao) return res.status(401).json({ erro: 'Faça login de novo.' });
-  req.somenteLeitura = sessao.escritorio === true; // aberta pelo dashboard (modo escritório): só olha
+  if (!sessao) {
+    if (!galeria.entraSemLogin(CAMINHO_DADOS, req.params.linkToken, token)) return res.status(401).json({ erro: 'Faça login de novo.' });
+    req.semLogin = true; // o arquiteto desligou o login deste link
+  }
+  req.somenteLeitura = !!(sessao && sessao.escritorio === true); // aberta pelo dashboard (modo escritório): só olha
   next();
 }
 // Aprovar/comentar não valem em modo escritório: o arquiteto nunca registra uma decisão no lugar do cliente.
@@ -1301,6 +1305,9 @@ app.get('/api/cliente/:linkToken/galeria', exigirSessaoCliente, async (req, res)
     const resultado = await galeriaComUrls(g);
     resultado.fotos = resultado.fotos.filter((f) => !f.arquivada); // cliente nunca vê arquivadas
     delete resultado.meta; // etiquetas do dashboard (arquitetos etc.) são do escritório
+    delete resultado.clienteUsuario; // a página não usa; com o login desligado quem só tem o link não deve ficar sabendo o usuário
+    delete resultado.exigirLogin;
+    if (req.semLogin) resultado.semLogin = true;
     // Controle interno de avisos (quem o escritório já avisou sobre cada documento) é SÓ do escritório: nunca sai pro cliente final.
     if (resultado.hub && Array.isArray(resultado.hub.documentos)) resultado.hub = { ...resultado.hub, documentos: resultado.hub.documentos.map(({ controleInterno, ...doc }) => doc) };
     delete resultado.vistoCliente;
