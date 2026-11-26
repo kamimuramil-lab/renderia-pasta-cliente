@@ -206,6 +206,8 @@ const portaLivre = () => new Promise((resolve, reject) => { const s = net.create
     // página do cliente: o JS novo tem que ser servido
     const js = await (await fetch(BASE + '/assets/js/orcamentos.js')).text();
     assert.ok(/categorias/.test(js), 'orcamentos.js do cliente agrupa por categoria');
+    assert.ok(/data-cat=/.test(js) && /function alternarCategoria\(/.test(js) && /aria-expanded/.test(js) && /renderia_orc_recolhidas_/.test(js), 'o cliente pode fechar/abrir cada categoria (lembrado no aparelho)');
+    assert.ok(js.indexOf('function alternarCategoria(') < js.indexOf('function renderizar()'), 'a lógica de fechar fica FORA do renderizar (foi um erro real: dentro dele o clique não achava a função)');
     console.log('\nTODOS OS TESTES DAS CATEGORIAS DE ORÇAMENTOS PASSARAM');
   } finally {
     try { filho.kill(); } catch (e) { /* já foi */ }

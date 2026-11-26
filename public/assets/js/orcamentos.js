@@ -184,6 +184,17 @@
     return n ? `<div class="orc-novidades"><span class="hub-bolinha-fixa">${n}</span> ${n === 1 ? 'novidade' : 'novidades'} desde a sua última visita</div>` : '';
   }
 
+  // Categorias que o cliente fechou (clicando no título): fica lembrado neste aparelho. Só visual: nada muda pro escritório.
+  const CHAVE_RECOLHIDAS = `renderia_orc_recolhidas_${LINK}`;
+  let recolhidas = new Set();
+  try { recolhidas = new Set(JSON.parse(localStorage.getItem(CHAVE_RECOLHIDAS) || '[]')); } catch (e) { recolhidas = new Set(); }
+  const gravarRecolhidas = () => { try { localStorage.setItem(CHAVE_RECOLHIDAS, JSON.stringify([...recolhidas])); } catch (e) { /* vale só nesta visita */ } };
+  function alternarCategoria(id) {
+    if (!id) return;
+    if (recolhidas.has(id)) recolhidas.delete(id); else recolhidas.add(id);
+    gravarRecolhidas();
+    renderizar();
+  }
   function renderizar() {
     const itens = dados.itens;
     if (!itens.length) { $('orcLista').innerHTML = '<div class="vazio-galeria">Ainda não há orçamentos por aqui. Volte em breve!</div>'; return; }
@@ -195,7 +206,10 @@
       const doGrupo = itens.filter((i) => (c.id ? i.categoriaId === c.id : true));
       if (!doGrupo.length) return '';
       const sub = somaDe(doGrupo);
-      return `<div class="orc-grupo-cab"><span class="orc-grupo-nome">${esc(c.nome)}</span> <span>${doGrupo.length}</span>${sub > 0 ? `<span class="orc-grupo-soma">${moeda(sub)}</span>` : ''}</div>${doGrupo.map(linha).join('')}`;
+      const fechada = recolhidas.has(c.id);
+      // fechada, a categoria ainda avisa se tem novidade (orçamento novo/alterado ou resposta do escritório) lá dentro
+      const temNovo = fechada && doGrupo.some((i) => (novidades && novidades.tag('orcamentos', i.id)) || novasDoEscritorio(i));
+      return `<div class="orc-grupo-cab orc-grupo-clicavel" data-cat="${esc(c.id)}" role="button" tabindex="0" aria-expanded="${!fechada}" title="${fechada ? 'Mostrar' : 'Esconder'} os orçamentos desta categoria"><span class="orc-grupo-seta" aria-hidden="true">${fechada ? '▸' : '▾'}</span><span class="orc-grupo-nome">${esc(c.nome)}</span> <span>${doGrupo.length}</span>${temNovo ? '<span class="hub-novo">NOVO</span>' : ''}${sub > 0 ? `<span class="orc-grupo-soma">${moeda(sub)}</span>` : ''}</div>${fechada ? '' : doGrupo.map(linha).join('')}`;
     }).join('');
     $('orcLista').innerHTML = `${avisoDeNovidades()}<div class="orc-tabela">
       <div class="orc-cab"><span>Somar</span><span>Orçamento</span><span class="orc-c-valor">Valor</span><span>Observação</span><span>Decisão</span></div>
@@ -241,6 +255,12 @@
     if (!linhaEl) return;
     if (caixa.checked) somar.add(linhaEl.dataset.id); else somar.delete(linhaEl.dataset.id);
     gravarSomar(); atualizarTotais(); // só o rodapé muda: não refaz a lista (não perde o que está sendo digitado)
+  });
+  $('orcLista').addEventListener('click', (e) => { const cab = e.target.closest('[data-cat]'); if (cab) alternarCategoria(cab.dataset.cat); });
+  $('orcLista').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const cab = e.target.closest && e.target.closest('[data-cat]');
+    if (cab && e.target === cab) { e.preventDefault(); alternarCategoria(cab.dataset.cat); }
   });
   $('orcLista').addEventListener('click', async (e) => {
     const botaoSomar = e.target.closest('[data-acao-somar]');

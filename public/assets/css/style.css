@@ -686,6 +686,11 @@ body.visual-novo .btn-tema{ display:flex; }
 .orc-grupo-cab span{ margin-left:6px; font-weight:600; color:var(--text-faint); }
 .orc-grupo-cab{ display:flex; align-items:baseline; gap:6px; }
 .orc-grupo-cab .orc-grupo-nome{ margin-left:0; color:var(--text); font-weight:800; }
+.orc-grupo-cab .hub-novo{ color:#fff; margin-left:8px; }
+.orc-grupo-clicavel{ cursor:pointer; user-select:none; }
+.orc-grupo-clicavel:hover, .orc-grupo-clicavel:focus-visible{ background:var(--bg-elev, var(--bg)); outline:none; }
+.orc-grupo-clicavel:focus-visible{ box-shadow:inset 0 0 0 2px var(--destaque); }
+.orc-grupo-cab .orc-grupo-seta{ margin:0 2px 0 0; font-size:15px; color:var(--text-dim); }
 .orc-grupo-cab .orc-grupo-soma{ margin-left:auto; text-transform:none; letter-spacing:0; font-size:15px; font-weight:700; color:var(--text-dim); }
 .orc-row{ border-bottom:1px solid var(--line-soft); }
 .orc-row.status-recusado{ opacity:.6; }
