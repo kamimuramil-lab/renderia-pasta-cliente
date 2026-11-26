@@ -1399,7 +1399,9 @@ app.get('/api/dashboard/:linkDash/projetos', exigirSessaoDashboard, rotaDash(asy
   return { projetos, iconeUrl, catalogo: dashLib.catalogoDaConta(CAMINHO_DADOS, req.licencaConta) };
 }));
 // Listas da conta (arquitetos, tipos, situações): cadastrar um nome novo / remover um que ninguém usa. Valem pra todos os projetos.
-app.post('/api/dashboard/:linkDash/catalogo', exigirSessaoDashboard, rotaDash((req) => dashLib.adicionarAoCatalogo(CAMINHO_DADOS, req.licencaConta, (req.body || {}).lista, (req.body || {}).nome)));
+app.post('/api/dashboard/:linkDash/catalogo', exigirSessaoDashboard, rotaDash((req) => dashLib.adicionarAoCatalogo(CAMINHO_DADOS, req.licencaConta, (req.body || {}).lista, (req.body || {}).nome, { reviver: true }))); // aqui é sempre a pessoa digitando
+app.post('/api/dashboard/:linkDash/catalogo/excluir', exigirSessaoDashboard, rotaDash((req) => dashLib.excluirEmTudo(CAMINHO_DADOS, req.licencaConta, (req.body || {}).lista, (req.body || {}).nome)));
+app.post('/api/dashboard/:linkDash/catalogo/renomear', exigirSessaoDashboard, rotaDash((req) => dashLib.renomearEmTudo(CAMINHO_DADOS, req.licencaConta, (req.body || {}).lista, (req.body || {}).de, (req.body || {}).para)));
 app.post('/api/dashboard/:linkDash/catalogo/remover', exigirSessaoDashboard, rotaDash((req) => dashLib.removerDoCatalogo(CAMINHO_DADOS, req.licencaConta, (req.body || {}).lista, (req.body || {}).chave)));
 app.put('/api/dashboard/:linkDash/projetos/:projetoId/meta', exigirSessaoDashboard, rotaDash((req) => ({ meta: dashLib.definirMeta(CAMINHO_DADOS, req.licencaConta, req.params.projetoId, req.body || {}) })));
 app.post('/api/dashboard/:linkDash/projetos/:projetoId/abrir', exigirSessaoDashboard, rotaDash((req) => {
@@ -1456,10 +1458,12 @@ app.get('/api/app/atividades', exigirSessaoArquiteto, (req, res) => {
   res.json({ ok: true, atividades: atividades.listar(CAMINHO_DADOS, { licenca: req.licencaUsuario, projetoId: req.query.projetoId || null, limite: req.query.limite }) });
 });
 app.get('/api/app/dashboard/projetos', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => ({
-  projetos: dashLib.listarProjetos(CAMINHO_DADOS, req.licencaUsuario).map(({ projetoId, nome, meta }) => ({ projetoId, nome, meta })),
+  projetos: dashLib.listarProjetos(CAMINHO_DADOS, req.licencaUsuario).map(({ projetoId, nome, meta, definidas }) => ({ projetoId, nome, meta, definidas })),
   catalogo: dashLib.catalogoDaConta(CAMINHO_DADOS, req.licencaUsuario)
 })));
-app.post('/api/app/dashboard/catalogo', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => dashLib.adicionarAoCatalogo(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).lista, (req.body || {}).nome)));
+app.post('/api/app/dashboard/catalogo', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => dashLib.adicionarAoCatalogo(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).lista, (req.body || {}).nome, { reviver: (req.body || {}).reviver === true })));
+app.post('/api/app/dashboard/catalogo/excluir', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => dashLib.excluirEmTudo(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).lista, (req.body || {}).nome)));
+app.post('/api/app/dashboard/catalogo/renomear', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => dashLib.renomearEmTudo(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).lista, (req.body || {}).de, (req.body || {}).para)));
 app.post('/api/app/dashboard/catalogo/remover', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => dashLib.removerDoCatalogo(CAMINHO_DADOS, req.licencaUsuario, (req.body || {}).lista, (req.body || {}).chave)));
 app.put('/api/app/galeria/:projetoId/meta', exigirSessaoArquiteto, exigirRecurso('paginaProjeto'), rotaDash((req) => ({ meta: dashLib.definirMeta(CAMINHO_DADOS, req.licencaUsuario, req.params.projetoId, req.body || {}) })));
 

@@ -242,14 +242,13 @@
     $('dashTipo').innerHTML = opcoesTipo(); $('dashTipo').value = tipo || '';
     $('dashSituacao').innerHTML = opcoesSituacao(); $('dashSituacao').value = situacao || 'andamento';
   }
-  // Gerenciar as listas: quem não está em uso (e não é padrão) tem ✕ pra remover
+  // Gerenciar as listas: o que não é padrão pode mudar de nome (✎) ou ser apagado (✕), valendo em todos os projetos que usam
   function desenharListasGerenciar() {
     const grupo = (titulo, lista, chaveDe) => `<div class="dash-lista-grupo"><span class="dash-rotulo">${titulo}</span><div class="dash-chips-lista">${lista.length ? lista.map((x) => {
-      const removivel = !x.padrao && !x.usos;
       const dica = x.padrao ? 'Item padrão' : (x.usos ? 'Em uso em ' + x.usos + (x.usos === 1 ? ' projeto' : ' projetos') : 'Sem uso');
-      return `<span class="dash-chip-opcao fixo" title="${dica}">${esc(x.nome)}${x.usos ? ` <small>${x.usos}</small>` : ''}${removivel ? `<button type="button" data-remover-lista="${esc(titulo)}" data-chave="${esc(chaveDe(x))}" aria-label="Remover ${esc(x.nome)}">✕</button>` : ''}</span>`;
+      return `<span class="dash-chip-opcao fixo" title="${dica}">${esc(x.nome)}${x.usos ? ` <small>${x.usos}</small>` : ''}${x.padrao ? '' : `<button type="button" class="renomear" data-renomear-lista="${esc(titulo)}" data-nome="${esc(x.nome)}" title="Renomear" aria-label="Renomear ${esc(x.nome)}">✎</button><button type="button" data-remover-lista="${esc(titulo)}" data-nome="${esc(x.nome)}" title="Apagar" aria-label="Apagar ${esc(x.nome)}">✕</button>`}</span>`;
     }).join('') : '<span class="dash-sem">Nenhum</span>'}</div></div>`;
-    $('dashListasGerenciar').innerHTML = grupo('Arquitetos', catalogo.arquitetos, (x) => x.nome) + grupo('Tipos', catalogo.tipos, (x) => x.nome) + grupo('Situações', catalogo.situacoes, (x) => x.id);
+    $('dashListasGerenciar').innerHTML = grupo('Arquitetos', catalogo.arquitetos) + grupo('Tipos', catalogo.tipos) + grupo('Situações', catalogo.situacoes);
   }
   const LISTA_DO_TITULO = { Arquitetos: 'arquitetos', Tipos: 'tipos', 'Situações': 'situacoes' };
   function abrirEdicao(id) {
@@ -303,13 +302,43 @@
     if (arqEdicao.length >= 6) { avisar('No máximo 6 arquitetos por projeto.', true); return; }
     arqEdicao.push(b.dataset.escolher); desenharChipsEdicao();
   });
+  // Aplica a troca (novo = null: apagou) no que está escolhido na janela e recarrega as listas e os cartões.
+  async function depoisDeMudarLista(lista, antigo, novo, tipo, situacao) {
+    const igualA = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+    const nomeDaEscolhida = situacao ? nomeSituacao(situacao) : '';
+    if (lista === 'arquitetos') arqEdicao = [...new Set(arqEdicao.map((a) => (igualA(a, antigo) ? novo : a)).filter(Boolean))];
+    if (lista === 'tipos' && igualA(tipo, antigo)) tipo = novo || '';
+    await carregarCatalogo();
+    if (lista === 'situacoes' && !catalogo.situacoes.some((s) => s.id === situacao)) {
+      const junto = catalogo.situacoes.find((s) => igualA(s.nome, igualA(nomeDaEscolhida, antigo) ? (novo || 'Em andamento') : nomeDaEscolhida));
+      situacao = junto ? junto.id : 'andamento';
+    }
+    desenharSelectsEdicao(tipo, situacao); desenharChipsEdicao(); desenharListasGerenciar(); montarFiltros(); desenhar();
+  }
   $('dashListasGerenciar').addEventListener('click', async (e) => {
-    const b = e.target.closest('[data-remover-lista]');
+    const apagar = e.target.closest('[data-remover-lista]');
+    const b = apagar || e.target.closest('[data-renomear-lista]');
     if (!b) return;
+    const lista = LISTA_DO_TITULO[apagar ? b.dataset.removerLista : b.dataset.renomearLista], nome = b.dataset.nome;
+    const item = catalogo[lista].find((x) => x.nome === nome);
+    const usos = (item && item.usos) || 0;
+    const tipo = tipoAtual(), situacao = situacaoAtual();
+    let novo = null;
+    if (apagar) {
+      if (!window.confirm(`Apagar "${nome}"?\n\nSai de todos os projetos que usam este nome (no dashboard: ${usos} ${usos === 1 ? 'projeto' : 'projetos'}), inclusive nos computadores com o RENDERIA. Os projetos em si não são afetados.`)) return;
+    } else {
+      novo = String(window.prompt(`Novo nome para "${nome}" (vale em todos os projetos):`, nome) || '').trim();
+      if (!novo || novo === nome) return;
+      const outro = catalogo[lista].find((x) => x.nome.toLowerCase() === novo.toLowerCase() && x.nome.toLowerCase() !== nome.toLowerCase());
+      if (outro && !window.confirm(`Já existe "${outro.nome}".\n\nJuntar "${nome}" com "${outro.nome}"? Os projetos passam a usar "${outro.nome}". Não dá para separar depois.`)) return;
+    }
     try {
-      const r = await chamar(`/api/dashboard/${LINK}/catalogo/remover`, enviar('POST', { lista: LISTA_DO_TITULO[b.dataset.removerLista], chave: b.dataset.chave }));
+      const r = apagar
+        ? await chamar(`/api/dashboard/${LINK}/catalogo/excluir`, enviar('POST', { lista, nome }))
+        : await chamar(`/api/dashboard/${LINK}/catalogo/renomear`, enviar('POST', { lista, de: nome, para: novo }));
       catalogo = r.catalogo;
-      desenharSelectsEdicao(tipoAtual(), situacaoAtual()); desenharChipsEdicao(); desenharListasGerenciar(); montarFiltros();
+      await depoisDeMudarLista(lista, nome, apagar ? null : r.nome, tipo, situacao);
+      avisar(apagar ? 'Apagado.' : 'Nome trocado.');
     } catch (err) { avisar(err.message, true); }
   });
   $('dashModalFechar').addEventListener('click', fecharEdicao);

@@ -1093,6 +1093,7 @@ button.dash-chip-opcao:hover{ border-color:var(--steel-500); }
 .dash-chip-opcao.fixo{ cursor:default; }
 .dash-chip-opcao small{ color:var(--text-faint); font-size:11px; font-weight:700; }
 .dash-chip-opcao button{ background:none; border:0; color:var(--hub-vermelho); padding:0 0 0 2px; font-size:11px; cursor:pointer; }
+.dash-chip-opcao button.renomear{ color:var(--text-faint); font-size:13px; }
 .dash-listas{ border-top:1px solid var(--line); padding-top:12px; }
 .dash-listas summary{ cursor:pointer; font-size:13.5px; font-weight:700; color:var(--text-dim); }
 .dash-lista-grupo{ display:flex; flex-direction:column; gap:6px; margin-top:12px; }
