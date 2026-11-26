@@ -105,7 +105,7 @@
     const manter = (id, html, vazio) => { const sel = $(id); const atual = sel.value; sel.innerHTML = html; sel.value = [...sel.options].some((o) => o.value === atual) ? atual : vazio; };
     manter('fArquiteto', '<option value="">Todos</option>' + todosArquitetos().map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join('') + '<option value="__sem__">Sem arquiteto</option>', '');
     manter('fTipo', '<option value="">Todos</option>' + catalogo.tipos.map((t) => `<option value="${esc(t.nome)}">${esc(t.nome)}</option>`).join(''), '');
-    manter('fSituacao', '<option value="">Todas</option>' + catalogo.situacoes.map((s) => `<option value="${esc(s.id)}">${esc(s.nome)}</option>`).join(''), '');
+    manter('fSituacao', '<option value="">Todos</option>' + catalogo.situacoes.map((s) => `<option value="${esc(s.id)}">${esc(s.nome)}</option>`).join(''), '');
   }
   function lerFiltros() { return { busca: $('fBusca').value, arquiteto: $('fArquiteto').value, tipo: $('fTipo').value, situacao: $('fSituacao').value }; }
   function restaurarFiltros() {
@@ -130,6 +130,26 @@
     if (f.tipo && p.meta.tipo !== f.tipo) return false;
     if (f.situacao && p.meta.situacao !== f.situacao) return false;
     return true;
+  }
+
+  // ---------- Agrupar por (Nenhum, Arquiteto, Tipo ou Status; o padrão é Status). Lembrado neste aparelho. ----------
+  const CHAVE_AGRUPAR = `renderia_dash_agrupar_${LINK}`;
+  const lerAgrupar = () => { try { const v = localStorage.getItem(CHAVE_AGRUPAR); return ['nenhum', 'arquiteto', 'tipo', 'status'].includes(v) ? v : 'status'; } catch (e) { return 'status'; } };
+  $('fAgrupar').value = lerAgrupar();
+  $('fAgrupar').addEventListener('change', () => { try { localStorage.setItem(CHAVE_AGRUPAR, $('fAgrupar').value); } catch (e) { /* vale só nesta visita */ } desenhar(); });
+  // Projeto com dois arquitetos aparece nos DOIS grupos; quem não tem a etiqueta vai pro "Sem ...", no fim; grupo vazio não aparece.
+  // `chave` lembra os grupos recolhidos (no Status é o id da situação, como sempre foi).
+  function gruposDoDashboard(lista, criterio, listas) {
+    if (criterio === 'nenhum') return [{ chave: '', titulo: '', projetos: lista }];
+    if (criterio === 'status') return listas.situacoes.map((s) => ({ chave: s.id, titulo: s.nome, projetos: lista.filter((p) => p.meta.situacao === s.id) })).filter((g) => g.projetos.length);
+    const mesmo = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+    const valores = (p) => (criterio === 'arquiteto' ? p.meta.arquitetos : (p.meta.tipo ? [p.meta.tipo] : []));
+    const nomes = (criterio === 'arquiteto' ? listas.arquitetos.map((a) => a.nome).sort((a, b) => a.localeCompare(b, 'pt-BR')) : listas.tipos.map((t) => t.nome));
+    lista.forEach((p) => valores(p).forEach((v) => { if (!nomes.some((n) => mesmo(n, v))) nomes.push(v); }));
+    const grupos = nomes.map((n) => ({ chave: `${criterio}:${String(n).toLowerCase()}`, titulo: n, projetos: lista.filter((p) => valores(p).some((v) => mesmo(v, n))) }));
+    const sem = lista.filter((p) => !valores(p).length);
+    if (sem.length) grupos.push({ chave: `${criterio}:`, titulo: criterio === 'arquiteto' ? 'Sem arquiteto' : 'Sem tipo', projetos: sem });
+    return grupos.filter((g) => g.projetos.length);
   }
 
   // ---------- desenho ----------
@@ -158,11 +178,10 @@
     if (!projetos.length) { $('dashLista').innerHTML = '<div class="vazio-galeria">Ainda não há projetos com Pasta do Cliente. Crie a Pasta do Cliente de um projeto no RENDERIA e ele aparece aqui.</div>'; return; }
     if (!lista.length) { $('dashLista').innerHTML = '<div class="vazio-galeria">Nenhum projeto com esses filtros.</div>'; return; }
     const recolhidos = lerRecolhidos();
-    $('dashLista').innerHTML = catalogo.situacoes.map((sit) => {
-      const doGrupo = lista.filter((p) => p.meta.situacao === sit.id);
-      if (!doGrupo.length) return '';
-      const fechado = recolhidos.has(sit.id);
-      return `<section class="dash-grupo${fechado ? ' recolhido' : ''}" data-sit="${esc(sit.id)}"><h2 class="dash-grupo-titulo" role="button" tabindex="0" aria-expanded="${fechado ? 'false' : 'true'}" title="Tocar para recolher ou abrir"><span class="dash-seta" aria-hidden="true">▾</span>${esc(sit.nome.toUpperCase())} <span>${doGrupo.length}</span></h2><div class="dash-grid">${doGrupo.map(cartao).join('')}</div></section>`;
+    $('dashLista').innerHTML = gruposDoDashboard(lista, $('fAgrupar').value, catalogo).map((g) => {
+      if (!g.titulo) return `<section class="dash-grupo"><div class="dash-grid">${g.projetos.map(cartao).join('')}</div></section>`; // sem agrupar
+      const fechado = recolhidos.has(g.chave);
+      return `<section class="dash-grupo${fechado ? ' recolhido' : ''}" data-sit="${esc(g.chave)}"><h2 class="dash-grupo-titulo" role="button" tabindex="0" aria-expanded="${fechado ? 'false' : 'true'}" title="Tocar para recolher ou abrir"><span class="dash-seta" aria-hidden="true">▾</span>${esc(g.titulo.toUpperCase())} <span>${g.projetos.length}</span></h2><div class="dash-grid">${g.projetos.map(cartao).join('')}</div></section>`;
     }).join('');
   }
 

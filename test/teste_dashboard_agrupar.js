@@ -1,0 +1,20 @@
+// "Agrupar por" do dashboard online: roda a função de verdade da página.
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const js = fs.readFileSync(path.join(__dirname, '..', 'public', 'assets', 'js', 'dashboard.js'), 'utf8').replace(/\r\n/g, '\n');
+const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'dashboard.html'), 'utf8');
+const ini = js.indexOf('  function gruposDoDashboard'); const fim = js.indexOf('\n  }\n', ini) + 5;
+assert.ok(ini > 0 && fim > ini, 'função não achada');
+const agrupar = new Function(js.slice(ini, fim) + 'return gruposDoDashboard;')();
+const p = (id, arquitetos, tipo, situacao) => ({ id, meta: { arquitetos, tipo, situacao } });
+const lista = [p('a', ['Zeca', 'Ana'], 'Interiores', 'concluido'), p('b', ['ana'], '', 'andamento'), p('c', [], '', 'sit_1')];
+const listas = { arquitetos: [{ nome: 'Zeca' }, { nome: 'Ana' }, { nome: 'Sem Uso' }], tipos: [{ nome: 'Interiores' }, { nome: 'Arquitetura' }], situacoes: [{ id: 'andamento', nome: 'Em andamento' }, { id: 'concluido', nome: 'Concluído' }, { id: 'sit_1', nome: 'Em obra' }] };
+const ver = (c) => agrupar(lista, c, listas).map((g) => [g.titulo, g.chave, g.projetos.map((x) => x.id).join('')]);
+assert.deepStrictEqual(ver('status'), [['Em andamento', 'andamento', 'b'], ['Concluído', 'concluido', 'a'], ['Em obra', 'sit_1', 'c']], 'status: a chave continua sendo o id (grupos recolhidos de antes continuam valendo)');
+assert.deepStrictEqual(ver('arquiteto'), [['Ana', 'arquiteto:ana', 'ab'], ['Zeca', 'arquiteto:zeca', 'a'], ['Sem arquiteto', 'arquiteto:', 'c']]);
+assert.deepStrictEqual(ver('tipo'), [['Interiores', 'tipo:interiores', 'a'], ['Sem tipo', 'tipo:', 'bc']]);
+assert.deepStrictEqual(ver('nenhum'), [['', '', 'abc']]);
+assert.ok(html.includes('id="fAgrupar"') && html.includes('<option value="status" selected>Status</option>'), 'o padrão continua sendo por status');
+assert.ok(js.includes("gruposDoDashboard(lista, $('fAgrupar').value, catalogo)"), 'o desenho usa o agrupamento escolhido');
+console.log('TODOS OS TESTES DO AGRUPAR DO DASHBOARD PASSARAM');

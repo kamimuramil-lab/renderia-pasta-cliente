@@ -129,6 +129,39 @@
     return `<select class="orc-decisao-sel s-${esc(item.status)}" data-acao-decisao aria-label="Decisão sobre ${esc(item.item)}">${opcoes}</select>`;
   }
 
+  // Ficha do produto (os mesmos campos do Memorial): foto, ambientes, quantidade, dimensões, especificações e link do produto.
+  // Só aparece o que o escritório preencheu.
+  function fichaDoProduto(item) {
+    const partes = [];
+    if ((item.ambientes || []).length) partes.push(`<div class="orc-chips">${item.ambientes.map((a) => `<span>${esc(a)}</span>`).join('')}</div>`);
+    if (item.quantidade) partes.push(`<div class="orc-ficha-linha"><b>Quantidade:</b> ${esc(item.quantidade)}</div>`);
+    if (item.dimensoes) partes.push(`<div class="orc-ficha-linha"><b>Dimensões:</b> ${esc(item.dimensoes)}</div>`);
+    if (item.especificacoes) partes.push(`<div class="orc-ficha-linha">${esc(item.especificacoes)}</div>`);
+    const produto = hrefSeguro(item.linkProduto);
+    if (produto) partes.push(`<a class="orc-produto" href="${esc(produto)}" target="_blank" rel="noopener noreferrer">Ver produto ↗</a>`);
+    return partes.length ? `<div class="orc-ficha">${partes.join('')}</div>` : '';
+  }
+  function miniaturaDoItem(item) {
+    const fotos = item.fotos || [];
+    if (!fotos.length) return '';
+    return `<button type="button" class="orc-foto" data-acao-foto aria-label="Ampliar ${fotos.length === 1 ? 'a foto' : 'as fotos'} de ${esc(item.item)}"><img src="${esc(fotos[0])}" alt="" loading="lazy">${fotos.length > 1 ? `<span>+${fotos.length - 1}</span>` : ''}</button>`;
+  }
+  // Foto ampliada, com setas quando há mais de uma. Fecha no ✕, no fundo ou com Esc.
+  function ampliarFotos(fotos, nome) {
+    let i = 0;
+    const caixa = document.createElement('div');
+    caixa.className = 'orc-zoom';
+    caixa.setAttribute('role', 'dialog');
+    caixa.setAttribute('aria-label', `Fotos de ${nome}`);
+    const desenhar = () => { caixa.innerHTML = `<button type="button" class="orc-zoom-fechar" data-z="fechar" aria-label="Fechar">✕</button>${fotos.length > 1 ? '<button type="button" class="orc-zoom-seta esq" data-z="-1" aria-label="Foto anterior">‹</button>' : ''}<img src="${esc(fotos[i])}" alt="">${fotos.length > 1 ? `<button type="button" class="orc-zoom-seta dir" data-z="1" aria-label="Próxima foto">›</button><div class="orc-zoom-conta">${i + 1} / ${fotos.length}</div>` : ''}`; };
+    const passar = (d) => { i = (i + d + fotos.length) % fotos.length; desenhar(); };
+    const fechar = () => { caixa.remove(); document.removeEventListener('keydown', teclas); };
+    const teclas = (e) => { if (e.key === 'Escape') fechar(); else if (fotos.length > 1 && e.key === 'ArrowLeft') passar(-1); else if (fotos.length > 1 && e.key === 'ArrowRight') passar(1); };
+    caixa.addEventListener('click', (e) => { const b = e.target.closest('[data-z]'); if (b && b.dataset.z !== 'fechar') passar(Number(b.dataset.z)); else if (b || e.target === caixa) fechar(); });
+    document.addEventListener('keydown', teclas);
+    desenhar(); document.body.appendChild(caixa);
+  }
+
   // Cada orçamento é uma LINHA (usa a largura toda da tela): Somar | Categoria e fornecedor | Valor | Observação | Decisão.
   function linha(item) {
     const href = hrefSeguro(item.url);
@@ -138,10 +171,14 @@
     const comentarios = item.comentarios.map((c) => `<div class="orc-msg ${c.autor === 'cliente' ? 'minha' : 'escritorio'}"><span class="orc-msg-autor">${c.autor === 'cliente' ? 'Você' : 'Escritório'}</span>${esc(c.texto)}</div>`).join('');
     return `<article class="orc-row status-${esc(item.status)}" data-id="${esc(item.id)}">
       <label class="orc-c-somar" title="${temValor(item) ? 'Incluir este valor na soma' : 'Sem valor ainda'}"><input type="checkbox" data-somar ${somar.has(item.id) && temValor(item) ? 'checked' : ''} ${temValor(item) ? '' : 'disabled'} aria-label="Somar ${esc(item.item)}"></label>
-      <div class="orc-c-item">
+      <div class="orc-c-item ${(item.fotos || []).length ? 'com-foto' : ''}">
+        ${miniaturaDoItem(item)}
+        <div class="orc-c-texto">
         <h3>${esc(item.item)}${tagNovidade(item.id)}</h3>
         ${quem ? `<div class="orc-linha">${quem}</div>` : ''}
         ${telefone ? `<div class="orc-linha"><a href="tel:${esc(telefone)}">${esc(item.telefone)}</a></div>` : ''}
+        ${fichaDoProduto(item)}
+        </div>
       </div>
       <div class="orc-c-valor ${temValor(item) ? '' : 'sem'}">
         <span class="orc-abrir-slot">${href ? `<a class="orc-botao orc-abrir" href="${esc(href)}" target="_blank" rel="noopener noreferrer" title="Abrir o orçamento (arquivo do fornecedor)">Abrir ↗</a>` : ''}</span>
@@ -257,6 +294,11 @@
     gravarSomar(); atualizarTotais(); // só o rodapé muda: não refaz a lista (não perde o que está sendo digitado)
   });
   $('orcLista').addEventListener('click', (e) => { const cab = e.target.closest('[data-cat]'); if (cab) alternarCategoria(cab.dataset.cat); });
+  $('orcLista').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-acao-foto]');
+    const it = b && dados && dados.itens.find((x) => x.id === b.closest('[data-id]').dataset.id);
+    if (it) ampliarFotos(it.fotos, it.item);
+  });
   $('orcLista').addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     const cab = e.target.closest && e.target.closest('[data-cat]');

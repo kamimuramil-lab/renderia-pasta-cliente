@@ -886,17 +886,50 @@ const rotaOrc = (fn) => (req, res) => {
 };
 const baseOrc = (req) => [CAMINHO_DADOS, req.params.projetoId];
 
-app.get('/api/app/galeria/:projetoId/orcamentos', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => orcLib.lerParaArquiteto(...baseOrc(req), req.licencaUsuario)));
+// Rotas de orçamento que devolvem itens: as chaves do armazenamento viram endereços temporários (mesma forma do Memorial).
+const rotaOrcAsync = (fn) => async (req, res) => {
+  try { res.json(Object.assign({ ok: true }, await fn(req))); } catch (e) { res.status(400).json({ erro: e.message }); }
+};
+app.get('/api/app/galeria/:projetoId/orcamentos', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrcAsync(async (req) => { const r = orcLib.lerParaArquiteto(...baseOrc(req), req.licencaUsuario); return Object.assign(r, { itens: await Promise.all(r.itens.map(comUrlDaFoto)) }); }));
 app.put('/api/app/galeria/:projetoId/orcamentos/acesso', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ acesso: orcLib.definirAcesso(...baseOrc(req), req.body || {}, req.licencaUsuario) })));
 app.put('/api/app/galeria/:projetoId/orcamentos/ordem', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => { orcLib.reordenarItens(...baseOrc(req), (req.body || {}).ids, req.licencaUsuario); return {}; }));
 // Categorias (separadores): os orçamentos ficam dentro delas
 app.post('/api/app/galeria/:projetoId/orcamentos/categorias', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ categoria: orcLib.adicionarCategoria(...baseOrc(req), req.body || {}, req.licencaUsuario) })));
 app.put('/api/app/galeria/:projetoId/orcamentos/categorias/ordem', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => { orcLib.reordenarCategorias(...baseOrc(req), (req.body || {}).ids, req.licencaUsuario); return {}; }));
 app.put('/api/app/galeria/:projetoId/orcamentos/categorias/:categoriaId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ categoria: orcLib.renomearCategoria(...baseOrc(req), req.params.categoriaId, req.body || {}, req.licencaUsuario) })));
-app.delete('/api/app/galeria/:projetoId/orcamentos/categorias/:categoriaId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => orcLib.excluirCategoria(...baseOrc(req), req.params.categoriaId, req.licencaUsuario)));
-app.post('/api/app/galeria/:projetoId/orcamentos/itens', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ item: orcLib.adicionarItem(...baseOrc(req), req.body || {}, req.licencaUsuario) })));
-app.put('/api/app/galeria/:projetoId/orcamentos/itens/:itemId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ item: orcLib.editarItem(...baseOrc(req), req.params.itemId, req.body || {}, req.licencaUsuario) })));
-app.delete('/api/app/galeria/:projetoId/orcamentos/itens/:itemId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => { orcLib.excluirItem(...baseOrc(req), req.params.itemId, req.licencaUsuario); return {}; }));
+app.delete('/api/app/galeria/:projetoId/orcamentos/categorias/:categoriaId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrcAsync(async (req) => {
+  const { chavesDeFotos, ...r } = orcLib.excluirCategoria(...baseOrc(req), req.params.categoriaId, req.licencaUsuario);
+  for (const c of chavesDeFotos) await apagarDoArmazenamento(c);
+  return r;
+}));
+app.post('/api/app/galeria/:projetoId/orcamentos/itens', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrcAsync(async (req) => ({ item: await comUrlDaFoto(orcLib.adicionarItem(...baseOrc(req), req.body || {}, req.licencaUsuario)) })));
+app.put('/api/app/galeria/:projetoId/orcamentos/itens/:itemId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrcAsync(async (req) => ({ item: await comUrlDaFoto(orcLib.editarItem(...baseOrc(req), req.params.itemId, req.body || {}, req.licencaUsuario)) })));
+app.delete('/api/app/galeria/:projetoId/orcamentos/itens/:itemId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrcAsync(async (req) => { for (const c of orcLib.excluirItem(...baseOrc(req), req.params.itemId, req.licencaUsuario)) await apagarDoArmazenamento(c); return {}; }));
+// Fotos do orçamento (o app manda já reduzidas, como no Memorial). A primeira vira a capa.
+app.post('/api/app/galeria/:projetoId/orcamentos/itens/:itemId/fotos', exigirSessaoArquiteto, exigirRecurso('orcamentos'), upload.single('arquivo'), async (req, res) => {
+  let chave = null;
+  try {
+    if (!req.file) return res.status(400).json({ erro: 'Nenhum arquivo enviado.' });
+    const extensao = memLib.TIPOS_FOTO[req.file.mimetype];
+    if (!extensao) return res.status(400).json({ erro: 'Envie a foto como WebP, JPG ou PNG.' });
+    if (req.file.size > memLib.LIMITE_BYTES_FOTO) return res.status(400).json({ erro: 'A foto do produto está grande demais (o app reduz sozinho; tente outra imagem).' });
+    orcLib.conferirPodeReceberFoto(...baseOrc(req), req.params.itemId, req.licencaUsuario); // limites/posse ANTES de gravar
+    chave = `${req.params.projetoId}/orcamento-${crypto.randomUUID()}.${extensao}`;
+    await storage.salvarArquivo(chave, req.file.buffer, req.file.mimetype);
+    const { item, fotoId } = orcLib.adicionarFoto(...baseOrc(req), req.params.itemId, chave, req.licencaUsuario);
+    res.json({ ok: true, fotoId, item: await comUrlDaFoto(item) });
+  } catch (e) {
+    await apagarDoArmazenamento(chave);
+    res.status(400).json({ erro: e.message });
+  }
+});
+// :fotoId = "capa" tira a capa (a próxima foto sobe)
+app.delete('/api/app/galeria/:projetoId/orcamentos/itens/:itemId/fotos/:fotoId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrcAsync(async (req) => {
+  const { item, r2KeyAntiga } = orcLib.removerFoto(...baseOrc(req), req.params.itemId, req.params.fotoId === 'capa' ? null : req.params.fotoId, req.licencaUsuario);
+  await apagarDoArmazenamento(r2KeyAntiga);
+  return { item: await comUrlDaFoto(item) };
+}));
+app.post('/api/app/galeria/:projetoId/orcamentos/itens/:itemId/fotos/:fotoId/capa', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrcAsync(async (req) => ({ item: await comUrlDaFoto(orcLib.tornarCapa(...baseOrc(req), req.params.itemId, req.params.fotoId, req.licencaUsuario)) })));
 app.post('/api/app/galeria/:projetoId/orcamentos/itens/:itemId/comentarios', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ comentario: orcLib.comentarComoArquiteto(...baseOrc(req), req.params.itemId, (req.body || {}).texto, req.licencaUsuario) })));
 app.put('/api/app/galeria/:projetoId/orcamentos/itens/:itemId/comentarios/:comId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => ({ comentario: orcLib.editarComentarioDoArquiteto(...baseOrc(req), req.params.itemId, req.params.comId, (req.body || {}).texto, req.licencaUsuario) })));
 app.delete('/api/app/galeria/:projetoId/orcamentos/itens/:itemId/comentarios/:comId', exigirSessaoArquiteto, exigirRecurso('orcamentos'), rotaOrc((req) => { orcLib.excluirComentarioDoArquiteto(...baseOrc(req), req.params.itemId, req.params.comId, req.licencaUsuario); return {}; }));
@@ -1132,8 +1165,12 @@ async function exigirSessaoOrcamento(req, res, next) {
 const rotaOrcCliente = (fn) => (req, res) => {
   try { res.json(Object.assign({ ok: true }, fn(req))); } catch (e) { res.status(400).json({ erro: e.message }); }
 };
-app.get('/api/orcamentos/:linkToken/itens', exigirSessaoOrcamento, rotaOrcCliente((req) => {
+app.get('/api/orcamentos/:linkToken/itens', exigirSessaoOrcamento, rotaOrcAsync(async (req) => {
   const lista = orcLib.listarParaCliente(CAMINHO_DADOS, req.params.linkToken);
+  // fotos: o cliente recebe só endereços temporários, nunca a chave do armazenamento
+  lista.itens = await Promise.all(lista.itens.map(async ({ fotoR2Key, fotosExtras, ...i }) => Object.assign(i, {
+    fotos: await Promise.all([fotoR2Key, ...fotosExtras.map((f) => f.r2Key)].filter(Boolean).map((k) => storage.urlTemporaria(k)))
+  })));
   const g = req.donoOrcamento; // já conferido ao vivo no middleware
   const estadoPerfil = galeria.lerEstado(CAMINHO_DADOS);
   // nome e contatos do escritório: alimentam o balão de ajuda (atalho do WhatsApp) da página de orçamentos

@@ -1190,3 +1190,22 @@ button.dash-chip-opcao:hover{ border-color:var(--steel-500); }
 .mem-pino:hover, .mem-pino:focus-visible{ transform:translate(-50%,-50%) scale(1.15); z-index:2; }
 @keyframes memDestaque{ 0%, 60%{ background:color-mix(in srgb, var(--steel-300) 30%, transparent); } 100%{ background:transparent; } }
 tr.mem-destaque td, .mem-card.mem-destaque{ animation:memDestaque 2.1s ease; }
+
+/* Orçamentos: ficha do produto (mesmos campos do Memorial) e foto ampliada */
+.orc-c-item.com-foto{ display:flex; gap:12px; align-items:flex-start; }
+.orc-c-texto{ min-width:0; flex:1; }
+.orc-foto{ position:relative; flex:none; width:76px; height:76px; padding:0; border:1px solid rgba(128,128,128,.35); border-radius:8px; background:#fff; overflow:hidden; cursor:zoom-in; }
+.orc-foto img{ width:100%; height:100%; object-fit:contain; display:block; }
+.orc-foto span{ position:absolute; right:3px; bottom:3px; padding:1px 6px; border-radius:999px; background:rgba(0,0,0,.72); color:#fff; font-size:11px; font-weight:700; }
+.orc-ficha{ margin-top:6px; display:flex; flex-direction:column; gap:3px; font-size:12.5px; line-height:1.45; opacity:.88; }
+.orc-ficha-linha{ white-space:pre-line; overflow-wrap:anywhere; }
+.orc-chips{ display:flex; flex-wrap:wrap; gap:4px; }
+.orc-chips span{ padding:1px 8px; border:1px solid rgba(128,128,128,.45); border-radius:999px; font-size:11px; }
+.orc-produto{ color:inherit; font-weight:700; width:max-content; }
+.orc-zoom{ position:fixed; inset:0; z-index:1000; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.9); padding:48px 12px; }
+.orc-zoom img{ max-width:100%; max-height:100%; object-fit:contain; background:#fff; border-radius:6px; }
+.orc-zoom button{ position:absolute; border:0; border-radius:999px; background:rgba(255,255,255,.16); color:#fff; width:42px; height:42px; font-size:22px; cursor:pointer; }
+.orc-zoom-fechar{ top:10px; right:10px; font-size:18px !important; }
+.orc-zoom-seta.esq{ left:8px; top:calc(50% - 21px); }
+.orc-zoom-seta.dir{ right:8px; top:calc(50% - 21px); }
+.orc-zoom-conta{ position:absolute; bottom:14px; left:0; right:0; text-align:center; color:#fff; font-size:13px; }

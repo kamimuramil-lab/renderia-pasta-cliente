@@ -45,7 +45,8 @@
       <input type="search" id="fBusca" placeholder="Buscar pelo nome do projeto..." aria-label="Buscar pelo nome do projeto" autocomplete="off">
       <label class="dash-filtro"><span>Arquiteto</span><select id="fArquiteto"></select></label>
       <label class="dash-filtro"><span>Tipo</span><select id="fTipo"><option value="">Todos</option></select></label>
-      <label class="dash-filtro"><span>Situação</span><select id="fSituacao"><option value="">Todas</option></select></label>
+      <label class="dash-filtro"><span>Status</span><select id="fSituacao"><option value="">Todos</option></select></label>
+      <label class="dash-filtro"><span>Agrupar por</span><select id="fAgrupar"><option value="nenhum">Nenhum</option><option value="arquiteto">Arquiteto</option><option value="tipo">Tipo</option><option value="status" selected>Status</option></select></label>
       <button class="dash-limpar" id="btnLimparFiltros" type="button" style="display:none;">Limpar filtros</button>
     </div>
     <div class="dash-resumo" id="dashResumo"></div>
@@ -68,8 +69,8 @@
     <div class="dash-modal-direita">
       <div class="dash-campo"><label class="dash-rotulo" for="dashTipo">Tipo</label><select id="dashTipo"><option value="">—</option></select>
         <div class="dash-add-arq"><input type="text" id="dashTipoNovo" maxlength="40" placeholder="Novo tipo" autocomplete="off"><button type="button" id="dashTipoAdd" aria-label="Cadastrar o tipo">+</button></div></div>
-      <div class="dash-campo"><label class="dash-rotulo" for="dashSituacao">Situação</label><select id="dashSituacao"></select>
-        <div class="dash-add-arq"><input type="text" id="dashSituacaoNova" maxlength="40" placeholder="Nova situação" autocomplete="off"><button type="button" id="dashSituacaoAdd" aria-label="Cadastrar a situação">+</button></div></div>
+      <div class="dash-campo"><label class="dash-rotulo" for="dashSituacao">Status</label><select id="dashSituacao"></select>
+        <div class="dash-add-arq"><input type="text" id="dashSituacaoNova" maxlength="40" placeholder="Novo status" autocomplete="off"><button type="button" id="dashSituacaoAdd" aria-label="Cadastrar o status">+</button></div></div>
     </div>
     </div>
     <details class="dash-listas">
