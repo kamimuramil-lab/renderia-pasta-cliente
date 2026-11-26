@@ -945,6 +945,10 @@ app.post('/api/app/galeria/:projetoId/memorial/setores/renomear', exigirSessaoAr
   try { res.json({ ok: true, setores: memLib.renomearSetor(CAMINHO_DADOS, req.params.projetoId, (req.body || {}).de, (req.body || {}).para, req.licencaUsuario) }); }
   catch (e) { res.status(400).json({ erro: e.message }); }
 });
+app.post('/api/app/galeria/:projetoId/memorial/setores/ordem', exigirSessaoArquiteto, exigirRecurso('memorial'), (req, res) => {
+  try { res.json({ ok: true, setores: memLib.ordenarSetores(CAMINHO_DADOS, req.params.projetoId, (req.body || {}).nomes, req.licencaUsuario) }); }
+  catch (e) { res.status(400).json({ erro: e.message }); }
+});
 app.post('/api/app/galeria/:projetoId/memorial/setores/excluir', exigirSessaoArquiteto, exigirRecurso('memorial'), (req, res) => {
   try { res.json({ ok: true, setores: memLib.excluirSetor(CAMINHO_DADOS, req.params.projetoId, (req.body || {}).nome, req.licencaUsuario) }); }
   catch (e) { res.status(400).json({ erro: e.message }); }
