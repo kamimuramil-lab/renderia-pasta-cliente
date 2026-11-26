@@ -684,6 +684,9 @@ body.visual-novo .btn-tema{ display:flex; }
 .orc-cab .orc-c-valor{ font-size:12.5px; font-weight:800; color:var(--text-dim); font-family:inherit; margin:0; }
 .orc-grupo-cab{ padding:13px 22px; background:var(--bg); border-top:1px solid var(--line); border-bottom:1px solid var(--line); font-size:13.5px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); }
 .orc-grupo-cab span{ margin-left:6px; font-weight:600; color:var(--text-faint); }
+.orc-grupo-cab{ display:flex; align-items:baseline; gap:6px; }
+.orc-grupo-cab .orc-grupo-nome{ margin-left:0; color:var(--text); font-weight:800; }
+.orc-grupo-cab .orc-grupo-soma{ margin-left:auto; text-transform:none; letter-spacing:0; font-size:15px; font-weight:700; color:var(--text-dim); }
 .orc-row{ border-bottom:1px solid var(--line-soft); }
 .orc-row.status-recusado{ opacity:.6; }
 .orc-c-somar{ display:flex; justify-content:center; padding-top:3px; cursor:pointer; }

@@ -17,8 +17,11 @@ galeria.criarOuAtualizarGaleria(CAMINHO, { projetoId: 'projO', licencaUsuario: D
 
 console.log('== 1. Orçamentos: reordenar, intruso barrado, id estranho e item novo não some ==');
 const nomes = () => orc.lerParaArquiteto(CAMINHO, 'projO', DONO).itens.map((i) => i.item);
+const catsIni = orc.lerParaArquiteto(CAMINHO, 'projO', DONO).categorias;
+assert.strictEqual(catsIni.length, 13, 'as 13 categorias padrão');
+catsIni.forEach((c) => orc.adicionarItem(CAMINHO, 'projO', { item: 'Orçamento de ' + c.nome, categoriaId: c.id }, DONO)); // 1 orçamento (de enfeite) em cada
 const antes = orc.lerParaArquiteto(CAMINHO, 'projO', DONO).itens;
-assert.strictEqual(antes.length, 13, 'os 13 itens padrão');
+assert.strictEqual(antes.length, 13, '13 orçamentos');
 const ids = antes.map((i) => i.id);
 const invertida = [...ids].reverse();
 orc.reordenarItens(CAMINHO, 'projO', invertida, DONO);

@@ -36,35 +36,36 @@ assert.throws(() => orc.adicionarItem(CAM, 'p1', { item: 'x', valor: '-5' }, DON
 assert.throws(() => orc.adicionarItem(CAM, 'p1', { item: 'x', valor: '2.000.000.000' }, DONO), /entre 0 e/);
 ok('27.252,00 é aceito (era o erro do Rodrigo); lixo e valor gigante continuam recusados');
 
-console.log('== 3. Orçamentos: itens padrão do Notion, uma vez só ==');
-assert.deepStrictEqual(o.itens.map((i) => i.item), orc.ITENS_PADRAO);
-assert.strictEqual(o.itens.length, 13);
-assert.ok(o.itens.every((i) => i.status === 'a_fazer' && i.valor === null && i.comentarios.length === 0));
+console.log('== 3. Orçamentos: categorias padrão do Notion, uma vez só ==');
+assert.deepStrictEqual(o.categorias.map((c) => c.nome), orc.ITENS_PADRAO);
+assert.strictEqual(o.categorias.length, 13);
 assert.ok(orc.ITENS_PADRAO.includes('Boxes de Vidro, Envidraçamento de Sacada e Espelhos') && orc.ITENS_PADRAO.includes('Marmoraria'));
 o = orc.lerParaArquiteto(CAM, 'p1', DONO);
-assert.strictEqual(o.itens.length, 14, 'ler de novo não repete os 13 (14 = 13 + o "Teste" que adicionei)');
-// excluir todos NÃO recria
-o.itens.forEach((i) => orc.excluirItem(CAM, 'p1', i.id, DONO));
-assert.strictEqual(orc.lerParaArquiteto(CAM, 'p1', DONO).itens.length, 0, 'quem apagou não ganha os itens de volta');
-// projeto que já tinha orçamentos (ex.: importado) ganha só as categorias que FALTAM, sem repetir (compara sem acento nem maiúscula)
+assert.strictEqual(o.categorias.length, 14, 'ler de novo não repete as 13 (14 = 13 + a categoria "Teste" que o app antigo criou)');
+assert.ok(o.itens.every((i) => i.categoriaId && o.categorias.some((c) => c.id === i.categoriaId)), 'todo orçamento está numa categoria');
+// excluir todas as categorias NÃO recria
+o.categorias.forEach((c) => orc.excluirCategoria(CAM, 'p1', c.id, DONO));
+assert.strictEqual(orc.lerParaArquiteto(CAM, 'p1', DONO).categorias.length, 0, 'quem apagou não ganha as categorias de volta');
+assert.strictEqual(orc.lerParaArquiteto(CAM, 'p1', DONO).itens.length, 0, 'e os orçamentos dentro delas foram junto');
+// projeto novo com orçamentos criados logo de cara: cada um cai na categoria padrão do mesmo nome (sem acento nem maiúscula), sem repetir
 novaGaleria('p2');
-orc.adicionarItem(CAM, 'p2', { item: 'Mármore antigo', valor: 100 }, DONO);
 orc.adicionarItem(CAM, 'p2', { item: 'MARMORARIA ', valor: 5000, status: 'evf' }, DONO);
-const p2 = orc.lerParaArquiteto(CAM, 'p2', DONO).itens;
-assert.strictEqual(p2.length, 2 + 12, 'os 2 que já tinha + as 12 categorias que faltavam (Marmoraria já existia)');
-assert.strictEqual(p2.filter((i) => /marmoraria/i.test(i.item)).length, 1, 'Marmoraria não foi duplicada');
-assert.strictEqual(p2.find((i) => /marmoraria/i.test(i.item)).valor, 5000, 'o item que já existia não foi mexido');
-assert.strictEqual(orc.lerParaArquiteto(CAM, 'p2', DONO).itens.length, 14, 'só completa uma vez');
+const p2 = orc.lerParaArquiteto(CAM, 'p2', DONO);
+assert.strictEqual(p2.categorias.filter((c) => /marmoraria/i.test(c.nome)).length, 1, 'Marmoraria não foi duplicada');
+assert.strictEqual(p2.itens.find((i) => /marmoraria/i.test(i.item)).valor, 5000, 'o orçamento não foi mexido');
 // só o dono
 assert.throws(() => orc.lerParaArquiteto(CAM, 'p2', 'outro'), /não pertence/);
-ok('13 itens na primeira abertura, só uma vez, não recria depois de apagar; projeto que já tinha orçamentos ganha só as categorias que faltam');
+ok('13 categorias na primeira abertura, só uma vez, não recria depois de apagar; sem repetir categoria do mesmo nome');
 
 console.log('== 4. O cliente só vê o que foi começado; pode aprovar também no EVF ==');
 novaGaleria('p3');
 const link = orc.definirAcesso(CAM, 'p3', { usuario: 'orc', senha: 'abcd1234' }, DONO).linkToken;
 const todos = orc.lerParaArquiteto(CAM, 'p3', DONO).itens;
-assert.strictEqual(orc.listarParaCliente(CAM, link).itens.length, 0, 'os 13 de enfeite não aparecem pro cliente');
-const marmoraria = todos.find((i) => i.item === 'Marmoraria');
+assert.strictEqual(orc.listarParaCliente(CAM, link).itens.length, 0, 'sem orçamento liberado, o cliente não vê nada');
+assert.strictEqual(orc.listarParaCliente(CAM, link).categorias.length, 0, 'nem as 13 categorias vazias');
+const catMarm = orc.lerParaArquiteto(CAM, 'p3', DONO).categorias.find((c) => c.nome === 'Marmoraria');
+const marmoraria = orc.adicionarItem(CAM, 'p3', { item: 'Marmoraria', categoriaId: catMarm.id }, DONO); // começa de enfeite (À fazer, vazio)
+assert.strictEqual(orc.listarParaCliente(CAM, link).itens.length, 0, 'orçamento de enfeite não aparece pro cliente');
 orc.editarItem(CAM, 'p3', marmoraria.id, { valor: '27.252,00', empresa: 'Marmoraria X', status: 'evf' }, DONO);
 const vistos = orc.listarParaCliente(CAM, link).itens;
 assert.deepStrictEqual(vistos.map((i) => [i.item, i.valor, i.podeMudarStatus]), [['Marmoraria', 27252, true]], 'só o preenchido aparece, e o cliente pode decidir (EVF)');
@@ -73,7 +74,8 @@ assert.strictEqual(orc.lerParaArquiteto(CAM, 'p3', DONO).itens.find((i) => i.id 
 assert.ok(orc.lerParaArquiteto(CAM, 'p3', DONO).notificacoes.some((n) => n.tipo === 'status' && n.para === 'fechado'), 'o arquiteto recebe a novidade');
 orc.mudarStatusCliente(CAM, link, marmoraria.id, 'analise_cliente'); // "Alterar decisão"
 // item À fazer com observação passa a aparecer, mas o cliente ainda não decide nele
-const cortinas = todos.find((i) => i.item === 'Cortinas e Persianas');
+const catCort = orc.lerParaArquiteto(CAM, 'p3', DONO).categorias.find((c) => c.nome === 'Cortinas e Persianas');
+const cortinas = orc.adicionarItem(CAM, 'p3', { item: 'Cortinas e Persianas', categoriaId: catCort.id }, DONO);
 orc.editarItem(CAM, 'p3', cortinas.id, { observacao: 'Aguardando medição' }, DONO);
 const v2 = orc.listarParaCliente(CAM, link).itens.find((i) => i.item === 'Cortinas e Persianas');
 assert.deepStrictEqual([v2.status, v2.podeMudarStatus], ['a_fazer', false]);
@@ -125,7 +127,7 @@ ok('setor novo chega ao cliente e a ordem segue a lista do projeto');
 console.log('== 7. Comentários: o arquiteto edita os SEUS e apaga qualquer um ==');
 novaGaleria('p6');
 const link6 = orc.definirAcesso(CAM, 'p6', { usuario: 'orc', senha: 'abcd1234' }, DONO).linkToken;
-const alvo = orc.lerParaArquiteto(CAM, 'p6', DONO).itens[0];
+const alvo = orc.adicionarItem(CAM, 'p6', { item: 'Ar Condicionado', categoriaId: orc.lerParaArquiteto(CAM, 'p6', DONO).categorias[0].id }, DONO);
 const cCli = orc.comentarCliente(CAM, link6, alvo.id, 'Pode melhorar o prazo?');
 const cArq = orc.comentarComoArquiteto(CAM, 'p6', alvo.id, 'Vou ver com o fornecedor.', DONO);
 const ed = orc.editarComentarioDoArquiteto(CAM, 'p6', alvo.id, cArq.id, '  Consegui reduzir o prazo.  ', DONO);

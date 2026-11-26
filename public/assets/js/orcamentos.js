@@ -11,8 +11,6 @@
   const CHAVE_TOKEN = `renderia_orc_token_${LINK}`;
   const CHAVE_TEMA = 'renderia_tema_hub'; // a mesma escolha de tema da Pasta Cliente (mesmo site, mesmo aparelho)
   const ROTULO = { a_fazer: 'À fazer', evf: 'EVF', em_andamento: 'Em andamento', analise_cliente: 'Para sua análise', fechado: 'Aprovado', recusado: 'Recusado' };
-  const TITULO_GRUPO = { analise_cliente: 'Para sua análise', em_andamento: 'Em andamento', evf: 'EVF', a_fazer: 'À fazer', fechado: 'Aprovados', recusado: 'Recusados' };
-  const ORDEM_GRUPOS = ['analise_cliente', 'em_andamento', 'evf', 'a_fazer', 'fechado', 'recusado'];
 
   let token = null;
   let dados = null;
@@ -189,12 +187,18 @@
   function renderizar() {
     const itens = dados.itens;
     if (!itens.length) { $('orcLista').innerHTML = '<div class="vazio-galeria">Ainda não há orçamentos por aqui. Volte em breve!</div>'; return; }
-    const grupos = ORDEM_GRUPOS.map((st) => {
-      const doGrupo = itens.filter((i) => i.status === st);
-      return doGrupo.length ? `<div class="orc-grupo-cab">${esc(TITULO_GRUPO[st])} <span>${doGrupo.length}</span></div>${doGrupo.map(linha).join('')}` : '';
+    // Os orçamentos ficam AGRUPADOS POR CATEGORIA (Marcenaria, Iluminação...), na ordem que o escritório definiu; cada orçamento
+    // mostra o próprio status (menu de decisão). O total de cada categoria soma o que está nela (sem os recusados).
+    const somaDe = (lista) => lista.filter((i) => i.status !== 'recusado').reduce((t, i) => t + (temValor(i) ? i.valor : 0), 0);
+    const categorias = (dados.categorias && dados.categorias.length) ? dados.categorias : [{ id: '', nome: 'Orçamentos' }]; // servidor sem categorias: um grupo só
+    const grupos = categorias.map((c) => {
+      const doGrupo = itens.filter((i) => (c.id ? i.categoriaId === c.id : true));
+      if (!doGrupo.length) return '';
+      const sub = somaDe(doGrupo);
+      return `<div class="orc-grupo-cab"><span class="orc-grupo-nome">${esc(c.nome)}</span> <span>${doGrupo.length}</span>${sub > 0 ? `<span class="orc-grupo-soma">${moeda(sub)}</span>` : ''}</div>${doGrupo.map(linha).join('')}`;
     }).join('');
     $('orcLista').innerHTML = `${avisoDeNovidades()}<div class="orc-tabela">
-      <div class="orc-cab"><span>Somar</span><span>Categoria</span><span class="orc-c-valor">Valor</span><span>Observação</span><span>Decisão</span></div>
+      <div class="orc-cab"><span>Somar</span><span>Orçamento</span><span class="orc-c-valor">Valor</span><span>Observação</span><span>Decisão</span></div>
       ${grupos}
       <div class="orc-totais" id="orcTotais">${totaisHtml()}</div>
     </div>`;

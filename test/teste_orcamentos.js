@@ -15,7 +15,9 @@ const g0 = galeria.criarOuAtualizarGaleria(CAMINHO, { projetoId: 'projO', licenc
 const lerO = () => galeria.buscarGaleriaPorProjeto(CAMINHO, 'projO').orcamentos;
 
 console.log('== 1. Galeria nova nasce sem orçamentos; galeria ANTIGA (sem o campo) também ganha ==');
-assert.deepStrictEqual(lerO(), { acesso: null, itens: [], notificacoes: [], temNovidadeNaoLida: false });
+const o0 = lerO();
+assert.deepStrictEqual([o0.acesso, o0.itens, o0.notificacoes, o0.temNovidadeNaoLida], [null, [], [], false]);
+assert.deepStrictEqual(o0.categorias.map((c) => c.nome), orc.ITENS_PADRAO, 'projeto novo já vem com as categorias padrão (vazias)');
 const antigo = JSON.parse(fs.readFileSync(CAMINHO, 'utf8'));
 delete antigo.galerias[0].orcamentos;
 fs.writeFileSync(CAMINHO, JSON.stringify(antigo));
@@ -30,7 +32,7 @@ const acesso = orc.definirAcesso(CAMINHO, 'projO', { usuario: '  orc-cliente ', 
 assert.strictEqual(acesso.usuario, 'orc-cliente');
 assert.ok(/^[0-9a-f]{32}$/.test(acesso.linkToken) && acesso.linkToken !== g0.linkToken, 'link do orçamento é outro, e diferente do da Pasta Cliente');
 const lido = orc.lerParaArquiteto(CAMINHO, 'projO', DONO);
-assert.deepStrictEqual(lido.acesso, { linkToken: acesso.linkToken, usuario: 'orc-cliente' });
+assert.deepStrictEqual(lido.acesso, { linkToken: acesso.linkToken, usuario: 'orc-cliente', senha: 'senha-orc' }); // o DONO vê a senha atual (cópia cifrada)
 assert.ok(!JSON.stringify(lido).includes('senhaHash') && !JSON.stringify(lido).includes('sessoesAtivas'), 'o app nunca recebe hash nem sessões');
 const tokSessao = orc.loginCliente(CAMINHO, acesso.linkToken, 'orc-cliente', 'senha-orc');
 assert.ok(orc.validarTokenCliente(CAMINHO, acesso.linkToken, tokSessao));
@@ -53,7 +55,7 @@ assert.throws(() => orc.adicionarItem(CAMINHO, 'projO', { item: 'x', valor: -1 }
 assert.throws(() => orc.adicionarItem(CAMINHO, 'projO', { item: 'x', valor: 'abc' }, DONO), /Valor/);
 assert.throws(() => orc.adicionarItem(CAMINHO, 'projO', { item: 'x', url: 'javascript:alert(1)' }, DONO), /inválido/);
 assert.throws(() => orc.adicionarItem(CAMINHO, 'projO', { item: 'x', status: 'qualquer' }, DONO), /Status/);
-assert.strictEqual(lerO().itens.length, 3 + orc.ITENS_PADRAO.length, 'nenhuma tentativa inválida criou item');
+assert.strictEqual(lerO().itens.length, 3, 'nenhuma tentativa inválida criou item');
 console.log('OK');
 
 console.log('== 4. Editar: valida tudo antes de aplicar; o arquiteto escolhe qualquer status ==');
